@@ -305,14 +305,16 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F5 Grafica e temi | ✅ | 4 theme pack, audio sintetizzato, classifiche animate, reazioni |
 | F6 Altri minigiochi | ✅ | Vero/Falso, Stima, Sondaggio; guida `docs/NUOVO-MINIGIOCO.md` |
 | F7 Duello dei Cavalieri | ✅ (da provare con persone) | Guida `docs/DUELLO-DEI-CAVALIERI.md`; arena in HTML/CSS con sprite Kenney |
-| F8 Packaging e prova sul campo | ⏳ | Eseguibile Windows, stress test con 30 bot, serata di prova; snapshot dello stato |
+| F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
 
 **Scostamenti dal piano originale (concordati)**
 - **Test end-to-end con Playwright** (Edge, senza screenshot) oltre a Vitest.
 - **Plugin in due parti**: logica pura in `packages/minigames`, viste React nel client.
 - **Mazzo del duello** come contenuto della libreria, non come tabelle `decks`/`ability_cards`.
 - **Arena del duello in HTML/CSS** (animazioni CSS sugli sprite) invece di PixiJS: PixiJS resta una possibile miglioria futura per particelle ed effetti più ricchi.
-- **Snapshot dello stato** (`match_state_snapshots`) rimandati a F8: oggi, se il PC si riavvia a metà partita, la partita in corso va rifatta.
+- **Eseguibile = pacchetto portabile** (cartella/zip con `node.exe`, server in un solo file via esbuild, client compilato, modulo nativo SQLite, `cloudflared.exe` e lanciatori `.bat`) invece di Node SEA o `bun build --compile`: più semplice e robusto con il modulo nativo di SQLite. Il lanciatore apre schermo e regia nel browser.
+- **Snapshot dello stato** (`match_state_snapshots`): la partita in corso si salva a ogni cambiamento e riprende dopo un riavvio del PC; i timer scaduti nel frattempo si risolvono al primo tick.
+- **Tunnel**: riavvio automatico con attese crescenti se `cloudflared` cade, e spegnimento di un `cloudflared` orfano al riavvio (PID annotato in `data/cloudflared.pid`).
 
 ---
 
