@@ -3,6 +3,7 @@ import type { EventDetail, EventSummary, HostCommand } from "@gioco/shared";
 import { Leaderboard } from "../ui/Leaderboard";
 import { api, errorMessage } from "./api";
 import { useAdminGame } from "./useAdminGame";
+import { type QrCode, ZoneQrSheet } from "./ZoneQrSheet";
 
 const PHASE_LABEL = {
   idle: "Nessuna partita",
@@ -31,7 +32,7 @@ function InfoView({ info }: { info: unknown }) {
   return (
     <dl className="info">
       {Object.entries(info as Record<string, unknown>)
-        .filter(([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0))
+        .filter(([k, v]) => k !== "qrCodes" && v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0))
         .map(([k, v]) => (
           <div key={k}>
             <dt>{INFO_LABEL[k] ?? k}</dt>
@@ -109,6 +110,9 @@ export function LivePanel() {
   if (!state) return <section className="panel"><p>{connected ? "Caricamento…" : "Connessione alla regia…"}</p></section>;
 
   const active = state.phase !== "idle";
+  // I minigiochi con punti fisici (QR) lo dichiarano nella vista della regia.
+  const hostInfo = state.host?.info as { qrCodes?: QrCode[] } | undefined;
+  const qrCodes = hostInfo?.qrCodes && hostInfo.qrCodes.length > 0 ? hostInfo.qrCodes : null;
 
   return (
     <div className="live">
@@ -159,6 +163,8 @@ export function LivePanel() {
           </div>
         </section>
       )}
+
+      {qrCodes && state.phase === "round" && <ZoneQrSheet codes={qrCodes} />}
 
       {active && state.leaderboards && (
         <section className="panel">

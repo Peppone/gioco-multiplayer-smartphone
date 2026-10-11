@@ -1,5 +1,6 @@
 import { type ComponentType, createElement } from "react";
 import { BuzzerController, BuzzerScreen } from "./buzzer/BuzzerViews";
+import { GhostHuntController, GhostHuntScreen } from "./caccia-fantasmi/GhostHuntViews";
 import { IndovinaCanzoneController, IndovinaCanzoneScreen } from "./indovina-canzone/IndovinaCanzoneViews";
 import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews";
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
@@ -23,6 +24,7 @@ const roundViews: Record<string, MinigameViews> = {
   sondaggio: { Screen: SondaggioScreen, Controller: SondaggioController },
   "zombie-hunt": { Screen: ZombieHuntScreen, Controller: ZombieHuntController },
   "indovina-canzone": { Screen: IndovinaCanzoneScreen, Controller: IndovinaCanzoneController },
+  "caccia-fantasmi": { Screen: GhostHuntScreen, Controller: GhostHuntController },
 };
 
 const DuelScreen = createDuelScreen(roundViews);
