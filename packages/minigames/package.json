@@ -1,0 +1,15 @@
+{
+  "name": "@gioco/minigames",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@gioco/shared": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}
