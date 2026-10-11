@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyMinigame, MinigameContext } from "@gioco/shared";
 import { roundMinigames } from "../../../packages/minigames/src/index.js";
 import { createKnightDuel, duelModeSchema, DEFAULT_DECK } from "../../../packages/minigames/src/knight-duel/index.js";
-import { decide, makeRnd } from "./strategy.js";
+import { GHOST_HUNT_BOT_CODES, decide, makeRnd } from "./strategy.js";
 
 const ctx: MinigameContext = {
   players: [
@@ -22,7 +22,7 @@ describe("strategia dei bot", () => {
     it(`${plugin.id}: gli input dei bot sono validi e vengono registrati`, () => {
       const state = plugin.init(plugin.configSchema.parse(plugin.sampleConfig), ctx, 0);
       // Per buzzer e indovina-canzone serve prima che la regia apra le prenotazioni.
-      const opener = plugin.id === "buzzer" ? "open" : plugin.id === "indovina-canzone" ? "start" : null;
+      const opener = plugin.id === "buzzer" ? "open" : plugin.id === "indovina-canzone" || plugin.id === "caccia-fantasmi" ? "start" : null;
       const ready = opener ? plugin.onHostCommand(state, { type: opener }, 10) : state;
       const rnd = makeRnd(1);
       let touched = 0;
@@ -42,6 +42,11 @@ describe("strategia dei bot", () => {
       expect(touched, "almeno un bot deve riuscire a influenzare il minigioco").toBeGreaterThan(0);
     });
   }
+
+  it("caccia-fantasmi: i codici delle zone dei bot sono quelli della configurazione di esempio", () => {
+    const sample = roundMinigames["caccia-fantasmi"]!.sampleConfig as { zones: { code: string }[] };
+    expect(GHOST_HUNT_BOT_CODES).toEqual(sample.zones.map((z) => z.code));
+  });
 
   it("non agisce due volte nella stessa situazione né quando ha già risposto", () => {
     const quiz = roundMinigames["quiz-multipla"]!;

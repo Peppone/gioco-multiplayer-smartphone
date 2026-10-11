@@ -59,10 +59,24 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
       return { key: `zh${v.round}`, inputs: [input] };
     }
 
+    case "caccia-fantasmi": {
+      if (v.phase !== "play") return null;
+      // Un'azione sola per partita: i bot non conoscono i tempi di pausa e non devono martellare il server.
+      if (v.role === "ghost") return { key: "gf-scan", inputs: [{ type: "scan", code: pick(GHOST_HUNT_BOT_CODES, rnd) }] };
+      const suspects = (v.suspects ?? []) as { id: string }[];
+      return suspects.length > 0 ? { key: "gf-accuse", inputs: [{ type: "accuse", target: pick(suspects, rnd).id }] } : null;
+    }
+
     default:
       return null;
   }
 }
+
+/**
+ * Codici delle zone della configurazione di esempio di «Caccia ai Fantasmi». Chi gioca davvero li legge dai QR
+ * appesi nella location, le viste non li contengono: i bot si affidano all'esempio (un test li tiene allineati).
+ */
+export const GHOST_HUNT_BOT_CODES = ["K7QD", "M2XP", "R9TV", "H4WZ"];
 
 /** Il duello: minigioco figlio (avvolto in `child`), voto del draft e voto della battaglia. */
 function decideDuel(v: View, rnd: Rnd): Decision | null {
