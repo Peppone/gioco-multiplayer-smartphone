@@ -9,12 +9,17 @@
     "start": "pnpm --filter @gioco/client build && pnpm --filter @gioco/server start",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:stress": "vitest run --config vitest.stress.config.ts",
+    "stress": "pnpm --filter @gioco/bots start",
+    "package:win": "node tools/package/build.mjs",
+    "package:check": "node tools/package/check.mjs",
     "duel:balance": "pnpm --filter @gioco/server exec tsx ../../tools/duel/balance.ts",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
   }

@@ -14,6 +14,9 @@ importers:
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -133,6 +136,19 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  tools/bots:
+    dependencies:
+      '@gioco/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      socket.io-client:
+        specifier: ^4.8.4
+        version: 4.8.4
+    devDependencies:
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
 
 packages:
 
