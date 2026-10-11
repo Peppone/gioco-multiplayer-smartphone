@@ -2,7 +2,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TunnelManager, parseTunnelUrl } from "./tunnel.js";
 
 describe("parseTunnelUrl", () => {
@@ -84,9 +84,10 @@ describe("riavvio automatico del tunnel", () => {
     // `node tunnel ...` termina subito con errore: simula un cloudflared che cade di continuo.
     const tm = new TunnelManager(process.execPath, { backoffMs: [20, 40], onSpawn: () => spawned++ });
     tm.start(3000);
-    await wait(700);
-    expect(spawned).toBeGreaterThanOrEqual(3);
-    expect(tm.current.status).toBe("error");
+    // Si aspettano le condizioni invece di un'attesa fissa: con la suite in parallelo avviare node richiede più tempo,
+    // e a un istante qualsiasi il tunnel può essere tra un errore e il tentativo successivo («starting»).
+    await vi.waitFor(() => expect(spawned).toBeGreaterThanOrEqual(3), { timeout: 5_000, interval: 20 });
+    await vi.waitFor(() => expect(tm.current.status).toBe("error"), { timeout: 5_000, interval: 5 });
     tm.stop();
     const after = spawned;
     await wait(300);
