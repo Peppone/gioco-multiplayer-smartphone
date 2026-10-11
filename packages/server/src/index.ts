@@ -18,7 +18,8 @@ const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const port = Number(process.env.PORT ?? DEFAULT_PORT);
 const lanAddress = pickLanAddress();
 
-const { sqlite, db } = openDb(resolve(rootDir, "data/gioco.sqlite"));
+// DB_FILE permette ai test e2e di usare un database usa-e-getta, separato da quello vero.
+const { sqlite, db } = openDb(process.env.DB_FILE ?? resolve(rootDir, "data/gioco.sqlite"));
 
 const tunnel = new TunnelManager(findCloudflared(rootDir));
 if (process.env.NO_TUNNEL !== "1") tunnel.start(port);

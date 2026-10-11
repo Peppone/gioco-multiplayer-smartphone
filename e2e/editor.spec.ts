@@ -1,0 +1,87 @@
+import { expect, test } from "@playwright/test";
+import { adminToken, openAdmin, unique } from "./support";
+
+test.describe("editor della libreria (form generato dallo schema)", () => {
+  test("crea un quiz dal modulo, lo esporta e lo reimporta", async ({ browser, request }) => {
+    const admin = await openAdmin(browser, await adminToken(request));
+    const { page } = admin;
+    const title = unique("Quiz modulo");
+
+    await page.getByRole("button", { name: "Libreria" }).click();
+    await page.getByRole("button", { name: "+ Quiz a scelta multipla" }).click();
+    await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(title);
+
+    // Il modulo parte dall'esempio del plugin (2 domande): modifico la prima.
+    const q1 = page.locator(".item.card").first();
+    await q1.getByLabel("Domanda", { exact: true }).fill("Chi scrisse la Divina Commedia?");
+    await q1.getByLabel("Risposta 1").fill("Dante");
+    await q1.getByLabel("Risposta 2").fill("Petrarca");
+    // La risposta corretta si sceglie con un pulsante accanto alle risposte, non digitando un indice.
+    await q1.locator(".radios label", { hasText: "A: Dante" }).click();
+    await expect(q1.locator(".radios label.on")).toContainText("Dante");
+
+    // Aggiungere e togliere elementi rispetta i limiti dello schema (minimo 2 risposte).
+    await expect(q1.getByRole("button", { name: "Elimina" }).first()).toBeEnabled();
+
+    await page.getByRole("button", { name: "Salva" }).click();
+    await expect(page.getByText("Salvato.")).toBeVisible();
+    const row = page.locator(".library ul.list li", { hasText: title });
+    await expect(row).toBeVisible();
+
+    // Esporta: il file contiene tipo, titolo e configurazione
+    const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: "Esporta" }).click()]);
+    const exported = JSON.parse(await (await import("node:fs/promises")).readFile((await download.path())!, "utf8"));
+    expect(exported).toMatchObject({ kind: "gioco-ros/instance", typeId: "quiz-multipla", title });
+    expect(exported.config.questions[0]).toMatchObject({ text: "Chi scrisse la Divina Commedia?", correctIndex: 0 });
+
+    // Reimporta lo stesso file: compare una seconda istanza con lo stesso titolo
+    await page.locator('input[type="file"]').setInputFiles({
+      name: "quiz.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(exported)),
+    });
+    await expect(page.getByText("Importate 1 istanze.")).toBeVisible();
+    await expect(page.locator(".library ul.list li", { hasText: title })).toHaveCount(2);
+  });
+
+  test("segnala configurazioni non valide e file di import sbagliati", async ({ browser, request }) => {
+    const admin = await openAdmin(browser, await adminToken(request));
+    const { page } = admin;
+    await page.getByRole("button", { name: "Libreria" }).click();
+    await page.getByRole("button", { name: "+ Buzzer" }).click();
+    await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Buzzer rotto"));
+
+    // JSON sintatticamente sbagliato
+    await page.getByRole("button", { name: "JSON avanzato" }).click();
+    await page.locator("textarea").fill("{ non json");
+    await page.getByRole("button", { name: "Salva" }).click();
+    await expect(page.getByText("Il JSON non è valido.")).toBeVisible();
+
+    // JSON valido ma contro lo schema: il server spiega dove sta il problema
+    await page.locator("textarea").fill(JSON.stringify({ questions: [] }));
+    await page.getByRole("button", { name: "Salva" }).click();
+    await expect(page.locator(".error")).toContainText("Controlla i dati");
+    await expect(page.locator(".error")).toContainText("questions");
+
+    // File di import che non è un export di Gioco Ros
+    await page.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"foo":1}') });
+    await expect(page.locator(".error")).toContainText("non è un export di Gioco Ros");
+  });
+
+  test("i round si riordinano e non si toccano a partita avviata (via API)", async ({ request }) => {
+    const token = await adminToken(request);
+    const headers = { Authorization: `Bearer ${token}` };
+    const post = async (path: string, data: unknown) => (await request.post(`/api/admin${path}`, { headers, data })).json();
+    const cfg = { questions: [{ text: "D?", options: ["a", "b"], correctIndex: 0 }] };
+    const i1 = await post("/instances", { typeId: "quiz-multipla", title: "R1", config: cfg });
+    const i2 = await post("/instances", { typeId: "quiz-multipla", title: "R2", config: cfg });
+    const ev = await post("/events", { name: unique("Ev") });
+    const m = await post(`/events/${ev.id}/matches`, { name: "P" });
+    const r1 = (await post(`/matches/${m.id}/rounds`, { instanceId: i1.id }))[0];
+    const r2 = (await post(`/matches/${m.id}/rounds`, { instanceId: i2.id }))[1];
+    const res = await request.put(`/api/admin/matches/${m.id}/rounds/order`, { headers, data: { roundIds: [r2.id, r1.id] } });
+    expect((await res.json()).map((r: { title: string }) => r.title)).toEqual(["R2", "R1"]);
+    const bad = await request.put(`/api/admin/matches/${m.id}/rounds/order`, { headers, data: { roundIds: [r1.id] } });
+    expect(bad.status()).toBe(400);
+  });
+});

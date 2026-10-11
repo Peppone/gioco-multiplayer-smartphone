@@ -8,9 +8,11 @@
     "build": "pnpm -r build",
     "start": "pnpm --filter @gioco/client build && pnpm --filter @gioco/server start",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.0",
     "@types/node": "^26.6.5",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
