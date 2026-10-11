@@ -1,4 +1,4 @@
-import { type APIRequestContext, type Browser, type BrowserContext, type Page, devices, expect } from "@playwright/test";
+import { type APIRequestContext, type Browser, type BrowserContext, type Page, devices, expect, test as base } from "@playwright/test";
 
 export const ADMIN_PASSWORD = "e2e-password-123";
 const ADMIN_TOKEN_KEY = "gioco.admin.token";
@@ -78,3 +78,78 @@ export async function openAdmin(browser: Browser, token: string): Promise<Client
 export function openScreen(browser: Browser): Promise<Client> {
   return open(browser, { viewport: { width: 1920, height: 1080 } }, "/screen");
 }
+
+export interface GameSetup {
+  screen: Client;
+  admin: Client;
+  a: Client;
+  b: Client;
+  nickA: string;
+  nickB: string;
+  /** Termina la partita (se serve) e torna alla lobby: lascia il server pulito per gli altri test. */
+  finish: () => Promise<void>;
+}
+
+/**
+ * Allestisce una partita pronta: 2 squadre, 2 giocatori (Ada e Bob, uno per squadra), i round indicati,
+ * schermo + regia + due telefoni aperti, partita avviata dal pannello Live (fase «pronta»).
+ */
+export async function createGame(
+  browser: Browser,
+  request: APIRequestContext,
+  rounds: { typeId: string; title: string; theme?: string; config: unknown }[],
+): Promise<GameSetup> {
+  const token = await adminToken(request);
+  const api = adminApi(request, token);
+
+  const t1 = await api.call<{ id: string }>("post", "/teams", { name: unique("Rossi"), color: "#ef4444", emblem: "🔥" });
+  const t2 = await api.call<{ id: string }>("post", "/teams", { name: unique("Blu"), color: "#3b82f6", emblem: "🌊" });
+  const eventName = unique("Serata");
+  const event = await api.call<{ id: string }>("post", "/events", { name: eventName });
+  await api.call("put", `/events/${event.id}/teams`, { teamIds: [t1.id, t2.id] });
+  const matchName = unique("Partita");
+  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName, mode: "classic" });
+  for (const r of rounds) {
+    const inst = await api.call<{ id: string }>("post", "/instances", r);
+    await api.call("post", `/matches/${match.id}/rounds`, { instanceId: inst.id });
+  }
+
+  const screen = await openScreen(browser);
+  const nickA = unique("Ada");
+  const nickB = unique("Bob");
+  const a = await joinPlayer(browser, nickA);
+  const b = await joinPlayer(browser, nickB);
+  const players = await api.call<{ id: string; nickname: string }[]>("get", "/players");
+  const idOf = (n: string) => players.find((p) => p.nickname === n)!.id;
+  await api.call("put", `/events/${event.id}/players/${idOf(nickA)}`, { teamId: t1.id });
+  await api.call("put", `/events/${event.id}/players/${idOf(nickB)}`, { teamId: t2.id });
+
+  const admin = await openAdmin(browser, token);
+  await admin.page.locator("select").first().selectOption({ label: eventName });
+  await admin.page.locator("li", { hasText: matchName }).getByRole("button", { name: "Avvia" }).click();
+  await expect(screen.page.getByText("Si comincia tra poco!")).toBeVisible();
+
+  const finish = async () => {
+    const end = admin.page.getByRole("button", { name: "Termina la partita" });
+    if (await end.isVisible()) await end.click({ timeout: 5_000 });
+    await admin.page.getByRole("button", { name: "Torna alla lobby" }).click({ timeout: 5_000 });
+    await expect(screen.page.getByRole("heading", { name: "Gioco Ros" })).toBeVisible();
+  };
+  return { screen, admin, a, b, nickA, nickB, finish };
+}
+
+/**
+ * `test` con il fixture `newGame`: allestisce una partita e, a fine test (anche se fallisce a metà),
+ * la termina e torna alla lobby, così un errore non fa fallire a cascata i test successivi.
+ */
+export const test = base.extend<{ newGame: (rounds: Parameters<typeof createGame>[2]) => Promise<GameSetup> }>({
+  newGame: async ({ browser, request }, use) => {
+    const games: GameSetup[] = [];
+    await use(async (rounds) => {
+      const game = await createGame(browser, request, rounds);
+      games.push(game);
+      return game;
+    });
+    for (const game of games) await game.finish().catch(() => undefined);
+  },
+});

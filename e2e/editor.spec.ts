@@ -85,3 +85,37 @@ test.describe("editor della libreria (form generato dallo schema)", () => {
     expect(bad.status()).toBe(400);
   });
 });
+
+test("un plugin nuovo ha il suo editor senza codice: sondaggio con etichette e valori predefiniti", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Sondaggio e voto" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Sondaggio form"));
+
+  // Le scelte dell'enum hanno etichette in italiano (da .meta({ enumLabels })), non i valori tecnici
+  const kind = page.getByLabel("Tipo di voto").first();
+  await expect(kind.locator("option")).toHaveText(["Scelta tra opzioni", "Voto a un giocatore"]);
+
+  // Una nuova domanda nasce già valida: tipo options e opzioni Sì/No di default
+  await page.getByRole("button", { name: "+ Aggiungi domanda" }).click();
+  const added = page.locator(".item.card").last();
+  await expect(added.getByLabel("Tipo di voto")).toHaveValue("options");
+  await expect(added.getByLabel("Opzione 1")).toHaveValue("Sì");
+  await added.getByLabel("Domanda", { exact: true }).fill("Domanda aggiunta dal modulo");
+
+  await page.getByRole("button", { name: "Salva" }).click();
+  await expect(page.getByText("Salvato.")).toBeVisible();
+});
+
+test("tutti i tipi di minigioco sono nella libreria con un esempio valido e salvabile", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await page.getByRole("button", { name: "Libreria" }).click();
+  for (const type of ["Quiz a scelta multipla", "Buzzer", "Vero o falso a raffica", "Stima numerica", "Sondaggio e voto"]) {
+    await page.getByRole("button", { name: `+ ${type}` }).click();
+    await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique(type.slice(0, 8)));
+    await page.getByRole("button", { name: "Salva" }).click();
+    await expect(page.getByText("Salvato."), `salvataggio di ${type}`).toBeVisible();
+  }
+});
