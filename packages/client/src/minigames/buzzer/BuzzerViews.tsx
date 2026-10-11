@@ -1,3 +1,6 @@
+import { useEffect, useRef } from "react";
+import { useSfx } from "../../audio/useAudio";
+import { Sfx } from "../../ui/Sfx";
 import type { ControllerProps, ViewProps } from "../types";
 
 interface BuzzerScreenView {
@@ -21,11 +24,29 @@ interface BuzzerPlayerView {
 }
 type Done = { phase: "done" };
 
-export function BuzzerScreen({ view }: ViewProps) {
+export function BuzzerScreen({ view, theme }: ViewProps) {
   const v = view as BuzzerScreenView | Done;
+  const sfx = useSfx(theme);
+  const phase = v.phase;
+  const answeringId = v.phase === "answering" ? v.answering?.playerId : undefined;
+  const hasWinner = v.phase === "resolved" && v.winner?.playerId != null;
+
+  // Il buzzer si apre: via; qualcuno risponde (anche il successivo in coda): campanello; esito: ok/ko.
+  useEffect(() => {
+    if (phase === "open") sfx("start");
+  }, [phase, sfx]);
+  useEffect(() => {
+    if (answeringId) sfx("buzz");
+  }, [answeringId, sfx]);
+  useEffect(() => {
+    if (phase === "resolved") sfx(hasWinner ? "correct" : "wrong");
+  }, [phase, hasWinner, sfx]);
+
   if (v.phase === "done") return <p className="big">Buzzer concluso!</p>;
   return (
     <div className="buzzer-screen">
+      <Sfx theme={theme} text="BZZT!" trigger={answeringId ?? null} />
+      <Sfx theme={theme} text="BAM!" trigger={hasWinner ? v.index : null} />
       <p className="muted">Domanda {v.index + 1} di {v.total}</p>
       <h2 className="question">{v.question}</h2>
       {v.phase === "idle" && <p className="big">Pronti…</p>}
@@ -51,8 +72,18 @@ export function BuzzerScreen({ view }: ViewProps) {
   );
 }
 
-export function BuzzerController({ view, send }: ControllerProps) {
+export function BuzzerController({ view, send, theme }: ControllerProps) {
   const v = view as BuzzerPlayerView | Done;
+  const sfx = useSfx(theme);
+  const answering = v.phase !== "done" && v.isAnswering;
+  const wasAnswering = useRef(false);
+
+  // Tocca a te: avviso sonoro (la pressione stessa dà feedback immediato, vedi sotto).
+  useEffect(() => {
+    if (answering && !wasAnswering.current) sfx("start");
+    wasAnswering.current = answering;
+  }, [answering, sfx]);
+
   if (v.phase === "done") return <p className="big">Buzzer concluso!</p>;
 
   let label = "Aspetta…";
@@ -67,7 +98,12 @@ export function BuzzerController({ view, send }: ControllerProps) {
         className={`buzz-btn ${v.isAnswering ? "answering" : ""}`}
         disabled={!v.canBuzz}
         // pointerdown e non click: niente ritardo di 300 ms su mobile.
-        onPointerDown={() => v.canBuzz && send({ type: "buzz" })}
+        onPointerDown={() => {
+          if (!v.canBuzz) return;
+          send({ type: "buzz" });
+          navigator.vibrate?.(30); // Android; iOS la ignora
+          sfx("buzz", 0.5);
+        }}
       >
         {label}
       </button>

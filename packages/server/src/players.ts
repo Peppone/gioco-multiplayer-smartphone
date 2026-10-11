@@ -21,6 +21,10 @@ export class PlayerService {
     private readonly now: () => number = Date.now,
   ) {}
 
+  get(id: string): PlayerRow | undefined {
+    return this.db.select().from(players).where(eq(players.id, id)).get();
+  }
+
   list(): PlayerRow[] {
     return this.db.select().from(players).all();
   }

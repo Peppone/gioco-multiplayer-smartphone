@@ -1,0 +1,63 @@
+/* Theme pack «retro80»: neon, griglia synthwave, scanline CRT. */
+@import "@fontsource/orbitron/latin-700.css";
+@import "@fontsource/orbitron/latin-900.css";
+
+[data-theme="retro80"] {
+  --bg: #0b0220;
+  --fg: #e8f6ff;
+  --panel: #1a0b3d;
+  --panel-2: #2c1366;
+  --primary: #ff2bd6;
+  --accent: #00f0ff;
+  --good: #00d68f;
+  --good-ring: #7dffd2;
+  --bad: #ff2b5c;
+  --buzz: #ff2bd6;
+  --buzz-ring: #00f0ff;
+  --opt-0: #ff2b7a;
+  --opt-1: #1f8bff;
+  --opt-2: #ffb300;
+  --opt-3: #00c97a;
+  --opt-4: #a13cff;
+  --opt-5: #00c2d9;
+  --font: "Orbitron", system-ui, sans-serif;
+  --font-display: "Orbitron", system-ui, sans-serif;
+  --radius: 0.5rem;
+  --border-w: 2px;
+  --border-c: #00f0ff;
+  --shadow: 0 0 0.9rem rgba(0, 240, 255, 0.55), inset 0 0 0.9rem rgba(0, 240, 255, 0.25);
+  --text-shadow: 0 0 0.35em currentColor;
+}
+[data-theme="retro80"] h1,
+[data-theme="retro80"] h2,
+[data-theme="retro80"] .big { font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; }
+[data-theme="retro80"] .question { font-weight: 700; }
+[data-theme="retro80"] .buzz-btn { box-shadow: 0 0 2rem var(--buzz), inset 0 0 1.5rem rgba(255, 255, 255, 0.35); }
+[data-theme="retro80"] button { border: 2px solid var(--accent); box-shadow: 0 0 0.6rem rgba(0, 240, 255, 0.5); }
+[data-theme="retro80"] .lb-table li { border: 2px solid var(--accent); border-left-width: 8px; box-shadow: 0 0 0.6rem rgba(0, 240, 255, 0.35); }
+[data-theme="retro80"] .countdown .bar div { box-shadow: 0 0 0.8rem var(--accent); }
+
+/* Cielo + sole + griglia in prospettiva. */
+.screen[data-theme="retro80"]::before {
+  background:
+    linear-gradient(to top, transparent 0 40%, #0b0220 100%),
+    radial-gradient(circle at 50% 78%, #ff2bd6 0 9rem, transparent 9.1rem),
+    linear-gradient(180deg, #1b0446 0%, #4a0b6e 55%, #0b0220 55%);
+  opacity: 0.75;
+}
+.screen[data-theme="retro80"]::after {
+  /* griglia + scanline CRT con leggero sfarfallio */
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px 4px),
+    linear-gradient(rgba(0, 240, 255, 0.35) 1px, transparent 1px) 0 100% / 100% 48px,
+    linear-gradient(90deg, rgba(0, 240, 255, 0.35) 1px, transparent 1px) 50% 100% / 64px 100%;
+  mask-image: linear-gradient(to top, #000 0 45%, rgba(0, 0, 0, 0.35) 70%, #000 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 0 45%, rgba(0, 0, 0, 0.35) 70%, #000 100%);
+  animation: r80-flicker 4s infinite;
+}
+@keyframes r80-flicker {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 1; }
+  52% { opacity: 0.8; }
+}
+.controller[data-theme="retro80"] { background: linear-gradient(180deg, #1a0b3d, #0b0220); }

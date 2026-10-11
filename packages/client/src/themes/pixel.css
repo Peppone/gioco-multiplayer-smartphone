@@ -1,0 +1,58 @@
+/* Theme pack «pixel»: font bitmap, bordi a gradini, palette limitata. */
+@import "@fontsource/press-start-2p/latin-400.css";
+
+[data-theme="pixel"] {
+  --bg: #1a1c2c;
+  --fg: #f4f4f4;
+  --panel: #333c57;
+  --panel-2: #566c86;
+  --primary: #3b5dc9;
+  --accent: #a7f070;
+  --good: #38b764;
+  --good-ring: #a7f070;
+  --bad: #b13e53;
+  --buzz: #b13e53;
+  --buzz-ring: #ef7d57;
+  --opt-0: #b13e53;
+  --opt-1: #3b5dc9;
+  --opt-2: #ef7d57;
+  --opt-3: #38b764;
+  --opt-4: #5d275d;
+  --opt-5: #29366f;
+  --font: "Press Start 2P", ui-monospace, monospace;
+  --font-display: "Press Start 2P", ui-monospace, monospace;
+  --radius: 0;
+  --border-w: 4px;
+  --border-c: #f4f4f4;
+  /* Ombra «dura» a gradino al posto del blur. */
+  --shadow: 6px 6px 0 #0d0f1a;
+  --text-shadow: 3px 3px 0 #0d0f1a;
+  font-size: 0.78em;
+  line-height: 1.5;
+  image-rendering: pixelated;
+}
+[data-theme="pixel"] h1 { font-size: 1.6rem; }
+[data-theme="pixel"] h2 { font-size: 1.1rem; }
+[data-theme="pixel"] .question { font-size: 1.3rem; }
+.screen[data-theme="pixel"] .question { font-size: 1.8rem; }
+[data-theme="pixel"] .big { font-size: 1.3rem; }
+[data-theme="pixel"] .buzz-btn { border-radius: 0; font-size: 1.1rem; box-shadow: 8px 8px 0 #0d0f1a; }
+[data-theme="pixel"] button { border-radius: 0; border: 3px solid #f4f4f4; }
+[data-theme="pixel"] .countdown .bar { border-radius: 0; height: 1.2rem; border: 3px solid #f4f4f4; background: #0d0f1a; }
+[data-theme="pixel"] .countdown .bar div { transition: width 0.1s steps(8); }
+[data-theme="pixel"] .lb-table li { border: 3px solid #f4f4f4; border-left-width: 10px; }
+[data-theme="pixel"] .answer { padding: 0.9rem 1rem; }
+
+/* Sfondo a griglia di pixel. */
+.screen[data-theme="pixel"]::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 2px, transparent 2px);
+  background-size: 32px 32px;
+  animation: px-scroll 6s steps(6) infinite;
+}
+@keyframes px-scroll { to { background-position: 32px 32px; } }
+.controller[data-theme="pixel"] {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 2px, transparent 2px), linear-gradient(90deg, rgba(255, 255, 255, 0.04) 2px, transparent 2px);
+  background-size: 24px 24px;
+}

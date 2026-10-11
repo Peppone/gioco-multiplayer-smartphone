@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ClientEvent,
   type GamePlayerState,
   type JoinResult,
   type PublicPlayer,
   ServerEvent,
+  type ThemeId,
 } from "@gioco/shared";
 import { minigameViews } from "../minigames/registry";
 import { useClockSync } from "../net/useClockSync";
 import { useSocket } from "../net/useSocket";
+import { ReactionBar } from "../reactions/ReactionBar";
+import { MuteButton } from "../ui/MuteButton";
+import { Stage } from "../ui/Stage";
 import { ProfileForm } from "./ProfileForm";
 
 const TOKEN_KEY = "gioco.token";
@@ -36,6 +40,7 @@ export function Play() {
   const [checking, setChecking] = useState(true);
   const clock = useClockSync(socket, player !== null);
   const [game, setGame] = useState<GamePlayerState | null>(null);
+  const lastTheme = useRef<ThemeId>("gameshow");
 
   // Il server invia la vista filtrata per questo giocatore a ogni cambiamento e a ogni (ri)ingresso.
   useEffect(() => {
@@ -119,23 +124,37 @@ export function Play() {
   }
 
   const views = game?.frame ? minigameViews[game.frame.typeId] : undefined;
+  if (game?.frame) lastTheme.current = game.frame.theme;
+  else if (!game || game.phase === "idle") lastTheme.current = "gameshow";
+  const theme = lastTheme.current;
+
+  const tools = (
+    <>
+      <MuteButton className="corner-left" />
+      <ReactionBar socket={socket} />
+    </>
+  );
+
   if (game?.phase === "round" && game.inRoster && game.frame && views) {
     return (
       <main className="controller" data-theme={game.frame.theme}>
         {status}
-        <views.Controller
-          view={game.frame.view}
-          clock={clock.current}
-          theme={game.frame.theme}
-          title={game.frame.title}
-          send={send}
-        />
+        <Stage theme={game.frame.theme} id={`${game.roundNumber ?? 0}-${game.frame.typeId}`}>
+          <views.Controller
+            view={game.frame.view}
+            clock={clock.current}
+            theme={game.frame.theme}
+            title={game.frame.title}
+            send={send}
+          />
+        </Stage>
+        {tools}
       </main>
     );
   }
 
   return (
-    <main className="center">
+    <main className="controller waiting" data-theme={theme}>
       {status}
       <div className="avatar" style={{ background: player.color }}>
         {player.avatar}
@@ -163,6 +182,7 @@ export function Play() {
               ? "Partita conclusa. Guarda la classifica sullo schermo!"
               : "Guarda lo schermo: il prossimo round sta per iniziare."}
       </p>
+      {tools}
     </main>
   );
 }

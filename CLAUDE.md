@@ -63,7 +63,8 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 - **Python non è installato** (c'è solo l'alias del Microsoft Store): non usare `python` per modificare file; usare `Edit`.
 - **Slash nei flag Windows**: in Git Bash i flag di `taskkill` vanno con doppia barra (`taskkill //F //IM node.exe`); con una sola `/F` viene interpretata come percorso. Nei percorsi usare `/` o percorsi assoluti `C:\...` tra virgolette; non mischiare `\` dentro stringhe Bash.
 - **PowerShell 5.1**: niente `&&`/`||` (usare `;` o `if ($?)`), niente `2>&1` sugli eseguibili nativi.
-- **Processi rimasti attivi**: dopo una prova del server controllare che la porta 3000 sia libera (`netstat -ano | grep ":3000 "`) prima di riavviare, altrimenti `EADDRINUSE` e si finisce per testare un server vecchio. Spegnere con `taskkill //F //IM node.exe` e `//IM cloudflared.exe`.
+- **Processi rimasti attivi**: dopo una prova del server controllare che la porta 3000 sia libera (`netstat -ano | grep ":3000 "`) prima di riavviare, altrimenti `EADDRINUSE` e si finisce per testare un server vecchio. Il processo sulla porta potrebbe essere il server di prova dell'utente: **non spegnere `node.exe` in blocco**. Spegnere solo i processi avviati da noi, per PID (`taskkill //F //PID <pid>`), e se la porta è già occupata da altri riusare quel server o chiedere.
+- **Screenshot per verificare la grafica**: Edge è sempre presente (`"/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" --headless=new --screenshot=<file> --virtual-time-budget=8000 <url>`). Le animazioni usano il tempo reale: aprire `/preview?theme=...&scene=...&still=1` (`still` salta le animazioni) per avere schermate deterministiche.
 - **Fine riga**: Git avvisa `LF will be replaced by CRLF`; è solo un warning, ignorabile.
 - **cloudflared**: il file in `bin/` deve chiamarsi esattamente `cloudflared.exe` (non il nome originale del download).
 

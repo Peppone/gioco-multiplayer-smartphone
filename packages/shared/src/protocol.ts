@@ -62,6 +62,7 @@ export const ClientEvent = {
   RttReport: "rtt:report",
   GameInput: "game:input",
   HostCommand: "host:cmd",
+  Reaction: "reaction:send",
 } as const;
 
 export const ServerEvent = {
@@ -69,6 +70,22 @@ export const ServerEvent = {
   GameScreen: "game:screen",
   GamePlayer: "game:player",
   GameAdmin: "game:admin",
+  Reaction: "reaction",
 } as const;
 
 export type Role = "screen" | "play" | "admin";
+
+// ---- Reazioni emoji (interazione blanda, sempre disponibile) ----
+
+export const REACTIONS = ["👏", "😂", "😮", "🔥", "❤️", "😭"] as const;
+export type ReactionEmoji = (typeof REACTIONS)[number];
+
+export const reactionSchema = z.object({ emoji: z.enum(REACTIONS) });
+
+/** Reazione inoltrata allo schermo condiviso. */
+export interface ReactionEvent {
+  emoji: ReactionEmoji;
+  playerId: string;
+  nickname: string;
+  color: string;
+}

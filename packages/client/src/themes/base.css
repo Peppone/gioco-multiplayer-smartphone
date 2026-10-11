@@ -1,0 +1,83 @@
+/* Variabili di tema (valori predefiniti = aspetto neutro di regia e lobby).
+   Ogni theme pack le ridefinisce sotto [data-theme="..."]. */
+:root {
+  --bg: #12121c;
+  --fg: #f2f2f7;
+  --panel: #1e1e2e;
+  --panel-2: #2d2d44;
+  --primary: #3b82f6;
+  --accent: #22c55e;
+  --good: #16a34a;
+  --good-ring: #86efac;
+  --bad: #b91c1c;
+  --buzz: #dc2626;
+  --buzz-ring: #fca5a5;
+  --opt-0: #dc2626;
+  --opt-1: #2563eb;
+  --opt-2: #ca8a04;
+  --opt-3: #16a34a;
+  --opt-4: #9333ea;
+  --opt-5: #0891b2;
+  --font: system-ui, sans-serif;
+  --font-display: var(--font);
+  --radius: 0.8rem;
+  --border-w: 3px;
+  --border-c: transparent;
+  --shadow: none;
+  --text-shadow: none;
+  --on-opt: #fff;
+  color-scheme: dark;
+}
+
+body { font-family: var(--font); }
+
+/* Aree di gioco: sfondo e testo del tema (la regia /admin non ha data-theme e resta neutra). */
+.screen[data-theme],
+.controller[data-theme] {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  position: relative;
+  isolation: isolate;
+}
+.screen[data-theme] h1,
+.screen[data-theme] h2,
+.screen[data-theme] .question,
+.screen[data-theme] .big,
+.controller[data-theme] h2,
+.controller[data-theme] .big,
+.controller[data-theme] .buzz-btn {
+  font-family: var(--font-display);
+  text-shadow: var(--text-shadow);
+}
+
+/* Pannelli, opzioni e pulsanti prendono forma e bordo dal tema. */
+[data-theme] .option,
+[data-theme] .answer {
+  border-radius: var(--radius);
+  border: var(--border-w) solid var(--border-c);
+  box-shadow: var(--shadow);
+  color: var(--on-opt);
+}
+[data-theme] .lb-table li,
+[data-theme] .queue li,
+[data-theme] .lobby li {
+  border-radius: var(--radius);
+}
+[data-theme] .lb-table li { box-shadow: var(--shadow); }
+
+/* Effetti di sfondo pesanti: solo sullo schermo condiviso, non sul telefono. */
+.screen[data-theme]::before,
+.screen[data-theme]::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen[data-theme]::before,
+  .screen[data-theme]::after,
+  .pulse { animation: none !important; }
+}

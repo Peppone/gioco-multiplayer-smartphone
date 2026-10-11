@@ -1,0 +1,85 @@
+/* Theme pack «manga»: carta, inchiostro, retino, linee cinetiche, onomatopee. */
+@import "@fontsource/bangers/latin-400.css";
+
+[data-theme="manga"] {
+  --bg: #f6f1e4;
+  --fg: #141414;
+  --panel: #ffffff;
+  --panel-2: #e6dfcb;
+  --primary: #141414;
+  --accent: #e6001f;
+  --good: #1a9b4b;
+  --good-ring: #141414;
+  --bad: #e6001f;
+  --buzz: #e6001f;
+  --buzz-ring: #141414;
+  --opt-0: #ff4b5c;
+  --opt-1: #4aa3ff;
+  --opt-2: #ffd23f;
+  --opt-3: #5ed67f;
+  --opt-4: #c58bff;
+  --opt-5: #ff9f43;
+  --on-opt: #141414;
+  --font: "Bangers", "Comic Sans MS", cursive;
+  --font-display: "Bangers", "Comic Sans MS", cursive;
+  --radius: 0.4rem;
+  --border-w: 4px;
+  --border-c: #141414;
+  --shadow: 6px 6px 0 #141414;
+  --text-shadow: none;
+  color-scheme: light;
+  letter-spacing: 0.04em;
+}
+[data-theme="manga"] h1,
+[data-theme="manga"] h2,
+[data-theme="manga"] .question { letter-spacing: 0.06em; }
+[data-theme="manga"] .muted { opacity: 0.75; }
+[data-theme="manga"] button { color: #fff; border: 3px solid #141414; box-shadow: 4px 4px 0 #141414; }
+[data-theme="manga"] button.primary { color: #fff; }
+[data-theme="manga"] .lb-table li { border: 3px solid #141414; border-left-width: 10px; background: #fff; }
+[data-theme="manga"] .lobby li, [data-theme="manga"] .queue li { background: #fff; border: 3px solid #141414; }
+[data-theme="manga"] .queue li.now { color: #fff; }
+[data-theme="manga"] .countdown .bar { border: 3px solid #141414; background: #fff; border-radius: 0.3rem; }
+[data-theme="manga"] .countdown .bar div { background: var(--accent); }
+[data-theme="manga"] .question {
+  background: #fff;
+  border: 4px solid #141414;
+  box-shadow: 6px 6px 0 #141414;
+  padding: 0.6rem 1rem;
+  border-radius: 1.2rem 1.2rem 1.2rem 0.2rem; /* balloon */
+  display: inline-block;
+}
+[data-theme="manga"] .buzz-btn { color: #fff; border: 6px solid #141414; box-shadow: 8px 8px 0 #141414; }
+
+/* Retino (puntini) + linee cinetiche radiali sullo schermo. */
+.screen[data-theme="manga"]::before {
+  background-image: radial-gradient(#14141422 1.6px, transparent 1.8px);
+  background-size: 14px 14px;
+}
+.screen[data-theme="manga"]::after {
+  background: repeating-conic-gradient(from 0deg at 50% 50%, #14141410 0 2deg, transparent 2deg 9deg);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 35%, #000 85%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 35%, #000 85%);
+  animation: mg-speed 0.6s steps(3) infinite;
+}
+@keyframes mg-speed { to { transform: rotate(3deg) scale(1.02); } }
+.controller[data-theme="manga"] {
+  background-image: radial-gradient(#14141422 1.4px, transparent 1.6px);
+  background-size: 12px 12px;
+}
+
+/* Onomatopea che «esplode» sullo schermo. */
+.sfx {
+  position: fixed;
+  right: 6vw;
+  top: 14vh;
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 14vw, 11rem);
+  color: #ffd23f;
+  -webkit-text-stroke: 0.06em #141414;
+  paint-order: stroke fill;
+  text-shadow: 0.06em 0.06em 0 #141414;
+  pointer-events: none;
+  z-index: 20;
+  transform: rotate(-8deg);
+}

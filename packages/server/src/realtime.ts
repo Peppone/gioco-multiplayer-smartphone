@@ -6,10 +6,12 @@ import {
   type JoinResult,
   type LobbyView,
   type PublicPlayer,
+  type ReactionEvent,
   ServerEvent,
   createPlayerSchema,
   gameInputSchema,
   hostCommandSchema,
+  reactionSchema,
   recoverSchema,
   resumeSchema,
   rttReportSchema,
@@ -19,6 +21,7 @@ import type { PlayerRow } from "./db.js";
 import type { Engine } from "./engine.js";
 import type { PlayerResult, PlayerService } from "./players.js";
 import type { Presence } from "./presence.js";
+import { RateLimiter } from "./rate-limiter.js";
 
 const SCREEN_ROOM = "screen";
 const ADMIN_ROOM = "admin";
@@ -59,6 +62,8 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
   // ---- Stato di gioco: ogni ruolo riceve solo la propria vista filtrata ----
 
   let sentVersion = -1;
+  /** Reazioni: al massimo 5 ogni 5 secondi per giocatore, per non coprire lo schermo. */
+  const reactionLimiter = new RateLimiter(5, 5000);
 
   const sendPlayerState = (socketId: string, playerId: string) =>
     io.to(socketId).emit(ServerEvent.GamePlayer, engine.playerState(playerId));
@@ -132,6 +137,16 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
       if (!playerId || !parsed.success) return;
       engine.input(playerId, parsed.data.input, parsed.data.clientTime);
       flush();
+    });
+
+    socket.on(ClientEvent.Reaction, (payload: unknown) => {
+      const playerId = presence.playerOf(socket.id);
+      const parsed = reactionSchema.safeParse(payload);
+      if (!playerId || !parsed.success || !reactionLimiter.allow(playerId, now())) return;
+      const p = service.get(playerId);
+      if (!p) return;
+      const event: ReactionEvent = { emoji: parsed.data.emoji, playerId, nickname: p.nickname, color: p.color };
+      io.to(SCREEN_ROOM).emit(ServerEvent.Reaction, event);
     });
 
     // Comandi della regia: solo socket autenticati come admin.

@@ -46,6 +46,8 @@ export interface GamePlayerState {
   matchName?: string;
   /** False se il giocatore non fa parte della serata in corso: vede solo l'attesa. */
   inRoster: boolean;
+  /** 1-based; presente quando il giocatore è in serata. */
+  roundNumber?: number;
   frame?: MinigameFrame;
   me?: { points: number; rank: number | null; teamId: string | null; teamName: string | null };
 }

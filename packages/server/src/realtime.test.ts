@@ -92,3 +92,58 @@ describe("realtime", () => {
     expect(received).toBe(false);
   });
 });
+
+describe("reazioni emoji", () => {
+  const collect = (s: Socket) => {
+    const got: { emoji: string; nickname: string; color: string }[] = [];
+    s.on(ServerEvent.Reaction, (r) => got.push(r));
+    return got;
+  };
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  async function joined(nick: string) {
+    const phone = client("play");
+    const res = await emit<JoinResult>(phone, ClientEvent.Create, { nickname: nick, avatar: "🦊", color: "#ff8800" });
+    expect(res.ok).toBe(true);
+    return phone;
+  }
+
+  it("inoltra allo schermo la reazione con nome e colore del giocatore", async () => {
+    const screen = client("screen");
+    const got = collect(screen);
+    const phone = await joined("Gina");
+    phone.emit(ClientEvent.Reaction, { emoji: "🔥" });
+    await wait(100);
+    expect(got).toMatchObject([{ emoji: "🔥", nickname: "Gina", color: "#ff8800" }]);
+  });
+
+  it("ignora emoji non ammesse e chi non ha un profilo", async () => {
+    const screen = client("screen");
+    const got = collect(screen);
+    const phone = await joined("Gina");
+    phone.emit(ClientEvent.Reaction, { emoji: "💣" });
+    phone.emit(ClientEvent.Reaction, { emoji: "<script>" });
+    const stranger = client("play");
+    stranger.emit(ClientEvent.Reaction, { emoji: "🔥" });
+    await wait(100);
+    expect(got).toEqual([]);
+  });
+
+  it("limita la frequenza: al massimo 5 reazioni ogni 5 secondi per giocatore", async () => {
+    const screen = client("screen");
+    const got = collect(screen);
+    const phone = await joined("Gina");
+    for (let i = 0; i < 12; i++) phone.emit(ClientEvent.Reaction, { emoji: "👏" });
+    await wait(150);
+    expect(got).toHaveLength(5);
+  });
+
+  it("le reazioni non arrivano ai telefoni", async () => {
+    const phone = await joined("Gina");
+    const other = await joined("Gino");
+    const got = collect(other);
+    phone.emit(ClientEvent.Reaction, { emoji: "😂" });
+    await wait(100);
+    expect(got).toEqual([]);
+  });
+});

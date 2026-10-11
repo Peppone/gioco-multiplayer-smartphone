@@ -358,6 +358,7 @@ export class Engine {
       phase: l.phase,
       matchName: l.matchName,
       inRoster: true,
+      roundNumber: l.roundIndex + 1,
       frame: this.frame(l, (p) => p.viewFor(l.roundState, playerId, me.teamId)),
       me: {
         points: row?.points ?? 0,

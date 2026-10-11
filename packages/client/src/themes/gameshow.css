@@ -1,0 +1,50 @@
+/* Theme pack «gameshow»: luci, colori saturi, riflettori. */
+@import "@fontsource/montserrat/latin-700.css";
+@import "@fontsource/montserrat/latin-800.css";
+
+[data-theme="gameshow"] {
+  --bg: #0d0b3a;
+  --fg: #fff8e1;
+  --panel: #1b1670;
+  --panel-2: #2e2a99;
+  --primary: #f5b800;
+  --accent: #ffd54a;
+  --good: #19b45a;
+  --good-ring: #8dffbd;
+  --buzz: #ff2e63;
+  --buzz-ring: #ffb3c6;
+  --opt-0: #e5233d;
+  --opt-1: #1f6fe5;
+  --opt-2: #e0a100;
+  --opt-3: #19a64f;
+  --opt-4: #8e3be0;
+  --opt-5: #0aa1c4;
+  --font: "Montserrat", system-ui, sans-serif;
+  --font-display: "Montserrat", system-ui, sans-serif;
+  --radius: 1.2rem;
+  --border-c: rgba(255, 255, 255, 0.35);
+  --shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.45), inset 0 0.35rem 0.5rem rgba(255, 255, 255, 0.28);
+  --text-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.35);
+}
+[data-theme="gameshow"] h1,
+[data-theme="gameshow"] h2,
+[data-theme="gameshow"] .big,
+[data-theme="gameshow"] .question { font-weight: 800; }
+[data-theme="gameshow"] button.primary { color: #2b1d00; }
+
+/* Riflettori che oscillano dietro lo schermo. */
+.screen[data-theme="gameshow"]::before {
+  background:
+    radial-gradient(ellipse 40% 70% at 20% -10%, rgba(255, 224, 130, 0.5), transparent 70%),
+    radial-gradient(ellipse 40% 70% at 80% -10%, rgba(130, 200, 255, 0.45), transparent 70%),
+    radial-gradient(ellipse at 50% 120%, #3a1d8a, transparent 60%);
+  animation: gs-sweep 9s ease-in-out infinite alternate;
+}
+.screen[data-theme="gameshow"]::after {
+  background: repeating-conic-gradient(from 0deg at 50% 130%, rgba(255, 255, 255, 0.04) 0 6deg, transparent 6deg 12deg);
+}
+@keyframes gs-sweep {
+  from { transform: translateX(-3%) scale(1.05); filter: hue-rotate(0deg); }
+  to { transform: translateX(3%) scale(1.1); filter: hue-rotate(25deg); }
+}
+.controller[data-theme="gameshow"] { background: linear-gradient(180deg, #1b1670, #0d0b3a); }
