@@ -46,6 +46,10 @@ type Scene =
   | "stima-reveal"
   | "poll-voting"
   | "poll-reveal"
+  | "duel-draft"
+  | "duel-battle"
+  | "duel-replay"
+  | "duel-ended"
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -59,6 +63,10 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "stima-reveal", label: "Stima: rivelazione" },
   { id: "poll-voting", label: "Sondaggio: voto" },
   { id: "poll-reveal", label: "Sondaggio: risultati" },
+  { id: "duel-draft", label: "Duello: draft" },
+  { id: "duel-battle", label: "Duello: battaglia" },
+  { id: "duel-replay", label: "Duello: scontro" },
+  { id: "duel-ended", label: "Duello: fine" },
   { id: "results", label: "Classifica" },
 ];
 
@@ -161,8 +169,86 @@ function sceneViews(scene: Scene, now: number) {
             phone: { phase: "reveal", ...p, candidates: [], myVote: 1, reveal: { earned: 50 } },
           };
     }
+    case "duel-draft":
+    case "duel-battle":
+    case "duel-replay":
+    case "duel-ended":
+      return { typeId: "knight-duel", ...duelScene(scene, now) };
     case "results":
       return { typeId: null, screen: null, phone: null };
+  }
+}
+
+// ---- Duello dei Cavalieri: dati d'esempio ----
+const DC = (id: string, name: string, icon: string, rarity: "common" | "rare" | "epic", initiative: number, text: string) => ({ id, name, icon, rarity, initiative, text });
+const CARDS = {
+  fendente: DC("fendente", "Fendente", "sword", "common", 6, "Attacco 5"),
+  scudo: DC("scudo", "Scudo di quercia", "shield", "common", 8, "Scudo 6"),
+  martello: DC("martello", "Colpo di martello", "hammer", "common", 3, "Colpo pesante 8"),
+  pozione: DC("pozione", "Pozione curativa", "potion-red", "common", 5, "Cura 7"),
+  carica: DC("carica", "Carica eroica", "sword", "epic", 7, "Attacco 5 · Scudo 3"),
+  veleno: DC("veleno", "Veleno del ragno", "potion-green", "common", 4, "Veleno 3 per 2 battaglie"),
+};
+const hc = (c: (typeof CARDS)[keyof typeof CARDS], n: number) => ({ uid: `${c.id}#${n}`, ...c });
+
+function duelSides(hp: [number, number] = [20, 14]) {
+  return [
+    { name: "Rossi", color: "#ef4444", hp: hp[0], maxHp: 20, handCount: 3, poison: 0, members: 3 },
+    { name: "Blu", color: "#3b82f6", hp: hp[1], maxHp: 20, handCount: 4, poison: 3, members: 3 },
+  ];
+}
+function duelCommon(phase: string, now: number, hp?: [number, number]) {
+  return { phase, battleNo: 1, maxBattles: 6, minigamesLeft: 1, suddenDeath: false, sides: duelSides(hp), minigame: null, minigameWinner: phase === "draft" ? 0 : null, outcome: null };
+}
+function duelScene(scene: Scene, now: number) {
+  const team = [{ id: "m1", nickname: "Marco" }, { id: "m2", nickname: "Sofia" }, { id: "me", nickname: "Tu" }];
+  const progress = { members: 3, decided: 1, deadline: now + 15_000 };
+  const hand = [hc(CARDS.fendente, 1), hc(CARDS.scudo, 1), hc(CARDS.martello, 1), hc(CARDS.pozione, 1)];
+  switch (scene) {
+    case "duel-draft":
+      return {
+        screen: { ...duelCommon("draft", now), draft: { phase: "picking", picker: 0, offeredCount: 3, progress }, battle: null, result: null },
+        phone: {
+          ...duelCommon("draft", now), side: 0, team, hand: hand.slice(0, 2), spied: hc(CARDS.carica, 1), result: null, battle: null,
+          draft: { phase: "picking", role: "picker", first: true, cards: [hc(CARDS.carica, 1), hc(CARDS.veleno, 1), hc(CARDS.scudo, 2)], vote: { options: [], max: 1, deadline: now + 15_000, mine: ["veleno#1"], confirmed: false, mates: [{ playerId: "m1", picks: ["carica#1"], confirmed: true }, { playerId: "m2", picks: [], confirmed: false }] } },
+        },
+      };
+    case "duel-battle":
+      return {
+        screen: { ...duelCommon("battle", now), draft: null, battle: { progress: [progress, { ...progress, decided: 2 }], deadline: now + 20_000 }, result: null },
+        phone: {
+          ...duelCommon("battle", now), side: 0, team, hand, spied: null, draft: null, result: null,
+          battle: { vote: { options: hand.map((c) => c.uid), max: 2, deadline: now + 20_000, mine: ["fendente#1", "scudo#1"], confirmed: false, mates: [{ playerId: "m1", picks: ["fendente#1"], confirmed: true }, { playerId: "m2", picks: ["martello#1"], confirmed: false }] }, opponent: progress, deadline: now + 20_000 },
+        },
+      };
+    case "duel-replay": {
+      const result = {
+        winner: null,
+        shownUntil: now + 20_000,
+        cards: { fendente: CARDS.fendente, scudo: CARDS.scudo, pozione: CARDS.pozione, martello: CARDS.martello },
+        events: [
+          { type: "play", side: 0, uid: "fendente#1", cardId: "fendente" },
+          { type: "play", side: 0, uid: "martello#1", cardId: "martello" },
+          { type: "play", side: 1, uid: "scudo#1", cardId: "scudo" },
+          { type: "play", side: 1, uid: "pozione#1", cardId: "pozione" },
+          { type: "shield", side: 1, amount: 6 },
+          { type: "heal", side: 1, amount: 0 },
+          { type: "damage", source: 0, target: 1, kind: "attack", amount: 0, blocked: 5 },
+          { type: "damage", source: 0, target: 1, kind: "heavy", amount: 2, blocked: 6 },
+        ],
+      };
+      const common = { ...duelCommon("battle-result", now, [20, 12]) };
+      return {
+        screen: { ...common, draft: null, battle: null, result },
+        phone: { ...common, side: 0, team, hand: hand.slice(0, 2), spied: null, draft: null, battle: null, result },
+      };
+    }
+    case "duel-ended": {
+      const common = { ...duelCommon("ended", now, [9, 0]), outcome: { winner: 0, reason: "ko" } };
+      return { screen: { ...common, draft: null, battle: null, result: null }, phone: { ...common, side: 0, team, hand: [], spied: null, draft: null, battle: null, result: null } };
+    }
+    default:
+      return { screen: null, phone: null };
   }
 }
 
