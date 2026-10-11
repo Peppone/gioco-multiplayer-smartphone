@@ -45,7 +45,8 @@ export interface Realtime {
 export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Realtime {
   const { service, presence, engine, adminAuth } = deps;
   const now = deps.now ?? Date.now;
-  const io = new Server(httpServer, { serveClient: false });
+  // Nessun messaggio legittimo supera pochi KB: un limite basso scoraggia l'abuso.
+  const io = new Server(httpServer, { serveClient: false, maxHttpBufferSize: 64 * 1024 });
 
   const toPublic = (p: PlayerRow): PublicPlayer => ({
     id: p.id,
@@ -64,6 +65,8 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
   let sentVersion = -1;
   /** Reazioni: al massimo 5 ogni 5 secondi per giocatore, per non coprire lo schermo. */
   const reactionLimiter = new RateLimiter(5, 5000);
+  /** Input di gioco: al massimo 20 al secondo per giocatore (un dito che martella il buzzer ne fa meno di 10). */
+  const inputLimiter = new RateLimiter(20, 1000);
 
   const sendPlayerState = (socketId: string, playerId: string) =>
     io.to(socketId).emit(ServerEvent.GamePlayer, engine.playerState(playerId));
@@ -134,7 +137,7 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
     socket.on(ClientEvent.GameInput, (payload: unknown) => {
       const playerId = presence.playerOf(socket.id);
       const parsed = gameInputSchema.safeParse(payload);
-      if (!playerId || !parsed.success) return;
+      if (!playerId || !parsed.success || !inputLimiter.allow(playerId, now())) return;
       engine.input(playerId, parsed.data.input, parsed.data.clientTime);
       flush();
     });
