@@ -9,6 +9,7 @@
     "start": "pnpm --filter @gioco/client build && pnpm --filter @gioco/server start",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "duel:balance": "pnpm --filter @gioco/server exec tsx ../../tools/duel/balance.ts",
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
