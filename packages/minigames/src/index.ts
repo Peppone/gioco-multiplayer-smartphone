@@ -1,5 +1,6 @@
 import type { AnyMinigame } from "@gioco/shared";
 import { buzzer } from "./buzzer/index.js";
+import { ghostHunt } from "./caccia-fantasmi/index.js";
 import { indovinaCanzone } from "./indovina-canzone/index.js";
 import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
@@ -8,7 +9,7 @@ import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
 
-export { buzzer, indovinaCanzone, quizMultipla, sondaggio, stima, veroFalso, zombieHunt };
+export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, sondaggio, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -20,6 +21,7 @@ export const roundMinigames: Record<string, AnyMinigame> = {
   [sondaggio.id]: sondaggio,
   [zombieHunt.id]: zombieHunt,
   [indovinaCanzone.id]: indovinaCanzone,
+  [ghostHunt.id]: ghostHunt,
 };
 
 const knightDuel = createKnightDuel(roundMinigames);
