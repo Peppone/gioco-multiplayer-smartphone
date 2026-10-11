@@ -61,6 +61,12 @@ interface Live {
   roundState: unknown;
 }
 
+/** Stato dell'engine in forma serializzabile (le Map diventano elenchi di coppie). */
+export interface EngineSnapshot {
+  v: 1;
+  live: Omit<Live, "teamNames" | "teamColors"> & { teamNames: [string, string][]; teamColors: [string, string][] };
+}
+
 const fail = (error: string): EngineResult => ({ ok: false, error });
 const OK: EngineResult = { ok: true };
 
@@ -83,6 +89,29 @@ export class Engine {
 
   private touch(): void {
     this.version++;
+  }
+
+  /** Id della partita in corso (non ancora conclusa), se c'è. */
+  get activeMatchId(): string | null {
+    return this.live && this.live.phase !== "ended" ? this.live.matchId : null;
+  }
+
+  /**
+   * Fotografia dello stato della partita, per riprenderla dopo un riavvio. Nessuna fotografia a partita
+   * conclusa o assente. Gli stati dei plugin sono JSON puro per contratto, quindi basta serializzare.
+   */
+  snapshot(): EngineSnapshot | null {
+    const l = this.live;
+    if (!l || l.phase === "ended") return null;
+    return { v: 1, live: { ...l, teamNames: [...l.teamNames], teamColors: [...l.teamColors] } };
+  }
+
+  /** Ripristina una fotografia. I timer scaduti durante lo spegnimento si risolvono al primo tick. */
+  restore(snapshot: EngineSnapshot): void {
+    const { teamNames, teamColors, ...rest } = snapshot.live;
+    this.live = { ...rest, teamNames: new Map(teamNames), teamColors: new Map(teamColors) };
+    this.invalidateScores();
+    this.touch();
   }
 
   private invalidateScores(): void {

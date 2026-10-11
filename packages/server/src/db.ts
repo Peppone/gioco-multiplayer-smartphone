@@ -92,6 +92,13 @@ export const scoreEntries = sqliteTable("score_entries", {
   ts: integer("ts").notNull(),
 });
 
+/** Stato della partita in corso, salvato di continuo: se il PC si riavvia la partita riprende. */
+export const matchStateSnapshots = sqliteTable("match_state_snapshots", {
+  matchId: text("match_id").primaryKey(),
+  stateJson: text("state_json").notNull(),
+  ts: integer("ts").notNull(),
+});
+
 export type PlayerRow = typeof players.$inferSelect;
 export type InstanceRow = typeof minigameInstances.$inferSelect;
 export type MatchRoundRow = typeof matchRounds.$inferSelect;
@@ -174,6 +181,11 @@ export function openDb(file: string) {
       ts INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS score_entries_event ON score_entries (event_id);
+    CREATE TABLE IF NOT EXISTS match_state_snapshots (
+      match_id TEXT PRIMARY KEY,
+      state_json TEXT NOT NULL,
+      ts INTEGER NOT NULL
+    );
   `);
   return { sqlite, db: drizzle(sqlite) };
 }

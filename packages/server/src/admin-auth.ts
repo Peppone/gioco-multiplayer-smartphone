@@ -33,6 +33,17 @@ export class AdminAuth {
     return this.storedHash() !== undefined;
   }
 
+  /**
+   * Azzera la sola password della regia (dati e punteggi restano): la prossima apertura di /admin
+   * chiede di sceglierne una nuova. Serve se la password è stata dimenticata; si usa da riga di comando.
+   */
+  reset(): void {
+    this.db.delete(settings).where(eq(settings.key, PASSWORD_KEY)).run();
+    this.sessions.clear();
+    this.failed = 0;
+    this.lockedUntil = 0;
+  }
+
   /** Prima impostazione della password: consentita una volta sola. */
   setup(password: string): AuthResult {
     if (this.isConfigured()) return { ok: false, error: "already_configured" };
