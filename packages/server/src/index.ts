@@ -60,6 +60,7 @@ const app = buildApp({
   getTunnel: () => tunnel.current,
   clientDir: resolve(rootDir, process.env.CLIENT_DIR ?? "packages/client/dist"),
   admin: { auth: adminAuth, service: new AdminService(db) },
+  mediaDir: resolve(dirname(dbFile), "media"),
 });
 const realtime = attachRealtime(app.server, { service: new PlayerService(db), presence, engine, adminAuth });
 const ticker = setInterval(realtime.tick, 100);

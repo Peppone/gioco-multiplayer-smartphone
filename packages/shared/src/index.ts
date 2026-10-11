@@ -1,6 +1,7 @@
 export * from "./admin.js";
 export * from "./fairtime.js";
 export * from "./game.js";
+export * from "./media.js";
 export * from "./minigame.js";
 export * from "./clock.js";
 export * from "./protocol.js";
