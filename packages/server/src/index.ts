@@ -6,6 +6,7 @@ import { minigames } from "@gioco/minigames";
 import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
 import { buildApp } from "./app.js";
+import { backupDatabase } from "./backup.js";
 import { openDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { pickLanAddress } from "./network.js";
@@ -24,6 +25,12 @@ const lanAddress = pickLanAddress();
 // DB_FILE permette ai test e2e di usare un database usa-e-getta, separato da quello vero.
 const dbFile = process.env.DB_FILE ?? resolve(rootDir, "data/gioco.sqlite");
 const { sqlite, db } = openDb(dbFile);
+
+// Copia di sicurezza a ogni avvio (restano le ultime): se il database si rovina o viene cancellato per errore si recupera da `backup/`.
+backupDatabase(sqlite, dbFile).then(
+  (file) => file && console.log(`Copia di sicurezza dei dati: ${file}`),
+  (err) => console.error("Copia di sicurezza non riuscita:", err),
+);
 
 // Il PID di cloudflared si annota accanto al database: se il server muore di colpo, al riavvio il tunnel rimasto si spegne.
 // Password della regia dimenticata: `--reset-admin` la azzera (senza toccare i dati) ed esce.
