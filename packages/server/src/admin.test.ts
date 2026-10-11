@@ -65,6 +65,34 @@ describe("autenticazione admin", () => {
     expect((await call("GET", "/api/admin/teams")).statusCode).toBe(401);
   });
 
+  it("la sessione sopravvive al riavvio del server (stesso database) e scade comunque dopo 12 ore", () => {
+    const { db } = openDb(":memory:");
+    let t = 1_000_000;
+    const first = new AdminAuth(db, () => t);
+    const setup = first.setup("segretissima");
+    if (!setup.ok) throw new Error("setup");
+
+    const restarted = new AdminAuth(db, () => t); // nuova istanza = server riavviato
+    expect(restarted.verify(setup.token)).toBe(true);
+    expect(restarted.verify("token-inventato")).toBe(false);
+
+    t += 12 * 60 * 60 * 1000 + 1;
+    expect(restarted.verify(setup.token)).toBe(false);
+  });
+
+  it("«reimposta password» chiude anche le sessioni aperte, e il token non è nel database in chiaro", () => {
+    const { db } = openDb(":memory:");
+    const auth = new AdminAuth(db);
+    const setup = auth.setup("segretissima");
+    if (!setup.ok) throw new Error("setup");
+    const rows = db.$client.prepare("select key, value from settings").all() as { key: string; value: string }[];
+    expect(JSON.stringify(rows)).not.toContain(setup.token);
+
+    auth.reset();
+    expect(new AdminAuth(db).verify(setup.token)).toBe(false);
+    expect(db.$client.prepare("select count(*) as n from settings").get()).toEqual({ n: 0 });
+  });
+
   it("la password non compare nel database in chiaro", async () => {
     const { db } = openDb(":memory:");
     const auth = new AdminAuth(db);

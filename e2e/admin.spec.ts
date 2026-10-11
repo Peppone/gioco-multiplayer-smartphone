@@ -31,6 +31,19 @@ test("accesso alla regia dalla UI: primo avvio o login, poi i pannelli", async (
   await expect(page.getByRole("heading", { name: "Accesso regia" })).toBeVisible();
 });
 
+test("regia aperta con un token non più valido: si torna al login invece di restare vuoti", async ({ page, request }) => {
+  await adminToken(request); // assicura che la password esista (il database e2e parte vuoto)
+  await page.addInitScript(() => localStorage.setItem("gioco.admin.token", "token-ormai-scaduto"));
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Accesso regia" })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("gioco.admin.token"))).toBeNull();
+
+  // E col login si rientra normalmente.
+  await page.getByPlaceholder("Password").fill(ADMIN_PASSWORD);
+  await page.getByRole("button", { name: "Entra" }).click();
+  await expect(page.getByRole("heading", { name: "Regia" })).toBeVisible();
+});
+
 test("squadre e serate dalla UI: creazione, assegnazione dei giocatori ai team", async ({ page, request, browser }) => {
   const token = await adminToken(request);
   await page.addInitScript((t) => localStorage.setItem("gioco.admin.token", t), token);

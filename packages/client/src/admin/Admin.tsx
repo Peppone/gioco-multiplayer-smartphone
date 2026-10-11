@@ -57,6 +57,12 @@ export function Admin() {
   // Se una chiamata riceve 401 il token viene cancellato: si torna al login.
   const refreshAuth = () => setAuthed(getAdminToken() !== null);
 
+  // Il token salvato nel browser può non valere più (sessione scaduta, password reimpostata): lo si verifica subito,
+  // altrimenti il pannello Live resterebbe vuoto senza dire perché.
+  useEffect(() => {
+    if (authed) api("GET", "/teams").catch(refreshAuth);
+  }, [authed]);
+
   if (configured === null) return <main className="center"><p>Connessione al server…</p></main>;
 
   if (!authed) {

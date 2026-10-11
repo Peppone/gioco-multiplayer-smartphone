@@ -76,7 +76,7 @@ I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li as
 | Un nome è già preso | Scegline un altro, oppure usa il recupero se è il tuo profilo. |
 | «La porta 3000 è già in uso» | Il gioco è già aperto in un'altra finestra: chiudila. |
 | Il PC si è spento o riavviato a metà partita | **Riavvia il gioco**: la partita riprende da dove era e i giocatori rientrano da soli. I timer scaduti nel frattempo si risolvono subito. |
-| La regia non risponde dopo un riavvio | Rifai il login con la password (le sessioni non sopravvivono al riavvio). |
+| La regia chiede di nuovo la password | La sessione dura 12 ore e sopravvive al riavvio del gioco; se è scaduta (o hai reimpostato la password) la pagina torna da sola al login: rientra con la password. |
 | Dimenticato la password admin | Con il gioco spento, doppio clic su **`Reimposta password regia.bat`**: toglie solo la password (profili, serate e punti restano). Poi riavvia il gioco e, aprendo `/admin`, scegline una nuova. |
 | Il buzzer sembra «ingiusto» | Il gioco compensa la latenza di ogni telefono (orologio sincronizzato e finestra di raccolta di 250 ms): vince chi ha premuto davvero per primo. Lo schermo mostra il ping di ciascuno nella lobby. |
 
