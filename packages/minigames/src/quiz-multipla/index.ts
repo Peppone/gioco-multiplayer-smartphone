@@ -6,23 +6,57 @@ import { rankByPoints, totalsToScores } from "../util.js";
 const GRACE_MS = 500;
 
 const questionSchema = z.object({
-  text: z.string().trim().min(1).max(200),
-  options: z.array(z.string().trim().min(1).max(80)).min(2).max(6),
-  correctIndex: z.number().int().min(0),
-  timeSec: z.number().int().min(5).max(120).optional(),
+  text: z.string().trim().min(1).max(200).meta({ title: "Domanda", widget: "textarea" }),
+  options: z
+    .array(z.string().trim().min(1).max(80))
+    .min(2)
+    .max(6)
+    .meta({ title: "Risposte", itemLabel: "Risposta" }),
+  correctIndex: z
+    .number()
+    .int()
+    .min(0)
+    .meta({ title: "Risposta corretta", widget: "optionIndex", optionsKey: "options" }),
+  timeSec: z
+    .number()
+    .int()
+    .min(5)
+    .max(120)
+    .optional()
+    .meta({ title: "Tempo (s)", description: "Vuoto = tempo predefinito del quiz" }),
 });
 
 export const quizConfigSchema = z
   .object({
-    questions: z.array(questionSchema).min(1).max(50),
-    defaultTimeSec: z.number().int().min(5).max(120).default(20),
-    maxPoints: z.number().int().min(1).max(10_000).default(1000),
-    minPoints: z.number().int().min(0).max(10_000).default(300),
+    questions: z
+      .array(questionSchema)
+      .min(1)
+      .max(50)
+      .meta({ title: "Domande", itemLabel: "Domanda" }),
+    defaultTimeSec: z.number().int().min(5).max(120).default(20).meta({ title: "Tempo predefinito (s)" }),
+    maxPoints: z
+      .number()
+      .int()
+      .min(1)
+      .max(10_000)
+      .default(1000)
+      .meta({ title: "Punti massimi", description: "Per una risposta corretta istantanea" }),
+    minPoints: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .default(300)
+      .meta({ title: "Punti minimi", description: "Per una risposta corretta all'ultimo secondo" }),
   })
   .refine((c) => c.questions.every((q) => q.correctIndex < q.options.length), {
-    message: "correctIndex fuori dalle opzioni",
+    message: "La risposta corretta deve essere una delle risposte indicate",
+    path: ["questions"],
   })
-  .refine((c) => c.minPoints <= c.maxPoints, { message: "minPoints > maxPoints" });
+  .refine((c) => c.minPoints <= c.maxPoints, {
+    message: "I punti minimi non possono superare i massimi",
+    path: ["minPoints"],
+  });
 
 export type QuizConfig = z.infer<typeof quizConfigSchema>;
 

@@ -170,3 +170,64 @@ describe("serate, team e giocatori", () => {
     expect((await call("GET", `/api/admin/events/${ev.id}`)).statusCode).toBe(404);
   });
 });
+
+describe("libreria minigiochi", () => {
+  const quiz = {
+    questions: [{ text: "Domanda?", options: ["a", "b"], correctIndex: 1 }],
+  };
+  const mkInstance = async (title = "Quiz", config: unknown = quiz) =>
+    call("POST", "/api/admin/instances", { typeId: "quiz-multipla", title, config });
+
+  it("espone i tipi con lo schema JSON per generare il form", async () => {
+    const types = (await call("GET", "/api/admin/minigame-types")).json() as {
+      id: string;
+      configJsonSchema: { properties: Record<string, { title?: string; default?: unknown }> };
+    }[];
+    const q = types.find((t) => t.id === "quiz-multipla")!;
+    expect(q.configJsonSchema.properties.questions?.title).toBe("Domande");
+    expect(q.configJsonSchema.properties.defaultTimeSec?.default).toBe(20);
+    expect(types.map((t) => t.id)).toContain("buzzer");
+  });
+
+  it("crea un quiz applicando i valori predefiniti", async () => {
+    const res = await mkInstance();
+    expect(res.statusCode).toBe(201);
+    expect(res.json().config).toMatchObject({ defaultTimeSec: 20, maxPoints: 1000, minPoints: 300 });
+    expect(res.json().theme).toBe("gameshow");
+  });
+
+  it("rifiuta configurazioni non valide con un messaggio comprensibile", async () => {
+    const badIndex = await mkInstance("X", { questions: [{ text: "D", options: ["a", "b"], correctIndex: 5 }] });
+    expect(badIndex.statusCode).toBe(400);
+    expect(badIndex.json().detail).toContain("risposta corretta");
+    const noQuestions = await mkInstance("X", { questions: [] });
+    expect(noQuestions.json().detail).toContain("questions");
+    expect((await call("POST", "/api/admin/instances", { typeId: "boh", title: "X", config: {} })).statusCode).toBe(404);
+  });
+
+  it("modifica e non elimina un istanza usata in una partita", async () => {
+    const inst = (await mkInstance()).json();
+    const upd = await call("PUT", `/api/admin/instances/${inst.id}`, { typeId: "quiz-multipla", title: "Nuovo", theme: "retro80", config: quiz });
+    expect(upd.json()).toMatchObject({ title: "Nuovo", theme: "retro80" });
+
+    const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
+    const m = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "P" })).json();
+    await call("POST", `/api/admin/matches/${m.id}/rounds`, { instanceId: inst.id });
+    expect((await call("DELETE", `/api/admin/instances/${inst.id}`)).statusCode).toBe(409);
+  });
+
+  it("riordina i round e rifiuta elenchi incompleti o a partita avviata", async () => {
+    const a = (await mkInstance("A")).json();
+    const b = (await mkInstance("B")).json();
+    const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
+    const m = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "P" })).json();
+    const r1 = (await call("POST", `/api/admin/matches/${m.id}/rounds`, { instanceId: a.id })).json()[0];
+    const r2 = (await call("POST", `/api/admin/matches/${m.id}/rounds`, { instanceId: b.id })).json()[1];
+
+    const swapped = await call("PUT", `/api/admin/matches/${m.id}/rounds/order`, { roundIds: [r2.id, r1.id] });
+    expect(swapped.json().map((r: { title: string }) => r.title)).toEqual(["B", "A"]);
+
+    expect((await call("PUT", `/api/admin/matches/${m.id}/rounds/order`, { roundIds: [r1.id] })).statusCode).toBe(400);
+    expect((await call("PUT", `/api/admin/matches/${m.id}/rounds/order`, { roundIds: [r1.id, r1.id] })).statusCode).toBe(400);
+  });
+});

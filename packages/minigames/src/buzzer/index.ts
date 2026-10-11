@@ -12,16 +12,34 @@ export const buzzerConfigSchema = z.object({
   questions: z
     .array(
       z.object({
-        text: z.string().trim().min(1).max(200),
+        text: z.string().trim().min(1).max(200).meta({ title: "Domanda", widget: "textarea" }),
         /** Visibile solo alla regia, che convalida la risposta data a voce. */
-        answer: z.string().trim().min(1).max(120),
-        points: z.number().int().min(1).max(10_000).optional(),
+        answer: z
+          .string()
+          .trim()
+          .min(1)
+          .max(120)
+          .meta({ title: "Risposta (solo regia)", description: "Non viene mai mostrata a schermo né ai telefoni" }),
+        points: z
+          .number()
+          .int()
+          .min(1)
+          .max(10_000)
+          .optional()
+          .meta({ title: "Punti", description: "Vuoto = punti predefiniti" }),
       }),
     )
     .min(1)
-    .max(50),
-  defaultPoints: z.number().int().min(1).max(10_000).default(100),
-  wrongPenalty: z.number().int().min(0).max(10_000).default(50),
+    .max(50)
+    .meta({ title: "Domande", itemLabel: "Domanda" }),
+  defaultPoints: z.number().int().min(1).max(10_000).default(100).meta({ title: "Punti predefiniti" }),
+  wrongPenalty: z
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .default(50)
+    .meta({ title: "Penalità per risposta sbagliata", description: "0 = nessuna penalità" }),
 });
 
 export type BuzzerConfig = z.infer<typeof buzzerConfigSchema>;

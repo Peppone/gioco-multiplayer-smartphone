@@ -7,6 +7,7 @@ import {
   eventPatchSchema,
   instanceInputSchema,
   roundInputSchema,
+  roundOrderSchema,
   eventTeamsSchema,
   matchInputSchema,
   matchPatchSchema,
@@ -143,6 +144,10 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
     api.post<{ Params: IdParams }>("/api/admin/matches/:id/rounds", async (req, reply) => {
       const body = parse(roundInputSchema, req.body, reply);
       if (body) return send(reply, lib.addRound(req.params.id, body.instanceId), 201);
+    });
+    api.put<{ Params: IdParams }>("/api/admin/matches/:id/rounds/order", async (req, reply) => {
+      const body = parse(roundOrderSchema, req.body, reply);
+      if (body) return send(reply, lib.reorderRounds(req.params.id, body.roundIds));
     });
     api.delete<{ Params: IdParams }>("/api/admin/rounds/:id", async (req, reply) =>
       send(reply, lib.deleteRound(req.params.id)),

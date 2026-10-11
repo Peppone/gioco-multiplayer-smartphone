@@ -27,6 +27,17 @@ describe("Engine: avvio", () => {
     expect(start().ok).toBe(false);
   });
 
+  it("a partita avviata i round non si possono aggiungere, togliere o riordinare", () => {
+    start();
+    const lib = w.admin.library;
+    const rounds = lib.rounds(w.match.id);
+    const inst = lib.listInstances()[0]!;
+    expect(lib.addRound(w.match.id, inst.id)).toMatchObject({ ok: false, error: "conflict" });
+    expect(lib.deleteRound(rounds[0]!.id)).toMatchObject({ ok: false, error: "conflict" });
+    expect(lib.reorderRounds(w.match.id, rounds.map((r) => r.id).reverse())).toMatchObject({ ok: false, error: "conflict" });
+    expect(lib.rounds(w.match.id)).toHaveLength(2);
+  });
+
   it("una partita già avviata non si riavvia", () => {
     start();
     w.engine.hostCommand({ type: "engine", action: "end-match" });

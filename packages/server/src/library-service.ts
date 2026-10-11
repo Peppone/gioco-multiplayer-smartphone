@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
+import { z } from "zod";
 import type { AnyMinigame, InstanceView, MinigameTypeView, RoundView } from "@gioco/shared";
 import { minigames as defaultRegistry } from "@gioco/minigames";
 import { type Db, type InstanceRow, matchRounds, matches, minigameInstances } from "./db.js";
@@ -26,6 +27,7 @@ export class LibraryService {
       title: t.title,
       defaultTheme: t.defaultTheme,
       sampleConfig: t.sampleConfig,
+      configJsonSchema: z.toJSONSchema(t.configSchema, { io: "input", reused: "inline", unrepresentable: "any" }),
     }));
   }
 
@@ -103,8 +105,17 @@ export class LibraryService {
       .all();
   }
 
+  /** I round si modificano solo finché la partita non è avviata. */
+  private matchState(matchId: string): "missing" | "locked" | "pending" {
+    const m = this.db.select().from(matches).where(eq(matches.id, matchId)).get();
+    if (!m) return "missing";
+    return m.status === "pending" ? "pending" : "locked";
+  }
+
   addRound(matchId: string, instanceId: string): Result<RoundView[]> {
-    if (!this.db.select().from(matches).where(eq(matches.id, matchId)).get()) return fail("not_found");
+    const state = this.matchState(matchId);
+    if (state === "missing") return fail("not_found");
+    if (state === "locked") return fail("conflict", "La partita è già avviata: i round non si modificano");
     if (!this.getInstance(instanceId)) return fail("not_found");
     const last = this.db
       .select({ max: sql<number | null>`max(${matchRounds.order})` })
@@ -118,6 +129,9 @@ export class LibraryService {
   deleteRound(roundId: string): Result<RoundView[]> {
     const r = this.db.select().from(matchRounds).where(eq(matchRounds.id, roundId)).get();
     if (!r) return fail("not_found");
+    if (this.matchState(r.matchId) === "locked") {
+      return fail("conflict", "La partita è già avviata: i round non si modificano");
+    }
     this.db.transaction((tx) => {
       tx.delete(matchRounds).where(eq(matchRounds.id, roundId)).run();
       tx.update(matchRounds)
@@ -128,7 +142,17 @@ export class LibraryService {
     return ok(this.rounds(r.matchId));
   }
 
-  deleteRoundsOfMatch(matchId: string): void {
-    this.db.delete(matchRounds).where(eq(matchRounds.matchId, matchId)).run();
+  /** Riordina i round: `roundIds` deve essere una permutazione esatta dei round della partita. */
+  reorderRounds(matchId: string, roundIds: string[]): Result<RoundView[]> {
+    const state = this.matchState(matchId);
+    if (state === "missing") return fail("not_found");
+    if (state === "locked") return fail("conflict", "La partita è già avviata: i round non si modificano");
+    const current = this.rounds(matchId).map((r) => r.id);
+    const same = roundIds.length === current.length && new Set(roundIds).size === roundIds.length && roundIds.every((id) => current.includes(id));
+    if (!same) return fail("invalid", "L'elenco dei round non corrisponde a quelli della partita");
+    this.db.transaction((tx) => {
+      roundIds.forEach((id, i) => tx.update(matchRounds).set({ order: i + 1 }).where(eq(matchRounds.id, id)).run());
+    });
+    return ok(this.rounds(matchId));
   }
 }

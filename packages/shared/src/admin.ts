@@ -89,6 +89,8 @@ export const instanceInputSchema = z.object({
 
 export const roundInputSchema = z.object({ instanceId: z.string().min(1) });
 
+export const roundOrderSchema = z.object({ roundIds: z.array(z.string().min(1)).max(100) });
+
 export interface InstanceView {
   id: string;
   typeId: string;
@@ -102,6 +104,8 @@ export interface MinigameTypeView {
   title: string;
   defaultTheme: "gameshow" | "pixel" | "manga" | "retro80";
   sampleConfig: unknown;
+  /** JSON Schema della configurazione (da `configSchema`): genera il form dell editor. */
+  configJsonSchema: unknown;
 }
 
 export interface EventSummary {
