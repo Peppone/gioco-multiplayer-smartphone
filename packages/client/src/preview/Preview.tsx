@@ -35,13 +35,30 @@ const BOARDS_BEFORE: Leaderboards = {
   players: BOARDS.players.map((p, i) => ({ ...p, points: p.points - 300 + i * 40 })),
 };
 
-type Scene = "quiz-question" | "quiz-reveal" | "buzzer-open" | "buzzer-answering" | "results";
+type Scene =
+  | "quiz-question"
+  | "quiz-reveal"
+  | "buzzer-open"
+  | "buzzer-answering"
+  | "vf-question"
+  | "vf-reveal"
+  | "stima-question"
+  | "stima-reveal"
+  | "poll-voting"
+  | "poll-reveal"
+  | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
   { id: "quiz-question", label: "Quiz: domanda" },
   { id: "quiz-reveal", label: "Quiz: rivelazione" },
   { id: "buzzer-open", label: "Buzzer: aperto" },
   { id: "buzzer-answering", label: "Buzzer: risponde" },
+  { id: "vf-question", label: "Vero/Falso: domanda" },
+  { id: "vf-reveal", label: "Vero/Falso: rivelazione" },
+  { id: "stima-question", label: "Stima: domanda" },
+  { id: "stima-reveal", label: "Stima: rivelazione" },
+  { id: "poll-voting", label: "Sondaggio: voto" },
+  { id: "poll-reveal", label: "Sondaggio: risultati" },
   { id: "results", label: "Classifica" },
 ];
 
@@ -92,6 +109,58 @@ function sceneViews(scene: Scene, now: number) {
         },
         phone: { phase: "answering", question: "Chi ha dipinto la Gioconda?", canBuzz: false, buzzed: true, isAnswering: true, position: 0, won: false },
       };
+    case "vf-question":
+    case "vf-reveal": {
+      const st = { index: 3, total: 12, text: "Il pomodoro è un frutto.", openedAt: now, deadline: now + 8_000 };
+      return scene === "vf-question"
+        ? { typeId: "vero-falso", screen: { phase: "statement", ...st, answered: 5, playerCount: 12 }, phone: { phase: "statement", ...st, myAnswer: null } }
+        : {
+            typeId: "vero-falso",
+            screen: { phase: "reveal", ...st, answered: 12, playerCount: 12, reveal: { answer: true, counts: { true: 9, false: 3 } } },
+            phone: { phase: "reveal", ...st, myAnswer: true, reveal: { answer: true, correct: true, earned: 118, streak: 3 } },
+          };
+    }
+    case "stima-question":
+    case "stima-reveal": {
+      const q = { index: 0, total: 3, question: "Quanti chilometri è lunga la costa italiana?", unit: "km", min: 0, max: 20000, openedAt: now, deadline: now + 20_000 };
+      return scene === "stima-question"
+        ? { typeId: "stima", screen: { phase: "question", ...q, answered: 4, playerCount: 12 }, phone: { phase: "question", ...q, myGuess: 7000 } }
+        : {
+            typeId: "stima",
+            screen: {
+              phase: "reveal",
+              ...q,
+              answered: 12,
+              playerCount: 12,
+              reveal: {
+                answer: 7500,
+                results: [
+                  { nickname: "Gina", value: 7450, distance: 50, rank: 1, points: 1000 },
+                  { nickname: "Marco", value: 8000, distance: 500, rank: 2, points: 600 },
+                  { nickname: "Sofia", value: 5000, distance: 2500, rank: 3, points: 300 },
+                ],
+              },
+            },
+            phone: { phase: "reveal", ...q, myGuess: 7450, reveal: { answer: 7500, distance: 50, rank: 1, points: 1000 } },
+          };
+    }
+    case "poll-voting":
+    case "poll-reveal": {
+      const p = { index: 0, total: 4, question: "Pizza con l'ananas?", kind: "options", options: ["Sì, la adoro", "Mai e poi mai", "Dipende"], openedAt: now, deadline: now + 20_000 };
+      return scene === "poll-voting"
+        ? { typeId: "sondaggio", screen: { phase: "voting", ...p, voted: 7, playerCount: 12 }, phone: { phase: "voting", ...p, candidates: [], myVote: 1 } }
+        : {
+            typeId: "sondaggio",
+            screen: {
+              phase: "reveal",
+              ...p,
+              voted: 12,
+              playerCount: 12,
+              reveal: { bars: [{ label: "Sì, la adoro", count: 3, top: false }, { label: "Mai e poi mai", count: 8, top: true }, { label: "Dipende", count: 1, top: false }] },
+            },
+            phone: { phase: "reveal", ...p, candidates: [], myVote: 1, reveal: { earned: 50 } },
+          };
+    }
     case "results":
       return { typeId: null, screen: null, phone: null };
   }

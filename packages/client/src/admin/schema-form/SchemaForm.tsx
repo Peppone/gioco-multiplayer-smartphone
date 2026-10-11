@@ -80,7 +80,9 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
           <label className="field">
             <span className="label">{labelText}</span>
             <select aria-label={labelText} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-              {schema.enum.map((o) => <option key={String(o)}>{String(o)}</option>)}
+              {schema.enum.map((o) => (
+                <option key={String(o)} value={String(o)}>{schema.enumLabels?.[String(o)] ?? String(o)}</option>
+              ))}
             </select>
           </label>
         );

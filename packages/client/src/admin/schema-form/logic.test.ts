@@ -24,9 +24,10 @@ const quizSchema: JsonSchema = {
 };
 
 describe("defaultValue", () => {
-  it("costruisce un oggetto con i soli campi obbligatori e i minimi richiesti", () => {
+  it("costruisce un oggetto con i campi obbligatori, quelli con default e i minimi richiesti", () => {
     expect(defaultValue(quizSchema)).toEqual({
       questions: [{ text: "", options: ["", ""], correctIndex: 0 }],
+      defaultTimeSec: 20, // ha un valore predefinito: si include; i facoltativi (timeSec) no
     });
   });
 
@@ -35,6 +36,20 @@ describe("defaultValue", () => {
     const a = defaultValue(schema) as number[];
     a.push(3);
     expect(defaultValue(schema)).toEqual([1, 2]);
+  });
+
+  it("include anche i campi con valore predefinito (un nuovo elemento nasce valido)", () => {
+    const schema: JsonSchema = {
+      type: "object",
+      required: ["text"],
+      properties: {
+        text: { type: "string" },
+        kind: { type: "string", enum: ["options", "players"], default: "options" },
+        options: { type: "array", default: ["Sì", "No"], items: { type: "string" } },
+        note: { type: "string" },
+      },
+    };
+    expect(defaultValue(schema)).toEqual({ text: "", kind: "options", options: ["Sì", "No"] });
   });
 
   it("gestisce enum, booleani e numeri con minimo", () => {

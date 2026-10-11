@@ -18,6 +18,8 @@ export interface JsonSchema {
   widget?: "textarea" | "optionIndex";
   optionsKey?: string;
   itemLabel?: string;
+  /** Etichette leggibili per i valori di un enum (valore → testo). */
+  enumLabels?: Record<string, string>;
 }
 
 /** Valore iniziale per un nuovo elemento: rispetta default, minimi e campi obbligatori. */
@@ -27,9 +29,9 @@ export function defaultValue(schema: JsonSchema): unknown {
   switch (schema.type) {
     case "object": {
       const out: Record<string, unknown> = {};
-      for (const key of schema.required ?? []) {
-        const prop = schema.properties?.[key];
-        if (prop) out[key] = defaultValue(prop);
+      // Campi obbligatori e campi con un valore predefinito: un nuovo elemento nasce già valido.
+      for (const [key, prop] of Object.entries(schema.properties ?? {})) {
+        if (schema.required?.includes(key) || prop.default !== undefined) out[key] = defaultValue(prop);
       }
       return out;
     }

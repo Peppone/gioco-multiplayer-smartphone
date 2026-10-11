@@ -161,3 +161,36 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 
 /* min-height: 100vh + padding non devono superare l'altezza dello schermo (niente scroll inutile) */
 .screen, .controller, .center { box-sizing: border-box; }
+
+/* Vero/Falso */
+.tf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 50rem; margin: 1.2rem auto; }
+.tf-tile { position: relative; padding: 1.6rem; font-size: 2.6rem; font-weight: 800; border-radius: var(--radius); border: var(--border-w) solid var(--border-c); box-shadow: var(--shadow); color: var(--on-opt); }
+.tf-true { background: var(--opt-3); } .tf-false { background: var(--opt-0); }
+.tf-tile.dim { opacity: .3; } .tf-tile.right { border-color: #fff; box-shadow: 0 0 1.5rem #fff8; }
+.tf-tile .count { position: absolute; right: 1rem; top: .6rem; font-size: 1.4rem; }
+.tf-buttons { display: grid; gap: 1rem; margin: 1rem 0; }
+.tf-btn { font-size: 2.2rem; font-weight: 800; padding: 2.2rem 1rem; border-radius: var(--radius); border: var(--border-w) solid var(--border-c); box-shadow: var(--shadow); color: var(--on-opt); touch-action: manipulation; }
+.tf-btn.dim { opacity: .3; } .tf-btn.right { border-color: #fff; box-shadow: 0 0 1.5rem #fff8; } .tf-btn.wrong { opacity: .55; outline: 3px solid #fca5a5; } .tf-btn.chosen { outline: 4px solid #fff; }
+.tf-btn:disabled:not(.dim):not(.wrong) { opacity: .9; }
+
+/* Stima */
+.results { list-style: none; padding: 0; display: grid; gap: .4rem; max-width: 52rem; margin: 1rem auto; text-align: left; }
+.results li { display: grid; grid-template-columns: 2rem 1fr auto auto auto; gap: .8rem; align-items: center; background: var(--panel); padding: .5rem .9rem; border-radius: var(--radius); }
+.screen .results li { font-size: 1.4rem; }
+.results li.top { outline: 3px solid var(--accent); }
+.results .rank { opacity: .6; } .results .dist { opacity: .75; } .results .pts { font-weight: 800; }
+.guess-form { display: grid; gap: .8rem; margin-top: 1rem; }
+.guess-form input[type="range"] { width: 100%; height: 2rem; }
+.guess-form input:not([type]) , .guess-form input[inputmode] { text-align: center; font-size: 1.6rem; }
+
+/* Sondaggio */
+.bars { list-style: none; padding: 0; display: grid; gap: .7rem; max-width: 56rem; margin: 1rem auto; }
+.bars li { display: grid; grid-template-columns: minmax(8rem, 14rem) 1fr 3rem; gap: .8rem; align-items: center; text-align: left; }
+.screen .bars li { font-size: 1.8rem; }
+.bars .track { background: var(--panel-2); border-radius: var(--radius); height: 2.2rem; overflow: hidden; display: block; }
+.bars .fill { display: block; height: 100%; transition: width .8s ease-out; border-radius: var(--radius); }
+.bars li.top .label, .bars li.top .n { font-weight: 800; color: var(--accent); }
+
+/* Il modulo di stima non deve mai superare la larghezza del telefono */
+.guess-form { grid-template-columns: minmax(0, 1fr); }
+.guess-form input, .guess-form button { box-sizing: border-box; width: 100%; min-width: 0; }
