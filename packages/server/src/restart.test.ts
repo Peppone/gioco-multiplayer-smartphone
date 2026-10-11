@@ -33,7 +33,7 @@ function startServer(): Promise<Server> {
 ${out}`)), 30_000);
     child.stdout!.on("data", (chunk) => {
       out += String(chunk);
-      if (out.includes("Gioco Ros avviato")) {
+      if (out.includes("Gioco avviato")) {
         clearTimeout(timer);
         resolve(server);
       }

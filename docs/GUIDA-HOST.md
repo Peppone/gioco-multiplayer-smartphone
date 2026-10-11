@@ -1,4 +1,4 @@
-# Guida per l'host: organizzare una serata con Gioco Ros
+# Guida per l'host: organizzare una serata con Gioco
 
 Questa guida è per chi conduce la serata. Non serve saper programmare.
 
@@ -13,7 +13,7 @@ Il traffico di gioco è minimo (pochi KB al secondo per giocatore).
 
 ## Installazione (una sola volta)
 
-1. Decomprimi `gioco-ros-win.zip` in una cartella, per esempio `C:\GiocoRos`. **Non serve nessun installer.**
+1. Decomprimi `gioco-ros-win.zip` in una cartella, per esempio `C:\Gioco`. **Non serve nessun installer.**
 2. Alla prima apertura Windows può mostrare avvisi perché il programma non è firmato:
    - **SmartScreen** («Windows ha protetto il PC»): clicca *Maggiori informazioni* → *Esegui comunque*.
    - **Firewall di Windows**: quando chiede se consentire l'accesso, scegli **Reti private** (serve ai telefoni in Wi-Fi per raggiungere il PC).
@@ -21,7 +21,7 @@ Il traffico di gioco è minimo (pochi KB al secondo per giocatore).
 
 ## Avvio
 
-1. Doppio clic su **`Avvia Gioco Ros.bat`**. Si apre una finestra nera: **non chiuderla durante la serata**.
+1. Doppio clic su **`Avvia Gioco.bat`**. Si apre una finestra nera: **non chiuderla durante la serata**.
 2. Si aprono due pagine nel browser:
    - **`/admin`**: la regia, da cui conduci la serata. **La prima volta crea la password** (almeno 8 caratteri) e conservala.
    - **`/screen`**: lo schermo per il pubblico. Trascina questa finestra sul proiettore e premi **F11** per il tutto schermo.

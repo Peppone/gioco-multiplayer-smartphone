@@ -101,7 +101,7 @@ export function Screen() {
       <Stage theme={theme} id={stageId}>
         {game.phase === "idle" && (
           <>
-            <h1>Gioco Ros</h1>
+            <h1>Gioco</h1>
             <Join />
             <Lobby socket={socket} />
           </>

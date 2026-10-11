@@ -3,7 +3,7 @@ import { adminToken, joinPlayer, openScreen, unique } from "./support";
 
 test("lo schermo mostra i QR e il giocatore compare in lobby", async ({ browser }) => {
   const screen = await openScreen(browser);
-  await expect(screen.page.getByRole("heading", { name: "Gioco Ros" })).toBeVisible();
+  await expect(screen.page.getByRole("heading", { name: "Gioco" })).toBeVisible();
   await expect(screen.page.getByText("Rete locale (Wi-Fi)")).toBeVisible();
 
   const nick = unique("Gina");

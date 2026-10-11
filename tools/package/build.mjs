@@ -92,7 +92,7 @@ const bat = (extra) =>
     "set OPEN_BROWSER=1",
     ...extra,
     "echo.",
-    "echo Avvio di Gioco Ros... (non chiudere questa finestra durante la serata)",
+    "echo Avvio di Gioco... (non chiudere questa finestra durante la serata)",
     "echo.",
     '"%~dp0node\\node.exe" "%~dp0app\\server.mjs"',
     "echo.",
@@ -100,7 +100,7 @@ const bat = (extra) =>
     "pause >nul",
     "",
   ].join("\r\n");
-writeFileSync(join(out, "Avvia Gioco Ros.bat"), bat([]));
+writeFileSync(join(out, "Avvia Gioco.bat"), bat([]));
 writeFileSync(join(out, "Avvia senza internet (solo rete locale).bat"), bat(["set NO_TUNNEL=1"]));
 writeFileSync(
   join(out, "Reimposta password regia.bat"),
@@ -121,10 +121,10 @@ for (const file of ["docs/GUIDA-HOST.md"]) {
 writeFileSync(
   join(out, "LEGGIMI.txt"),
   [
-    "GIOCO ROS - avvio rapido",
+    "GIOCO - avvio rapido",
     "========================",
     "",
-    "1. Doppio clic su  \"Avvia Gioco Ros.bat\"  (si apre una finestra nera: non chiuderla).",
+    "1. Doppio clic su  \"Avvia Gioco.bat\"  (si apre una finestra nera: non chiuderla).",
     "2. Si aprono due pagine nel browser:",
     "     /admin   = la regia (la prima volta crea la password)",
     "     /screen  = lo schermo da mostrare sul proiettore o sulla TV",
@@ -147,7 +147,7 @@ writeFileSync(
 writeFileSync(
   join(out, "LICENZE-TERZE-PARTI.txt"),
   [
-    "Gioco Ros include software e risorse di terze parti:",
+    "Gioco include software e risorse di terze parti:",
     "",
     "- Node.js (MIT) - node/LICENSE",
     "- better-sqlite3 (MIT) e SQLite (pubblico dominio) - app/node_modules/better-sqlite3/LICENSE",

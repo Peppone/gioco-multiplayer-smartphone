@@ -63,9 +63,9 @@ test.describe("editor della libreria (form generato dallo schema)", () => {
     await expect(page.locator(".error")).toContainText("Controlla i dati");
     await expect(page.locator(".error")).toContainText("questions");
 
-    // File di import che non è un export di Gioco Ros
+    // File di import che non è un export di Gioco
     await page.locator('input[type="file"]').setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"foo":1}') });
-    await expect(page.locator(".error")).toContainText("non è un export di Gioco Ros");
+    await expect(page.locator(".error")).toContainText("non è un export di Gioco");
   });
 
   test("i round si riordinano e non si toccano a partita avviata (via API)", async ({ request }) => {

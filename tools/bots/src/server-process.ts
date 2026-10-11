@@ -33,7 +33,7 @@ export async function startTestServer(): Promise<TestServer> {
     const timer = setTimeout(() => reject(new Error(`server di prova non partito:\n${out}`)), 30_000);
     child.stdout!.on("data", (c) => {
       out += String(c);
-      if (out.includes("Gioco Ros avviato")) (clearTimeout(timer), resolveStart());
+      if (out.includes("Gioco avviato")) (clearTimeout(timer), resolveStart());
     });
     child.on("exit", (code) => reject(new Error(`server di prova terminato (${code}):\n${out}`)));
   });

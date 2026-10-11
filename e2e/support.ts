@@ -163,7 +163,7 @@ export async function createGame(
     const end = admin.page.getByRole("button", { name: "Termina la partita" });
     if (await end.isVisible()) await end.click({ timeout: 5_000 });
     await admin.page.getByRole("button", { name: "Torna alla lobby" }).click({ timeout: 5_000 });
-    await expect(screen.page.getByRole("heading", { name: "Gioco Ros" })).toBeVisible();
+    await expect(screen.page.getByRole("heading", { name: "Gioco" })).toBeVisible();
   };
   return {
     screen,

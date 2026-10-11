@@ -1,4 +1,4 @@
-# Gioco Ros
+# Gioco
 
 Party game multiplayer **in presenza** (fino a ~30 giocatori) in stile Jackbox/Kahoot. Uno schermo condiviso (TV o proiettore) mostra domande, animazioni e classifiche; ogni giocatore usa il **telefono come telecomando**, senza installare nulla. Una regia conduce la serata.
 
@@ -10,7 +10,7 @@ Minigiochi: quiz a scelta multipla, buzzer (equo con la latenza), vero/falso a r
 
 ## Per chi organizza una serata
 
-Scarica il pacchetto per Windows, decomprimilo e avvia `Avvia Gioco Ros.bat`. Tutto è spiegato in **[docs/GUIDA-HOST.md](docs/GUIDA-HOST.md)**. Per il Duello: [docs/DUELLO-DEI-CAVALIERI.md](docs/DUELLO-DEI-CAVALIERI.md).
+Scarica il pacchetto per Windows, decomprimilo e avvia `Avvia Gioco.bat`. Tutto è spiegato in **[docs/GUIDA-HOST.md](docs/GUIDA-HOST.md)**. Per il Duello: [docs/DUELLO-DEI-CAVALIERI.md](docs/DUELLO-DEI-CAVALIERI.md).
 
 ## Per chi sviluppa
 

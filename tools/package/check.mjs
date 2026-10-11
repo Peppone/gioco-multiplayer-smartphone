@@ -46,7 +46,7 @@ try {
   await new Promise((res, rej) => {
     const t = setTimeout(() => rej(new Error(`il server impacchettato non è partito:\n${log}`)), 30_000);
     const poll = setInterval(() => {
-      if (log.includes("Gioco Ros avviato")) (clearInterval(poll), clearTimeout(t), res());
+      if (log.includes("Gioco avviato")) (clearInterval(poll), clearTimeout(t), res());
     }, 100);
     child.on("exit", (code) => rej(new Error(`il server impacchettato è terminato (${code}):\n${log}`)));
   });

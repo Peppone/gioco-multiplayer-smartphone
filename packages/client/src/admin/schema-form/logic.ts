@@ -108,7 +108,7 @@ export function parseImport(text: string): ImportResult {
   for (const item of list) {
     const o = item as Partial<ExportedInstance> | null;
     if (!o || typeof o !== "object" || o.kind !== EXPORT_KIND) {
-      return { ok: false, error: "Il file non è un export di Gioco Ros." };
+      return { ok: false, error: "Il file non è un export di Gioco." };
     }
     if (typeof o.typeId !== "string" || typeof o.title !== "string" || o.config === undefined) {
       return { ok: false, error: "Il file è incompleto (servono tipo, titolo e configurazione)." };

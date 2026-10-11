@@ -115,7 +115,7 @@ test("partita completa: quiz e buzzer, dal telefono alla classifica finale", asy
 
   // ---- Torna alla lobby: lo schermo rimostra i QR e i giocatori connessi ----
   await admin.page.getByRole("button", { name: "Torna alla lobby" }).click();
-  await expect(screen.page.getByRole("heading", { name: "Gioco Ros" })).toBeVisible();
+  await expect(screen.page.getByRole("heading", { name: "Gioco" })).toBeVisible();
   await expect(screen.page.locator(".lobby li", { hasText: nickA })).toBeVisible();
   await expect(a.page.getByText("Sei in lobby")).toBeVisible();
 
@@ -160,5 +160,5 @@ test("la regia assegna punti a mano e la classifica si aggiorna", async ({ brows
   // Pulizia: la partita si termina e si torna alla lobby (il server è condiviso con gli altri test).
   await admin.page.getByRole("button", { name: "Termina la partita" }).click();
   await admin.page.getByRole("button", { name: "Torna alla lobby" }).click();
-  await expect(screen.page.getByRole("heading", { name: "Gioco Ros" })).toBeVisible();
+  await expect(screen.page.getByRole("heading", { name: "Gioco" })).toBeVisible();
 });

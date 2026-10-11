@@ -79,7 +79,7 @@ try {
 }
 
 const base = `http://localhost:${port}`;
-console.log(`\nGioco Ros avviato.`);
+console.log(`\nGioco avviato.`);
 console.log(`  Schermo (TV/proiettore): ${base}/screen`);
 console.log(`  Regia (admin):           ${base}/admin`);
 if (lanAddress) console.log(`  Rete locale:             http://${lanAddress}:${port}/play`);
