@@ -58,8 +58,14 @@ export const indovinaCanzoneConfigSchema = z.object({
           .meta({ title: "Punti massimi", description: "Vuoto = punti massimi predefiniti" }),
       })
         // Una sola sorgente per brano: o il file o un link YouTube valido.
-        .refine((song) => !!song.audio !== !!song.youtube && (!song.youtube || youtubeId(song.youtube) !== null), {
-          message: "Ogni brano ha o un file audio o un link YouTube valido (uno solo dei due)",
+        .superRefine((song, ctx) => {
+          if (song.audio && song.youtube) {
+            ctx.addIssue({ code: "custom", message: "Il brano ha sia un file audio sia un link YouTube: tienine solo uno" });
+          } else if (!song.audio && !song.youtube) {
+            ctx.addIssue({ code: "custom", message: "Il brano non ha né un file audio né un link YouTube" });
+          } else if (song.youtube && youtubeId(song.youtube) === null) {
+            ctx.addIssue({ code: "custom", message: `Link YouTube non riconosciuto: «${song.youtube.slice(0, 60)}»`, path: ["youtube"] });
+          }
         })
         // Gli effetti elaborano l'audio nel browser: l'audio di YouTube sta in un iframe e non è accessibile.
         .refine((song) => song.effect === "none" || !song.youtube, {
@@ -168,6 +174,14 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
     songs: [
       { audio: "00000000-0000-4000-8000-000000000000.mp3", answer: "Titolo - Artista", startSeconds: 0, effect: "none" },
     ],
+    clipSeconds: 30,
+    maxPoints: 100,
+    minPoints: 30,
+    wrongPenalty: 50,
+  },
+  // Il nuovo brano parte senza sorgente: la regia sceglie un file oppure scrive un link YouTube.
+  draftConfig: {
+    songs: [{ answer: "", startSeconds: 0, effect: "none" }],
     clipSeconds: 30,
     maxPoints: 100,
     minPoints: 30,

@@ -42,7 +42,7 @@ export class LibraryService {
             modeConfigJsonSchema: schema(t.modeConfigSchema),
             sampleModeConfig: t.sampleModeConfig,
           }
-        : { id: t.id, kind: "minigame", title: t.title, defaultTheme: t.defaultTheme, sampleConfig: t.sampleConfig, configJsonSchema: schema(t.configSchema) },
+        : { id: t.id, kind: "minigame", title: t.title, defaultTheme: t.defaultTheme, sampleConfig: t.sampleConfig, draftConfig: t.draftConfig, configJsonSchema: schema(t.configSchema) },
     );
     const content = Object.values(this.content).map((t): MinigameTypeView => ({
       id: t.id,

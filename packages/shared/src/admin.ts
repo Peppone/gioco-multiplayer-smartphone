@@ -110,6 +110,8 @@ export interface MinigameTypeView {
   title: string;
   defaultTheme: "gameshow" | "pixel" | "manga" | "retro80";
   sampleConfig: unknown;
+  /** Punto di partenza dell'editor per una nuova istanza (se assente, vale `sampleConfig`). */
+  draftConfig?: unknown;
   /** JSON Schema della configurazione (da `configSchema`): genera il form dell editor. */
   configJsonSchema: unknown;
   /** Solo per le modalità: schema ed esempio della configurazione impostata sulla partita. */

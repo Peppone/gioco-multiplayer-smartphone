@@ -92,6 +92,39 @@ plain("editor: il brano si carica dal modulo e compare nella mediateca", async (
   await expect(page.getByText("Salvato.")).toBeVisible();
 });
 
+plain("editor: il nuovo brano parte senza file e si salva con un link YouTube", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni YouTube"));
+
+  // Nessun file precaricato: né anteprima né avvisi né pulsante per rimuoverlo.
+  await expect(page.locator("audio[aria-label='Anteprima']")).toHaveCount(0);
+  await expect(page.getByText(/non è nella mediateca/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Rimuovi il file" })).toHaveCount(0);
+
+  // Senza file né link il salvataggio spiega cosa manca.
+  await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
+  await page.getByRole("button", { name: "Salva" }).click();
+  await expect(page.getByText(/né un file audio né un link YouTube/)).toBeVisible();
+
+  await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM?si=vpOJanYjVXv3DSET");
+  await page.getByRole("button", { name: "Salva" }).click();
+  await expect(page.getByText("Salvato.")).toBeVisible();
+});
+
+plain("editor: un file caricato si può togliere con «Rimuovi il file»", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
+  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "Da Togliere.wav", mimeType: "audio/wav", buffer: silentWav() });
+  await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
+  await page.getByRole("button", { name: "Rimuovi il file" }).first().click();
+  await expect(page.locator("audio[aria-label='Anteprima']")).toHaveCount(0);
+});
+
 test("indovina la canzone da YouTube: lo schermo comanda il lettore nascosto, i telefoni non vedono il video", async ({ newGame, browser }) => {
   // L'API di YouTube è sostituita da un finto lettore che registra i comandi: il test non usa internet.
   const FAKE_API = `

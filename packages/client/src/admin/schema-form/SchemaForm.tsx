@@ -159,7 +159,8 @@ function AudioField({ schema, value, onChange, labelText }: Pick<FieldProps, "sc
         </select>
       )}
       {file && current && <audio controls preload="none" src={`/media/${file}`} aria-label="Anteprima" />}
-      {file && !current && library.length > 0 && <small className="hint" role="alert">Questo file non è nella mediateca: carica di nuovo il brano.</small>}
+      {file && !current && <small className="hint" role="alert">Questo file non è nella mediateca (è un esempio): carica un brano oppure rimuovilo.</small>}
+      {file && <button type="button" onClick={() => onChange(undefined)}>Rimuovi il file</button>}
       {error && <small className="hint" role="alert">{error}</small>}
       <Hint schema={schema} />
     </div>

@@ -77,6 +77,8 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   commandSchema: ZodType<Command>;
   /** Configurazione di esempio, valida per `configSchema`. */
   sampleConfig: Config;
+  /** Punto di partenza dell'editor per una nuova istanza, se diverso dall'esempio: può essere incompleto (la regia lo completa). */
+  draftConfig?: unknown;
 
   /**
    * Solo per i plugin «modalità» (es. il Duello dei Cavalieri), che si scelgono come modalità di una partita

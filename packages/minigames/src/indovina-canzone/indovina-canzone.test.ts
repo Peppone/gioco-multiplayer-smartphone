@@ -195,4 +195,23 @@ describe("indovina la canzone: configurazione", () => {
     }
     expect(game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x" }] }).success).toBe(true);
   });
+
+  const messages = (song: object) => {
+    const r = game.configSchema.safeParse({ songs: [{ answer: "x", ...song }] });
+    return r.success ? [] : r.error.issues.map((i) => i.message);
+  };
+
+  it("spiega perché un brano non va: due sorgenti, nessuna o link non riconosciuto", () => {
+    expect(messages({ audio: FILE_1, youtube: "https://youtu.be/_9HHju9_hMM" })[0]).toMatch(/sia un file audio sia un link/);
+    expect(messages({})[0]).toMatch(/né un file audio né un link/);
+    expect(messages({ youtube: "https://example.com/video" })[0]).toMatch(/Link YouTube non riconosciuto/);
+    expect(messages({ youtube: "https://youtu.be/_9HHju9_hMM?si=vpOJanYjVXv3DSET" })).toEqual([]);
+  });
+
+  it("il punto di partenza dell'editor ha un brano senza sorgente, mentre l'esempio è valido", () => {
+    expect(game.configSchema.safeParse(game.sampleConfig).success).toBe(true);
+    const draft = game.draftConfig as { songs: { audio?: string; youtube?: string }[] };
+    expect(draft.songs[0]).not.toHaveProperty("audio");
+    expect(draft.songs[0]).not.toHaveProperty("youtube");
+  });
 });

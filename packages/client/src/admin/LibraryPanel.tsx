@@ -64,7 +64,7 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
     const t = typeOf(typeId);
     if (!t) return;
     // Parte dall'esempio del plugin: è già valido e mostra come compilare i campi.
-    setDraft({ id: null, typeId, title: "", theme: t.defaultTheme, config: structuredClone(t.sampleConfig) });
+    setDraft({ id: null, typeId, title: "", theme: t.defaultTheme, config: structuredClone(t.draftConfig ?? t.sampleConfig) });
     setMode("form");
     setError(null);
     setNotice(null);
