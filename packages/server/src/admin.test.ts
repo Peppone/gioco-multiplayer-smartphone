@@ -3,12 +3,14 @@ import type { EventDetail, TeamView } from "@gioco/shared";
 import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
 import { buildApp } from "./app.js";
-import { openDb } from "./db.js";
+import { eq } from "drizzle-orm";
+import { openDb, players as playersTable } from "./db.js";
 import { PlayerService } from "./players.js";
 
 let now = 0;
 let app: ReturnType<typeof buildApp>;
 let players: PlayerService;
+let database: ReturnType<typeof openDb>["db"];
 let token = "";
 
 const call = (method: string, url: string, body?: unknown, auth = true) =>
@@ -22,6 +24,7 @@ const call = (method: string, url: string, body?: unknown, auth = true) =>
 beforeEach(async () => {
   now = 1_000;
   const { db } = openDb(":memory:");
+  database = db;
   players = new PlayerService(db, () => now);
   app = buildApp({
     port: 3000,
@@ -99,6 +102,52 @@ describe("autenticazione admin", () => {
     auth.setup("segretissima");
     const rows = db.$client.prepare("select value from settings").all() as { value: string }[];
     expect(rows[0]?.value).not.toContain("segretissima");
+  });
+});
+
+describe("giocatori e PIN per la regia", () => {
+  const mk = (nickname: string) => {
+    const r = players.create({ nickname, avatar: "🦊", color: "#112233" });
+    if (!r.ok) throw new Error("player");
+    return r;
+  };
+
+  it("la regia legge i PIN dei giocatori, in ordine di nickname", async () => {
+    const zeta = mk("Zeta");
+    const ada = mk("Ada");
+    const list = (await call("GET", "/api/admin/players/details")).json();
+    expect(list.map((p: { nickname: string }) => p.nickname)).toEqual(["Ada", "Zeta"]);
+    expect(list[0]).toMatchObject({ id: ada.player.id, pin: ada.pin });
+    expect(list[1]).toMatchObject({ id: zeta.player.id, pin: zeta.pin });
+  });
+
+  it("i PIN non escono senza il login della regia né dalle liste normali", async () => {
+    const r = mk("Ada");
+    expect((await call("GET", "/api/admin/players/details", undefined, false)).statusCode).toBe(401);
+    expect((await call("POST", `/api/admin/players/${r.player.id}/reset-pin`, undefined, false)).statusCode).toBe(401);
+    const plain = await call("GET", "/api/admin/players");
+    expect(plain.body).not.toContain(r.pin);
+    expect(plain.body).not.toContain("pin");
+  });
+
+  it("«nuovo PIN»: il vecchio non vale più, il nuovo sì, e il telefono resta collegato", async () => {
+    const r = mk("Ada");
+    const res = await call("POST", `/api/admin/players/${r.player.id}/reset-pin`);
+    expect(res.statusCode).toBe(200);
+    const fresh = res.json().pin as string;
+    expect(fresh).toMatch(/^\d{4}$/);
+    expect((await call("GET", "/api/admin/players/details")).json()[0].pin).toBe(fresh);
+
+    if (fresh !== r.pin) expect(players.recover("Ada", r.pin!)).toMatchObject({ ok: false });
+    expect(players.recover("Ada", fresh)).toMatchObject({ ok: true });
+    expect((await call("POST", "/api/admin/players/inesistente/reset-pin")).statusCode).toBe(404);
+  });
+
+  it("un profilo creato prima della funzione non ha un PIN leggibile, ma se ne può generare uno", async () => {
+    const r = mk("Vecchio");
+    database.update(playersTable).set({ pin: null }).where(eq(playersTable.id, r.player.id)).run();
+    expect((await call("GET", "/api/admin/players/details")).json()[0].pin).toBeNull();
+    expect((await call("POST", `/api/admin/players/${r.player.id}/reset-pin`)).json().pin).toMatch(/^\d{4}$/);
   });
 });
 

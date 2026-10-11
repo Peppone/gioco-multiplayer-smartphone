@@ -64,6 +64,12 @@ export interface AdminPlayerView {
   color: string;
 }
 
+/** Giocatore visto dalla regia con il PIN (`null` per i profili creati prima: si può generarne uno nuovo). */
+export interface AdminPlayerDetail extends AdminPlayerView {
+  pin: string | null;
+  createdAt: number;
+}
+
 export interface RoundView {
   id: string;
   order: number;

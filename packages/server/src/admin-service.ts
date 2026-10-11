@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type {
   AdminError,
+  AdminPlayerDetail,
   AdminPlayerView,
   EventDetail,
   EventInput,
@@ -15,6 +16,7 @@ import type {
 } from "@gioco/shared";
 import { type Db, eventPlayers, eventTeams, events, matches, matchRounds, players, scoreEntries, teams } from "./db.js";
 import { LibraryService } from "./library-service.js";
+import { PlayerService } from "./players.js";
 import { type Result, fail, ok } from "./result.js";
 
 export type { Result };
@@ -64,6 +66,22 @@ export class AdminService {
       .from(players)
       .orderBy(asc(players.nickname))
       .all();
+  }
+
+  /** Elenco dei giocatori con il PIN, per la regia (mai incluso nelle altre liste né nelle viste di schermo e telefoni). */
+  listPlayerDetails(): AdminPlayerDetail[] {
+    return this.db
+      .select({ id: players.id, nickname: players.nickname, avatar: players.avatar, color: players.color, pin: players.pin, createdAt: players.createdAt })
+      .from(players)
+      .orderBy(asc(players.nickname))
+      .all();
+  }
+
+  /** Genera un nuovo PIN per un giocatore (anche per chi è stato creato prima e non ha un PIN leggibile). */
+  resetPlayerPin(id: string): Result<AdminPlayerDetail> {
+    if (!new PlayerService(this.db).resetPin(id)) return fail("not_found", "Giocatore non trovato");
+    const detail = this.listPlayerDetails().find((p) => p.id === id);
+    return detail ? ok(detail) : fail("not_found", "Giocatore non trovato");
   }
 
   // ---- Squadre ----

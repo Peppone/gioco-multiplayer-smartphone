@@ -46,10 +46,19 @@ export class PlayerService {
       color: input.color,
       tokenHash: hashToken(token),
       pinHash: hashSecret(pin),
+      pin,
       createdAt: this.now(),
     };
     this.db.insert(players).values(row).run();
     return { ok: true, player: row, token, pin };
+  }
+
+  /** Nuovo PIN (chiesto dalla regia): sostituisce quello vecchio e resta leggibile. Il telefono del giocatore non si disconnette. */
+  resetPin(id: string): string | undefined {
+    if (!this.get(id)) return undefined;
+    const pin = String(randomInt(0, 10_000)).padStart(4, "0");
+    this.db.update(players).set({ pinHash: hashSecret(pin), pin }).where(eq(players.id, id)).run();
+    return pin;
   }
 
   resume(token: string): PlayerResult {

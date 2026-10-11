@@ -11,6 +11,8 @@ export const players = sqliteTable("players", {
   color: text("color").notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   pinHash: text("pin_hash").notNull(),
+  /** PIN leggibile dalla regia, per ricordarlo a chi lo dimentica. Vuoto per i profili creati prima di questa funzione. */
+  pin: text("pin"),
   createdAt: integer("created_at").notNull(),
 });
 
@@ -119,6 +121,7 @@ export function openDb(file: string) {
       color TEXT NOT NULL,
       token_hash TEXT NOT NULL UNIQUE,
       pin_hash TEXT NOT NULL,
+      pin TEXT,
       created_at INTEGER NOT NULL
     );
     CREATE UNIQUE INDEX IF NOT EXISTS players_nickname_nocase ON players (lower(nickname));
@@ -187,6 +190,11 @@ export function openDb(file: string) {
       ts INTEGER NOT NULL
     );
   `);
+
+  // Database creati prima della colonna `pin`: si aggiunge senza toccare i dati (i PIN vecchi restano solo come hash).
+  const playerColumns = sqlite.prepare("PRAGMA table_info(players)").all() as { name: string }[];
+  if (!playerColumns.some((c) => c.name === "pin")) sqlite.exec("ALTER TABLE players ADD COLUMN pin TEXT");
+
   return { sqlite, db: drizzle(sqlite) };
 }
 

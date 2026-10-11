@@ -69,6 +69,11 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
     });
 
     api.get("/api/admin/players", async () => service.listPlayers());
+    // Con i PIN: solo la regia autenticata li legge, per ricordarli a chi li dimentica.
+    api.get("/api/admin/players/details", async () => service.listPlayerDetails());
+    api.post<{ Params: IdParams }>("/api/admin/players/:id/reset-pin", async (req, reply) =>
+      send(reply, service.resetPlayerPin(req.params.id)),
+    );
 
     api.get("/api/admin/teams", async () => service.listTeams());
     api.post("/api/admin/teams", async (req, reply) => {

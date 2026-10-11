@@ -73,6 +73,7 @@ I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li as
 | Il QR internet non compare / «tunnel non disponibile» | Manca `cloudflared.exe` in `bin`, oppure non c'è internet sul PC. Usa il QR rete locale o l'hotspot. Il gioco riprova da solo a riconnettere il tunnel (l'indirizzo può cambiare: lo schermo aggiorna il QR). |
 | Un telefono si è bloccato o ha perso la connessione | Basta riaprire la pagina: **rientra da solo** con il suo profilo, e ritrova lo stato della partita. |
 | Un giocatore ha cambiato telefono | Dalla pagina `/play`: *Ho già un profilo* → nome e **PIN a 4 cifre** (mostrato alla creazione del profilo). Dopo 5 PIN sbagliati il recupero si blocca per un minuto. |
+| Un giocatore ha dimenticato il PIN | Regia → **Giocatori**: cerca il nome e premi *Mostra PIN*. Per i profili creati prima di questa funzione il PIN non è recuperabile: premi *Nuovo PIN* (il vecchio smette di valere, il telefono resta collegato). |
 | Un nome è già preso | Scegline un altro, oppure usa il recupero se è il tuo profilo. |
 | «La porta 3000 è già in uso» | Il gioco è già aperto in un'altra finestra: chiudila. |
 | Il PC si è spento o riavviato a metà partita | **Riavvia il gioco**: la partita riprende da dove era e i giocatori rientrano da soli. I timer scaduti nel frattempo si risolvono subito. |

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { ADMIN_PASSWORD, adminToken, unique } from "./support";
+import { ADMIN_PASSWORD, adminToken, joinPlayer, openAdmin, unique } from "./support";
 
 test("accesso alla regia dalla UI: primo avvio o login, poi i pannelli", async ({ page, request }) => {
   await page.goto("/admin");
@@ -84,4 +84,39 @@ test("squadre e serate dalla UI: creazione, assegnazione dei giocatori ai team",
   await chip.click();
   await expect(chip).not.toBeChecked();
   await expect(playerRow.locator("select")).toHaveValue("");
+});
+
+test("giocatori: la regia vede l'elenco, mostra il PIN che il telefono ha ricevuto e ne genera uno nuovo", async ({ browser, request }) => {
+  const nick = unique("Pin");
+  const phone = await joinPlayer(browser, nick);
+  const shownOnPhone = (await phone.page.locator(".pin-box strong").innerText()).trim();
+  expect(shownOnPhone).toMatch(/^\d{4}$/);
+
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await page.getByRole("button", { name: "Giocatori", exact: true }).click();
+  const row = page.locator(".list.players li", { hasText: nick });
+  await expect(row).toBeVisible();
+
+  // Il PIN sta nascosto finché non lo si chiede, e alla regia compare lo stesso che ha visto il giocatore.
+  await expect(row.getByLabel(`PIN di ${nick}`)).toHaveText("••••");
+  expect(await page.content()).not.toContain(shownOnPhone + "</code>");
+  await row.getByRole("button", { name: "Mostra PIN" }).click();
+  await expect(row.getByLabel(`PIN di ${nick}`)).toHaveText(shownOnPhone);
+  await row.getByRole("button", { name: "Nascondi" }).click();
+  await expect(row.getByLabel(`PIN di ${nick}`)).toHaveText("••••");
+
+  // La ricerca filtra l'elenco.
+  await page.getByLabel("Cerca giocatore").fill("zzz-nessuno");
+  await expect(page.getByText("Nessun giocatore con questo nome.")).toBeVisible();
+  await page.getByLabel("Cerca giocatore").fill(nick.toUpperCase());
+  await expect(row).toBeVisible();
+
+  // Nuovo PIN: si legge subito e il PIN vecchio non vale più per rientrare da un altro telefono.
+  await row.getByRole("button", { name: "Nuovo PIN" }).click();
+  await expect(row.getByLabel(`PIN di ${nick}`)).toHaveText(/^\d{4}$/); // il nuovo PIN si legge subito, senza «Mostra»
+
+  // Il PIN non passa dallo schermo né dagli altri telefoni: solo dalla regia autenticata.
+  expect((await request.get("/api/admin/players/details")).status()).toBe(401);
+  expect((await request.get("/api/admin/players")).status()).toBe(401);
 });
