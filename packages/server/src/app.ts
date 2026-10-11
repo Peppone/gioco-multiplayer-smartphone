@@ -2,6 +2,9 @@ import { existsSync } from "node:fs";
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyStatic from "@fastify/static";
 import type { ServerInfo, TunnelInfo } from "@gioco/shared";
+import type { AdminAuth } from "./admin-auth.js";
+import { registerAdminRoutes } from "./admin-routes.js";
+import type { AdminService } from "./admin-service.js";
 
 export interface AppOptions {
   port: number;
@@ -9,6 +12,7 @@ export interface AppOptions {
   getTunnel: () => TunnelInfo;
   /** Cartella del client buildato; se assente il server espone solo le API. */
   clientDir?: string;
+  admin?: { auth: AdminAuth; service: AdminService };
 }
 
 export function buildApp(opts: AppOptions): FastifyInstance {
@@ -18,6 +22,8 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     lanUrl: opts.lanAddress ? `http://${opts.lanAddress}:${opts.port}` : null,
     tunnel: opts.getTunnel(),
   }));
+
+  if (opts.admin) registerAdminRoutes(app, opts.admin.auth, opts.admin.service);
 
   if (opts.clientDir && existsSync(opts.clientDir)) {
     app.register(fastifyStatic, { root: opts.clientDir });
