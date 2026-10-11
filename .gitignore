@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+
+# Dati locali e segreti
+data/
+*.sqlite
+*.sqlite-journal
+.env
+.env.*
+
+# Binari scaricati
+bin/cloudflared*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
