@@ -1,0 +1,17 @@
+{
+  "name": "@gioco/bots",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/run.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@gioco/shared": "workspace:*",
+    "socket.io-client": "^4.8.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
