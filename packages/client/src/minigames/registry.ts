@@ -6,6 +6,7 @@ import { SondaggioController, SondaggioScreen } from "./sondaggio/SondaggioViews
 import { StimaController, StimaScreen } from "./stima/StimaViews";
 import type { ControllerProps, ViewProps } from "./types";
 import { VeroFalsoController, VeroFalsoScreen } from "./vero-falso/VeroFalsoViews";
+import { ZombieHuntController, ZombieHuntScreen } from "./zombie-hunt/ZombieHuntViews";
 
 export interface MinigameViews {
   Screen: ComponentType<ViewProps>;
@@ -19,6 +20,7 @@ const roundViews: Record<string, MinigameViews> = {
   "vero-falso": { Screen: VeroFalsoScreen, Controller: VeroFalsoController },
   stima: { Screen: StimaScreen, Controller: StimaController },
   sondaggio: { Screen: SondaggioScreen, Controller: SondaggioController },
+  "zombie-hunt": { Screen: ZombieHuntScreen, Controller: ZombieHuntController },
 };
 
 const DuelScreen = createDuelScreen(roundViews);

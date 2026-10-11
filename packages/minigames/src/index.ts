@@ -5,8 +5,9 @@ import { quizMultipla } from "./quiz-multipla/index.js";
 import { sondaggio } from "./sondaggio/index.js";
 import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
+import { zombieHunt } from "./zombie-hunt/index.js";
 
-export { buzzer, quizMultipla, sondaggio, stima, veroFalso };
+export { buzzer, quizMultipla, sondaggio, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -16,6 +17,7 @@ export const roundMinigames: Record<string, AnyMinigame> = {
   [veroFalso.id]: veroFalso,
   [stima.id]: stima,
   [sondaggio.id]: sondaggio,
+  [zombieHunt.id]: zombieHunt,
 };
 
 const knightDuel = createKnightDuel(roundMinigames);

@@ -43,6 +43,18 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
       }
       return null;
 
+    case "zombie-hunt": {
+      if (v.phase !== "play" || (v.role !== "human" && v.role !== "zombie") || v.bye || v.opponent === null || v.choice !== null) return null;
+      const r = rnd();
+      // lo zombie morde quasi sempre, ogni tanto si mimetizza (se ha carte)
+      if (v.role === "zombie" && (r < 0.7 || v.cards.length === 0)) return { key: `zh${v.round}`, inputs: [{ type: "bite" }] };
+      const cards = v.cards as { suit: number; value: number }[];
+      const follow = cards.filter((c) => c.suit === v.suit); // obbligo di seme
+      const card = pick(follow.length > 0 ? follow : cards, rnd);
+      const input = r < 0.12 && v.shotgun ? { type: "shotgun" } : r < 0.24 && v.vaccine ? { type: "vaccine" } : { type: "play", suit: card.suit, value: card.value };
+      return { key: `zh${v.round}`, inputs: [input] };
+    }
+
     default:
       return null;
   }

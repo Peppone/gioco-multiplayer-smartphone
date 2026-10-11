@@ -112,7 +112,7 @@ test("tutti i tipi di minigioco sono nella libreria con un esempio valido e salv
   const admin = await openAdmin(browser, await adminToken(request));
   const { page } = admin;
   await page.getByRole("button", { name: "Libreria" }).click();
-  for (const type of ["Quiz a scelta multipla", "Buzzer", "Vero o falso a raffica", "Stima numerica", "Sondaggio e voto"]) {
+  for (const type of ["Quiz a scelta multipla", "Buzzer", "Vero o falso a raffica", "Stima numerica", "Sondaggio e voto", "Zombie Hunt"]) {
     await page.getByRole("button", { name: `+ ${type}` }).click();
     await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique(type.slice(0, 8)));
     await page.getByRole("button", { name: "Salva" }).click();

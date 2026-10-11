@@ -173,6 +173,24 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .tf-btn.dim { opacity: .3; } .tf-btn.right { border-color: #fff; box-shadow: 0 0 1.5rem #fff8; } .tf-btn.wrong { opacity: .55; outline: 3px solid #fca5a5; } .tf-btn.chosen { outline: 4px solid #fff; }
 .tf-btn:disabled:not(.dim):not(.wrong) { opacity: .9; }
 
+/* Zombie Hunt */
+.zh-summary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; max-width: 40rem; margin: 1rem auto; }
+.zh-stat { background: var(--panel); padding: 1rem; border-radius: var(--radius); font-size: 1.6rem; }
+.zh-roles { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .4rem; max-width: 70rem; margin: 1rem auto; text-align: left; }
+.zh-role { background: var(--panel); padding: .4rem .8rem; border-radius: var(--radius); display: flex; gap: .5rem; align-items: center; }
+.zh-role b { margin-left: auto; }
+.zh-role.zh-zombie { outline: 2px solid var(--opt-0); } .zh-role.zh-out { opacity: .5; }
+.zh-ctrl { display: grid; gap: .6rem; align-content: start; }
+.zh-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+.zh-card, .zh-special { font-size: 1.6rem; font-weight: 800; padding: .9rem .2rem; border-radius: var(--radius); border: var(--border-w) solid var(--border-c); box-shadow: var(--shadow); background: var(--panel); color: inherit; touch-action: manipulation; }
+.zh-card.red, .zh-suit.red { color: #f87171; }
+.zh-card.trump { border-color: var(--accent); }
+.zh-suit { font-weight: 800; font-size: 1.3em; }
+.zh-card.chosen, .zh-special.chosen { outline: 4px solid #fff; }
+.zh-card:disabled:not(.chosen), .zh-special:disabled:not(.chosen) { opacity: .45; }
+.zh-specials { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: .5rem; }
+.zh-versus { font-size: 2rem; font-weight: 800; }
+
 /* Stima */
 .results { list-style: none; padding: 0; display: grid; gap: .4rem; max-width: 52rem; margin: 1rem auto; text-align: left; }
 .results li { display: grid; grid-template-columns: 2rem 1fr auto auto auto; gap: .8rem; align-items: center; background: var(--panel); padding: .5rem .9rem; border-radius: var(--radius); }
