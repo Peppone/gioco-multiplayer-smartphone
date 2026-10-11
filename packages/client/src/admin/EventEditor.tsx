@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AdminPlayerView, EventDetail, EventStatus, InstanceView, MatchMode, TeamView } from "@gioco/shared";
 import { STATUS_LABEL } from "./EventsPanel";
 import { api, errorMessage } from "./api";
+import { moveItem } from "./schema-form/logic";
 
 const MODE_LABEL: Record<MatchMode, string> = { classic: "Classica (punti)", "knight-duel": "Duello dei Cavalieri" };
 
@@ -160,17 +161,22 @@ export function EventEditor({
               </button>
             </div>
             <ol className="rounds">
-              {m.rounds.map((r) => (
-                <li key={r.id}>
-                  <span>{r.title} <small className="muted">· {r.typeId}</small></span>
-                  <button
-                    disabled={m.status !== "pending"}
-                    onClick={() => void run(() => api("DELETE", `/rounds/${r.id}`))}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
+              {m.rounds.map((r, i) => {
+                const ids = m.rounds.map((x) => x.id);
+                const move = (delta: -1 | 1) =>
+                  run(() => api("PUT", `/matches/${m.id}/rounds/order`, { roundIds: moveItem(ids, i, delta) }));
+                const locked = m.status !== "pending";
+                return (
+                  <li key={r.id}>
+                    <span>{r.order}. {r.title} <small className="muted">· {r.typeId}</small></span>
+                    <span className="row">
+                      <button disabled={locked || i === 0} onClick={() => void move(-1)} aria-label="Sposta su">↑</button>
+                      <button disabled={locked || i === m.rounds.length - 1} onClick={() => void move(1)} aria-label="Sposta giù">↓</button>
+                      <button disabled={locked} onClick={() => void run(() => api("DELETE", `/rounds/${r.id}`))} aria-label="Elimina">✕</button>
+                    </span>
+                  </li>
+                );
+              })}
               {m.rounds.length === 0 && <li className="muted">Nessun round: aggiungine uno dalla libreria.</li>}
             </ol>
             {m.status === "pending" && (
