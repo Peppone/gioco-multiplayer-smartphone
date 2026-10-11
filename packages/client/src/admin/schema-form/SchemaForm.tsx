@@ -61,6 +61,7 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
           <span className="label">{labelText}</span>
           <input
             type="number"
+            aria-label={labelText}
             inputMode="numeric"
             step={schema.type === "integer" ? 1 : "any"}
             min={schema.minimum}
@@ -78,7 +79,7 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
         return (
           <label className="field">
             <span className="label">{labelText}</span>
-            <select value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
+            <select aria-label={labelText} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
               {schema.enum.map((o) => <option key={String(o)}>{String(o)}</option>)}
             </select>
           </label>
@@ -88,9 +89,9 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
         <label className="field">
           <span className="label">{labelText}</span>
           {schema.widget === "textarea" ? (
-            <textarea rows={2} value={String(value ?? "")} maxLength={schema.maxLength} onChange={(e) => onChange(e.target.value)} />
+            <textarea aria-label={labelText} rows={2} value={String(value ?? "")} maxLength={schema.maxLength} onChange={(e) => onChange(e.target.value)} />
           ) : (
-            <input value={String(value ?? "")} maxLength={schema.maxLength} onChange={(e) => onChange(e.target.value)} />
+            <input aria-label={labelText} value={String(value ?? "")} maxLength={schema.maxLength} onChange={(e) => onChange(e.target.value)} />
           )}
           <Hint schema={schema} />
         </label>

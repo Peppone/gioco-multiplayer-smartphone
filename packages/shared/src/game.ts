@@ -63,7 +63,7 @@ export interface GameAdminState extends GameScreenState {
 
 export const hostCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start"), matchId: z.string().min(1) }),
-  z.object({ type: z.literal("engine"), action: z.enum(["next", "finish-round", "end-match"]) }),
+  z.object({ type: z.literal("engine"), action: z.enum(["next", "finish-round", "end-match", "close"]) }),
   z.object({ type: z.literal("plugin"), command: z.record(z.string(), z.unknown()) }),
   z.object({
     type: z.literal("adjust"),

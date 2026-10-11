@@ -182,6 +182,14 @@ export class Engine {
           this.finalizeRound(l);
           return OK;
         }
+        if (cmd.action === "close") {
+          // Dalla classifica finale si torna alla lobby: schermo e telefoni rivedono i QR e chi è connesso.
+          if (l.phase !== "ended") return fail("La partita non è ancora conclusa.");
+          this.live = null;
+          this.invalidateScores();
+          this.touch();
+          return OK;
+        }
         return this.endMatch(l);
 
       case "plugin": {
@@ -389,6 +397,7 @@ export class Engine {
     }
     if (l.phase === "round") engineActions.push({ id: "finish-round", label: "Termina il round ora", enabled: true, danger: true });
     if (l.phase !== "ended") engineActions.push({ id: "end-match", label: "Termina la partita", enabled: true, danger: true });
+    else engineActions.push({ id: "close", label: "Torna alla lobby", enabled: true });
 
     return {
       ...base,

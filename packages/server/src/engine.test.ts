@@ -38,6 +38,18 @@ describe("Engine: avvio", () => {
     expect(lib.rounds(w.match.id)).toHaveLength(2);
   });
 
+  it("a partita conclusa si torna alla lobby; prima non si può", () => {
+    const close = () => w.engine.hostCommand({ type: "engine", action: "close" });
+    start();
+    expect(close()).toMatchObject({ ok: false });
+    w.engine.hostCommand({ type: "engine", action: "end-match" });
+    expect(w.engine.adminState().engineActions.map((a) => a.id)).toEqual(["close"]);
+    expect(close()).toEqual({ ok: true });
+    expect(w.engine.screenState().phase).toBe("idle");
+    expect(w.engine.playerState(w.ids.ada!)).toMatchObject({ phase: "idle", inRoster: false });
+    expect(close()).toMatchObject({ ok: false }); // nessuna partita
+  });
+
   it("una partita già avviata non si riavvia", () => {
     start();
     w.engine.hostCommand({ type: "engine", action: "end-match" });

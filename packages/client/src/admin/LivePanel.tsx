@@ -150,7 +150,7 @@ export function LivePanel() {
                 className={a.danger ? "danger" : "primary"}
                 onClick={() => {
                   if (a.danger && !confirm(`${a.label}?`)) return;
-                  void run({ type: "engine", action: a.id as "next" | "finish-round" | "end-match" });
+                  void run({ type: "engine", action: a.id as "next" | "finish-round" | "end-match" | "close" });
                 }}
               >
                 {a.label}
