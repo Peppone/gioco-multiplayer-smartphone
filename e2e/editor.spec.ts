@@ -119,3 +119,56 @@ test("tutti i tipi di minigioco sono nella libreria con un esempio valido e salv
     await expect(page.getByText("Salvato."), `salvataggio di ${type}`).toBeVisible();
   }
 });
+
+test("editor del mazzo di carte: carte ed effetti dal modulo, etichette in italiano, validazione", async ({ browser, request }) => {
+  const token = await adminToken(request);
+  const admin = await openAdmin(browser, token);
+  const { page } = admin;
+  const title = unique("Mazzo form");
+
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Mazzo di carte (Duello)" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(title);
+
+  // Il mazzo parte dal mazzo base: 15 carte, la prima è il Fendente con un effetto di attacco
+  const cards = page.locator('fieldset.field.array:has(> legend:has-text("Carte")) > .item.card');
+  await expect(cards).toHaveCount(15);
+  await expect(cards.first().getByLabel("Nome", { exact: true }).first()).toHaveValue("Fendente");
+  // gli effetti hanno etichette leggibili, non i valori tecnici
+  const kind = cards.first().getByLabel("Effetto").first();
+  await expect(kind.locator("option")).toHaveText([
+    "Attacco",
+    "Colpo pesante (si risolve per ultimo)",
+    "Scudo",
+    "Contrattacco",
+    "Cura",
+    "Veleno",
+    "Furto di una carta",
+    "Spia (svela una carta avversaria)",
+    "Sabotaggio (malus ai punti)",
+  ]);
+
+  // Nuova carta: nasce valida (valori predefiniti), la si compila
+  await page.getByRole("button", { name: "+ Aggiungi carta" }).click();
+  await expect(cards).toHaveCount(16);
+  const added = cards.last();
+  await added.getByLabel("Identificatore").fill("scatto-rapido");
+  await added.getByLabel("Nome", { exact: true }).first().fill("Scatto rapido");
+  await added.getByLabel("Effetto").first().selectOption("heal");
+  await added.getByLabel("Valore").first().fill("4");
+
+  // Identificatore duplicato: il server lo rifiuta spiegando il motivo
+  await added.getByLabel("Identificatore").fill("fendente");
+  await page.getByRole("button", { name: "Salva" }).click();
+  await expect(page.locator(".error")).toContainText("diversi");
+
+  await added.getByLabel("Identificatore").fill("scatto-rapido");
+  await page.getByRole("button", { name: "Salva" }).click();
+  await expect(page.getByText("Salvato.")).toBeVisible();
+
+  const saved = (await (await request.get("/api/admin/instances", { headers: { Authorization: `Bearer ${token}` } })).json()) as { title: string; typeId: string; config: { cards: { id: string; effects: { kind: string; amount: number }[] }[] } }[];
+  const deck = saved.find((i) => i.title === title)!;
+  expect(deck.typeId).toBe("deck");
+  expect(deck.config.cards).toHaveLength(16);
+  expect(deck.config.cards.find((c) => c.id === "scatto-rapido")!.effects[0]).toMatchObject({ kind: "heal", amount: 4 });
+});
