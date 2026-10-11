@@ -231,3 +231,55 @@ describe("libreria minigiochi", () => {
     expect((await call("PUT", `/api/admin/matches/${m.id}/rounds/order`, { roundIds: [r1.id, r1.id] })).statusCode).toBe(400);
   });
 });
+
+describe("modalità di partita e mazzi", () => {
+  type TypeView = { id: string; kind: string; modeConfigJsonSchema?: { properties: Record<string, unknown> }; configJsonSchema: { properties?: Record<string, unknown> } };
+  const types = async () => (await call("GET", "/api/admin/minigame-types")).json() as TypeView[];
+
+  it("i tipi distinguono minigiochi, modalità (con schema della partita) e contenuti (mazzo)", async () => {
+    const list = await types();
+    const byId = Object.fromEntries(list.map((t) => [t.id, t]));
+    expect(byId["quiz-multipla"]?.kind).toBe("minigame");
+    expect(byId["knight-duel"]?.kind).toBe("mode");
+    expect(Object.keys(byId["knight-duel"]!.modeConfigJsonSchema!.properties)).toEqual(expect.arrayContaining(["sideA", "sideB", "pool", "hp", "winnerPoints"]));
+    expect(byId["deck"]?.kind).toBe("content");
+    expect(byId["deck"]!.configJsonSchema.properties).toHaveProperty("cards");
+  });
+
+  it("si crea un mazzo di carte dalla libreria, validato; non si crea un'istanza di una modalità", async () => {
+    const deckType = (await types()).find((t) => t.id === "deck")!;
+    void deckType;
+    const sample = (await call("GET", "/api/admin/minigame-types")).json().find((t: { id: string }) => t.id === "deck").sampleConfig;
+    const ok = await call("POST", "/api/admin/instances", { typeId: "deck", title: "Il mio mazzo", config: sample });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().config.cards).toHaveLength(15);
+
+    const dup = await call("POST", "/api/admin/instances", { typeId: "deck", title: "Doppioni", config: { cards: [sample.cards[0], sample.cards[0], sample.cards[1]] } });
+    expect(dup.statusCode).toBe(400);
+    expect(dup.json().detail).toContain("diversi");
+
+    expect((await call("POST", "/api/admin/instances", { typeId: "knight-duel", title: "X", config: {} })).statusCode).toBe(404);
+  });
+
+  it("la configurazione del duello si salva sulla partita, validata; cambiando modalità si azzera", async () => {
+    const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
+    const m = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Duello", mode: "knight-duel" })).json();
+    const cfg = { sideA: "t1", sideB: "t2", pool: ["i1"], hp: 25 };
+
+    const saved = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: cfg });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json().modeConfig).toMatchObject({ kind: "teams", sideA: "t1", hp: 25, maxBattles: 6 }); // con i valori predefiniti
+
+    const same = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: { ...cfg, sideB: "t1" } });
+    expect(same.statusCode).toBe(400);
+    expect(same.json().detail).toContain("diversi");
+
+    const bad = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: { ...cfg, hp: 1 } });
+    expect(bad.statusCode).toBe(400);
+
+    const back = await call("PATCH", `/api/admin/matches/${m.id}`, { mode: "classic" });
+    expect(back.json()).toMatchObject({ mode: "classic", modeConfig: {} });
+    const again = await call("PATCH", `/api/admin/matches/${m.id}`, { mode: "knight-duel" });
+    expect(again.json().modeConfig).toEqual({}); // la vecchia configurazione non riaffiora
+  });
+});

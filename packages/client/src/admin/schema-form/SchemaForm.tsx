@@ -1,4 +1,13 @@
+import { createContext, useContext } from "react";
 import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
+
+/** Dati esterni al modulo, per i widget che scelgono elementi esistenti (sfidanti, istanze della libreria). */
+export interface FormContext {
+  teams: { id: string; name: string }[];
+  players: { id: string; nickname: string }[];
+  instances: { id: string; title: string; kind: "minigame" | "content"; typeId: string }[];
+}
+const FormCtx = createContext<FormContext>({ teams: [], players: [], instances: [] });
 
 interface FieldProps {
   schema: JsonSchema;
@@ -16,6 +25,10 @@ function Hint({ schema }: { schema: JsonSchema }) {
 
 function Field({ schema, value, onChange, label, required, siblings }: FieldProps) {
   const labelText = `${label}${required ? "" : " (facoltativo)"}`;
+
+  if ((schema.widget === "contestant" || schema.widget === "instance") && schema.type !== "array") {
+    return <PickField schema={schema} value={value} onChange={onChange} labelText={labelText} required={required} siblings={siblings} />;
+  }
 
   if (schema.widget === "optionIndex") {
     const options = (siblings[schema.optionsKey ?? ""] as string[] | undefined) ?? [];
@@ -101,9 +114,32 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
   }
 }
 
+/** Selezione di un elemento esistente: uno sfidante della serata o un'istanza della libreria. */
+function PickField({ schema, value, onChange, labelText, required, siblings }: Pick<FieldProps, "schema" | "value" | "onChange" | "required" | "siblings"> & { labelText: string }) {
+  const ctx = useContext(FormCtx);
+  let options: { id: string; label: string }[];
+  if (schema.widget === "contestant") {
+    options = siblings.kind === "players" ? ctx.players.map((p) => ({ id: p.id, label: p.nickname })) : ctx.teams.map((t) => ({ id: t.id, label: t.name }));
+  } else {
+    const wanted = schema.instanceKind === "deck" ? "content" : "minigame";
+    options = ctx.instances.filter((i) => i.kind === wanted && (wanted === "minigame" || i.typeId === "deck")).map((i) => ({ id: i.id, label: i.title }));
+  }
+  return (
+    <label className="field">
+      <span className="label">{labelText}</span>
+      <select aria-label={labelText} value={typeof value === "string" ? value : ""} onChange={(e) => onChange(e.target.value === "" && !required ? undefined : e.target.value)}>
+        <option value="">{required ? "Scegli…" : "Predefinito"}</option>
+        {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+      </select>
+      <Hint schema={schema} />
+    </label>
+  );
+}
+
 function ArrayField({ schema, value, onChange, label, required }: FieldProps) {
   const list = Array.isArray(value) ? value : [];
-  const itemSchema = schema.items ?? {};
+  // Un widget dichiarato sull'array (es. «instance») vale per ciascun elemento.
+  const itemSchema: JsonSchema = { ...(schema.items ?? {}), ...(schema.widget ? { widget: schema.widget, instanceKind: schema.instanceKind } : {}) };
   const min = schema.minItems ?? 0;
   const itemName = schema.itemLabel ?? "Elemento";
   const isObject = itemSchema.type === "object";
@@ -177,14 +213,18 @@ export function SchemaForm({
   schema,
   value,
   onChange,
+  context,
 }: {
   schema: JsonSchema;
   value: unknown;
   onChange: (value: unknown) => void;
+  context?: FormContext;
 }) {
   return (
-    <div className="schema-form">
-      <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
-    </div>
+    <FormCtx.Provider value={context ?? { teams: [], players: [], instances: [] }}>
+      <div className="schema-form">
+        <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
+      </div>
+    </FormCtx.Provider>
   );
 }

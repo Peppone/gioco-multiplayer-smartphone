@@ -15,8 +15,10 @@ export interface JsonSchema {
   minimum?: number;
   maximum?: number;
   /** Suggerimenti di interfaccia aggiunti dai plugin con `.meta()`. */
-  widget?: "textarea" | "optionIndex";
+  widget?: "textarea" | "optionIndex" | "contestant" | "instance";
   optionsKey?: string;
+  /** Per il widget «instance»: quale tipo di istanza della libreria mostrare. */
+  instanceKind?: "minigame" | "deck";
   itemLabel?: string;
   /** Etichette leggibili per i valori di un enum (valore → testo). */
   enumLabels?: Record<string, string>;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AdminPlayerView, EventDetail, EventStatus, InstanceView, MatchMode, TeamView } from "@gioco/shared";
 import { STATUS_LABEL } from "./EventsPanel";
 import { api, errorMessage } from "./api";
+import { DuelConfigPanel } from "./DuelConfigPanel";
 import { moveItem } from "./schema-form/logic";
 
 const MODE_LABEL: Record<MatchMode, string> = { classic: "Classica (punti)", "knight-duel": "Duello dei Cavalieri" };
@@ -160,6 +161,10 @@ export function EventEditor({
                 Elimina
               </button>
             </div>
+            {m.mode === "knight-duel" ? (
+              <DuelConfigPanel match={m} event={event} teams={teams} players={players} instances={instances} onSaved={() => void load()} />
+            ) : (
+            <>
             <ol className="rounds">
               {m.rounds.map((r, i) => {
                 const ids = m.rounds.map((x) => x.id);
@@ -185,8 +190,10 @@ export function EventEditor({
                 onChange={(e) => e.target.value && void run(() => api("POST", `/matches/${m.id}/rounds`, { instanceId: e.target.value }))}
               >
                 <option value="">+ Aggiungi round dalla libreria…</option>
-                {instances.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+                {instances.filter((i) => i.typeId !== "deck").map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
               </select>
+            )}
+            </>
             )}
           </li>
         ))}

@@ -39,6 +39,8 @@ export const matchInputSchema = z.object({
 export const matchPatchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   mode: matchModeSchema.optional(),
+  /** Configurazione della modalità (es. del duello); validata dal plugin della modalità. */
+  modeConfig: z.unknown().optional(),
 });
 
 export type TeamInput = z.infer<typeof teamInputSchema>;
@@ -75,6 +77,8 @@ export interface MatchView {
   order: number;
   name: string;
   mode: MatchMode;
+  /** Configurazione della modalità (vuota per la modalità classica). */
+  modeConfig: unknown;
   status: "pending" | "running" | "done";
   rounds: RoundView[];
 }
@@ -101,11 +105,16 @@ export interface InstanceView {
 
 export interface MinigameTypeView {
   id: string;
+  /** minigame: si aggiunge come round · mode: modalità di partita · content: contenuto della libreria (es. mazzo di carte) */
+  kind: "minigame" | "mode" | "content";
   title: string;
   defaultTheme: "gameshow" | "pixel" | "manga" | "retro80";
   sampleConfig: unknown;
   /** JSON Schema della configurazione (da `configSchema`): genera il form dell editor. */
   configJsonSchema: unknown;
+  /** Solo per le modalità: schema ed esempio della configurazione impostata sulla partita. */
+  modeConfigJsonSchema?: unknown;
+  sampleModeConfig?: unknown;
 }
 
 export interface EventSummary {

@@ -48,7 +48,7 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
         api<MinigameTypeView[]>("GET", "/minigame-types"),
         api<InstanceView[]>("GET", "/instances"),
       ]);
-      setTypes(t);
+      setTypes(t.filter((x) => x.kind !== "mode")); // le modalità (es. duello) si impostano sulla partita, non sono istanze
       setInstances(i);
     } catch (e) {
       setError(errorMessage(e));

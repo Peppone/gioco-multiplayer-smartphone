@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { AnyMinigame, InstanceView, MinigameTypeView, RoundView } from "@gioco/shared";
-import { minigames as defaultRegistry } from "@gioco/minigames";
+import { type LibraryContentType, libraryContentTypes, minigames as defaultRegistry } from "@gioco/minigames";
 import { type Db, type InstanceRow, matchRounds, matches, minigameInstances } from "./db.js";
 import { type Result, fail, ok } from "./result.js";
 
@@ -19,16 +19,40 @@ export class LibraryService {
   constructor(
     private readonly db: Db,
     private readonly registry: Record<string, AnyMinigame> = defaultRegistry,
+    private readonly content: Record<string, LibraryContentType> = libraryContentTypes,
   ) {}
 
+  /** Un plugin con `modeConfigSchema` è una modalità di partita, non un round che si aggiunge. */
+  getMode(id: string): AnyMinigame | undefined {
+    const t = this.registry[id];
+    return t?.modeConfigSchema ? t : undefined;
+  }
+
   listTypes(): MinigameTypeView[] {
-    return Object.values(this.registry).map((t) => ({
+    const schema = (s: z.ZodType) => z.toJSONSchema(s, { io: "input", reused: "inline", unrepresentable: "any" });
+    const plugins = Object.values(this.registry).map((t): MinigameTypeView =>
+      t.modeConfigSchema
+        ? {
+            id: t.id,
+            kind: "mode",
+            title: t.title,
+            defaultTheme: t.defaultTheme,
+            sampleConfig: {},
+            configJsonSchema: {},
+            modeConfigJsonSchema: schema(t.modeConfigSchema),
+            sampleModeConfig: t.sampleModeConfig,
+          }
+        : { id: t.id, kind: "minigame", title: t.title, defaultTheme: t.defaultTheme, sampleConfig: t.sampleConfig, configJsonSchema: schema(t.configSchema) },
+    );
+    const content = Object.values(this.content).map((t): MinigameTypeView => ({
       id: t.id,
+      kind: "content",
       title: t.title,
       defaultTheme: t.defaultTheme,
       sampleConfig: t.sampleConfig,
-      configJsonSchema: z.toJSONSchema(t.configSchema, { io: "input", reused: "inline", unrepresentable: "any" }),
+      configJsonSchema: schema(t.configSchema),
     }));
+    return [...plugins, ...content];
   }
 
   listInstances(): InstanceView[] {
@@ -41,7 +65,9 @@ export class LibraryService {
 
   /** Valida la configurazione con lo schema del tipo; restituisce la config normalizzata (con i default). */
   private validate(typeId: string, config: unknown): Result<unknown> {
-    const type = this.registry[typeId];
+    // Si creano istanze di minigiochi e di contenuti (es. mazzi), non di modalità di partita.
+    const plugin = this.registry[typeId];
+    const type = plugin && !plugin.modeConfigSchema ? plugin : this.content[typeId];
     if (!type) return fail("not_found", "Tipo di minigioco sconosciuto");
     const parsed = type.configSchema.safeParse(config);
     if (parsed.success) return ok(parsed.data);
@@ -56,7 +82,7 @@ export class LibraryService {
       id: randomUUID(),
       typeId: input.typeId,
       title: input.title,
-      theme: input.theme ?? this.registry[input.typeId]!.defaultTheme,
+      theme: input.theme ?? (this.registry[input.typeId] ?? this.content[input.typeId])!.defaultTheme,
       configJson: JSON.stringify(config.value),
     };
     this.db.insert(minigameInstances).values(row).run();

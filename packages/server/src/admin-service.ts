@@ -33,6 +33,7 @@ const toMatch = (m: typeof matches.$inferSelect, rounds: RoundView[]): MatchView
   order: m.order,
   name: m.name,
   mode: m.mode as MatchMode,
+  modeConfig: JSON.parse(m.modeConfigJson || "{}") as unknown,
   status: m.status as MatchView["status"],
   rounds,
 });
@@ -229,11 +230,31 @@ export class AdminService {
     return ok(toMatch(row, []));
   }
 
-  patchMatch(id: string, patch: { name?: string; mode?: MatchMode }): Result<MatchView> {
+  /**
+   * Cambia nome, modalità o configurazione della modalità. La configurazione si controlla qui nella forma;
+   * le istanze e gli sfidanti si verificano all'avvio, quando la serata è completa.
+   */
+  patchMatch(id: string, patch: { name?: string; mode?: MatchMode; modeConfig?: unknown }): Result<MatchView> {
     const m = this.db.select().from(matches).where(eq(matches.id, id)).get();
     if (!m) return fail("not_found");
-    const next = { ...m, ...(patch.name && { name: patch.name }), ...(patch.mode && { mode: patch.mode }) };
-    this.db.update(matches).set({ name: next.name, mode: next.mode }).where(eq(matches.id, id)).run();
+    if (m.status !== "pending" && (patch.mode !== undefined || patch.modeConfig !== undefined)) {
+      return fail("conflict", "La partita è già avviata: la modalità non si modifica");
+    }
+    const mode = patch.mode ?? (m.mode as MatchMode);
+    let modeConfigJson = patch.mode !== undefined && patch.mode !== m.mode ? "{}" : m.modeConfigJson;
+    if (mode === "classic") {
+      modeConfigJson = "{}";
+    } else if (patch.modeConfig !== undefined) {
+      const plugin = this.library.getMode(mode);
+      const parsed = plugin?.modeConfigSchema?.safeParse(patch.modeConfig);
+      if (!plugin || !parsed?.success) {
+        const detail = parsed && !parsed.success ? parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ") : "Modalità sconosciuta";
+        return fail("invalid", detail);
+      }
+      modeConfigJson = JSON.stringify(parsed.data);
+    }
+    const next = { ...m, ...(patch.name && { name: patch.name }), mode, modeConfigJson };
+    this.db.update(matches).set({ name: next.name, mode: next.mode, modeConfigJson: next.modeConfigJson }).where(eq(matches.id, id)).run();
     return ok(toMatch(next, this.library.rounds(id)));
   }
 
