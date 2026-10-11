@@ -45,7 +45,7 @@ Regole che i test (vedi §4) verificano per te:
 - **Niente cambiamenti inutili**: se non succede nulla, `onTick`/`onInput` restituiscono **lo stesso oggetto** `state`. Il server lo usa per sapere se deve rinviare le viste ai client.
 - **Immutabile**: restituisci sempre un nuovo oggetto, non modificare quello ricevuto.
 - **Equità con la latenza**: per tutto ciò che dipende dalla velocità usa `fairTime({ claimed, receivedAt, rtt, openedAt })` e una tolleranza dopo la scadenza (`GRACE_MS` in `util.ts`). Mai il semplice ordine di arrivo.
-- **Configurazione**: ogni campo con `.meta({ title, description })` in italiano. Suggerimenti per il form: `widget: "textarea"`, `widget: "optionIndex"` (con `optionsKey`), `itemLabel`, `enumLabels`. I campi con `.default(...)` nascono già compilati.
+- **Configurazione**: ogni campo con `.meta({ title, description })` in italiano. Suggerimenti per il form: `widget: "textarea"`, `widget: "optionIndex"` (con `optionsKey`), `widget: "audio"` (carica un brano nella mediateca del server: il campo è una stringa validata con `MEDIA_FILE_PATTERN` e il file si legge da `/media/<file>`; esempio: `indovina-canzone`), `itemLabel`, `enumLabels`. I campi con `.default(...)` nascono già compilati.
 
 ### Azioni della regia
 

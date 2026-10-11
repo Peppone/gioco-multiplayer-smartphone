@@ -15,7 +15,7 @@ export interface MatchRun {
 /** Quanto ci mette lo stato nuovo ad arrivare a tutti i telefoni dopo un comando della regia (ms). */
 export const fanout: number[] = [];
 
-const PRIORITY = ["correct", "open", "next", "continue", "end", "pick:0"];
+const PRIORITY = ["correct", "open", "start", "resume", "next", "continue", "end", "pick:0"];
 
 /** Una regia automatica: conduce una partita intera cliccando i pulsanti giusti al momento giusto. */
 export class AutoHost {

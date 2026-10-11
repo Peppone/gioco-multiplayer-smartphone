@@ -24,6 +24,10 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
       if (v.canBuzz && !v.buzzed && (v.phase === "open" || v.phase === "collecting") && rnd() < 0.35) return { key: `b${v.question}`, inputs: [{ type: "buzz" }] };
       return null;
 
+    case "indovina-canzone":
+      if (v.canBuzz && !v.buzzed && (v.phase === "playing" || v.phase === "collecting") && rnd() < 0.35) return { key: `ic${v.phase}-${v.position}`, inputs: [{ type: "buzz" }] };
+      return null;
+
     case "vero-falso":
       if (v.phase === "statement" && v.myAnswer === null) return { key: `vf${v.index}`, inputs: [{ type: "answer", value: rnd() < 0.5 }] };
       return null;

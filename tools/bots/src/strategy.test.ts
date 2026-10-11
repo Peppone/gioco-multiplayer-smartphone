@@ -21,8 +21,9 @@ describe("strategia dei bot", () => {
   for (const plugin of Object.values(roundMinigames) as AnyMinigame[]) {
     it(`${plugin.id}: gli input dei bot sono validi e vengono registrati`, () => {
       const state = plugin.init(plugin.configSchema.parse(plugin.sampleConfig), ctx, 0);
-      // Per il buzzer serve prima che la regia apra le prenotazioni.
-      const ready = plugin.id === "buzzer" ? plugin.onHostCommand(state, { type: "open" }, 10) : state;
+      // Per buzzer e indovina-canzone serve prima che la regia apra le prenotazioni.
+      const opener = plugin.id === "buzzer" ? "open" : plugin.id === "indovina-canzone" ? "start" : null;
+      const ready = opener ? plugin.onHostCommand(state, { type: opener }, 10) : state;
       const rnd = makeRnd(1);
       let touched = 0;
       for (const p of ctx.players) {
