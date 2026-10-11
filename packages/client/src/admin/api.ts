@@ -1,3 +1,5 @@
+import { MAX_AUDIO_BYTES, type MediaItem } from "@gioco/shared";
+
 const TOKEN_KEY = "gioco.admin.token";
 
 export const getAdminToken = (): string | null => {
@@ -44,6 +46,23 @@ export async function api<T>(method: string, path: string, body?: unknown): Prom
     throw new ApiError(res.status, data.error ?? "errore", data.detail);
   }
   return data as T;
+}
+
+/** Carica un brano nella mediateca del server (corpo grezzo, nome originale nell'intestazione). */
+export async function uploadAudio(file: File): Promise<MediaItem> {
+  const token = getAdminToken();
+  const res = await fetch("/api/admin/media", {
+    method: "POST",
+    headers: {
+      "Content-Type": file.type || "audio/mpeg",
+      "X-File-Name": encodeURIComponent(file.name),
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: file,
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string; detail?: string };
+  if (!res.ok) throw new ApiError(res.status, res.status === 413 ? "troppo_grande" : (data.error ?? "errore"), res.status === 413 ? `Il file supera i ${MAX_AUDIO_BYTES / 1024 / 1024} MB.` : data.detail);
+  return data as unknown as MediaItem;
 }
 
 const MESSAGES: Record<string, string> = {

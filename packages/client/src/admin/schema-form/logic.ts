@@ -15,7 +15,7 @@ export interface JsonSchema {
   minimum?: number;
   maximum?: number;
   /** Suggerimenti di interfaccia aggiunti dai plugin con `.meta()`. */
-  widget?: "textarea" | "optionIndex" | "contestant" | "instance";
+  widget?: "textarea" | "optionIndex" | "contestant" | "instance" | "audio";
   optionsKey?: string;
   /** Per il widget «instance»: quale tipo di istanza della libreria mostrare. */
   instanceKind?: "minigame" | "deck";

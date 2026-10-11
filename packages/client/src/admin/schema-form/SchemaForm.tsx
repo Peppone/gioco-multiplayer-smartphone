@@ -1,4 +1,6 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import type { MediaItem } from "@gioco/shared";
+import { api, errorMessage, uploadAudio } from "../api";
 import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
 
 /** Dati esterni al modulo, per i widget che scelgono elementi esistenti (sfidanti, istanze della libreria). */
@@ -28,6 +30,10 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
 
   if ((schema.widget === "contestant" || schema.widget === "instance") && schema.type !== "array") {
     return <PickField schema={schema} value={value} onChange={onChange} labelText={labelText} required={required} siblings={siblings} />;
+  }
+
+  if (schema.widget === "audio") {
+    return <AudioField schema={schema} value={value} onChange={onChange} labelText={labelText} />;
   }
 
   if (schema.widget === "optionIndex") {
@@ -112,6 +118,52 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
         </label>
       );
   }
+}
+
+/** Brano audio: si carica un file dal computer della regia oppure si sceglie tra quelli già caricati. */
+function AudioField({ schema, value, onChange, labelText }: Pick<FieldProps, "schema" | "value" | "onChange"> & { labelText: string }) {
+  const [library, setLibrary] = useState<MediaItem[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const file = typeof value === "string" && value !== "" ? value : null;
+
+  useEffect(() => {
+    api<MediaItem[]>("GET", "/media").then(setLibrary, () => undefined);
+  }, []);
+
+  const upload = async (picked: File | undefined) => {
+    if (!picked) return;
+    setBusy(true);
+    setError("");
+    try {
+      const item = await uploadAudio(picked);
+      setLibrary((l) => [item, ...l]);
+      onChange(item.file);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const current = library.find((m) => m.file === file);
+  return (
+    <div className="field audio-field">
+      <span className="label">{labelText}</span>
+      <input type="file" accept="audio/*" aria-label={`Carica ${labelText}`} disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
+      {busy && <small className="muted">Caricamento in corso…</small>}
+      {library.length > 0 && (
+        <select aria-label={`Scegli ${labelText} già caricato`} value={file ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}>
+          <option value="">{file && !current ? "(file non trovato)" : "Scegli tra i brani caricati…"}</option>
+          {library.map((m) => <option key={m.file} value={m.file}>{m.name}</option>)}
+        </select>
+      )}
+      {file && current && <audio controls preload="none" src={`/media/${file}`} aria-label="Anteprima" />}
+      {file && !current && library.length > 0 && <small className="hint" role="alert">Questo file non è nella mediateca: carica di nuovo il brano.</small>}
+      {error && <small className="hint" role="alert">{error}</small>}
+      <Hint schema={schema} />
+    </div>
+  );
 }
 
 /** Selezione di un elemento esistente: uno sfidante della serata o un'istanza della libreria. */
