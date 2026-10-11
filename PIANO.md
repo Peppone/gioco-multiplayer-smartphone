@@ -71,7 +71,7 @@ Il server è lo stesso e la partita è la stessa: si possono mescolare giocatori
 | Animazioni UI | **Framer Motion** + CSS | Effetti game show, transizioni |
 | Minigiochi grafici | **PixiJS** (solo dove serve: pixel art e arcade) | Rendering 2D performante e nitido per il pixel art |
 | Audio | **Howler.js** | Effetti sonori e jingle; gestisce lo sblocco audio di iOS |
-| Test | **Vitest** + script di bot `socket.io-client` | Logica di gioco testabile, simulazione di 30 giocatori |
+| Test | **Vitest** + script di bot `socket.io-client` + **Playwright** | Logica di gioco testabile, simulazione di 30 giocatori, flussi end-to-end nel browser (Edge/Chromium, senza screenshot) |
 | Distribuzione | `pnpm start`, poi un **eseguibile unico** per Windows (Node SEA o `bun build --compile`) | L'host avvia un solo file |
 
 ### D4. Identità senza registrazione
@@ -286,6 +286,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 ## Verifica
 
 - **Unit test (Vitest)** sulle funzioni pure dei plugin (`init`, `onInput`, `onTick`, `scores`) e sulla state machine: ordine del buzzer, timeout, punteggi, riconnessione a metà round.
+- **Test end-to-end (Playwright, `pnpm test:e2e`):** schermo, regia e telefoni emulati giocano partite complete (quiz, buzzer, rettifiche, ritorno alla lobby), con controllo dei frame WebSocket per escludere fughe di informazioni segrete, editor a form, temi, reazioni e peso della pagina del telefono.
 - **Bot di carico:** `tools/bots` lancia 30 client simulati che rispondono in modo casuale. Si controllano latenza, consistenza delle classifiche e assenza di errori.
 - **Test sulle informazioni private:** per ogni plugin si verifica che `screenView` e `viewFor` del team avversario non contengano mai le carte, i voti o le soluzioni segrete. Il test è automatico e scorre lo stato a ogni step.
 - **Test del motore di battaglia:** tabelle di casi (scudo contro attacco, contrattacco, veleno, furto con mano vuota, parità di iniziativa) e simulazione di 1000 duelli tra bot casuali, per scovare combinazioni sbilanciate o loop infiniti.

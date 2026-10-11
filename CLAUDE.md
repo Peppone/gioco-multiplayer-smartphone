@@ -28,7 +28,7 @@ TypeScript ovunque, monorepo **pnpm workspaces**:
 - `packages/client`: **React + Vite**, **Framer Motion**, **PixiJS** (solo per i giochi pixel/arcade), **Howler.js**;
 - `packages/minigames`: un plugin per cartella;
 - `tools/bots`: simulatore di N giocatori con `socket.io-client`;
-- test con **Vitest**.
+- test con **Vitest** (unit e integrazione) e **Playwright** (end-to-end nel browser).
 
 Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIANO.md`.
 
@@ -48,7 +48,8 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 - Ogni plugin ha unit test sulle funzioni pure.
 - Ogni plugin con informazioni segrete ha un **test anti-leak**: verifica che `screenView` e `viewFor` del team avversario non espongano dati privati.
 - Le modifiche al buzzer e al motore di battaglia richiedono test con latenza simulata o simulazioni con bot.
-- Prima di dichiarare conclusa una fase, eseguire i test e la demo indicata in `PIANO.md`.
+- **Test end-to-end con Playwright** (`pnpm test:e2e`, cartella `e2e/`): pilotano Edge (già presente, nessun download) con più browser insieme (schermo, regia, telefoni emulati) e verificano DOM, testi, stili calcolati e frame WebSocket, **senza screenshot**. Usano un server dedicato sulla porta 3100 e un database vuoto in `data/e2e/`, mai quello vero. Ogni nuova funzione visibile all'utente (schermate, flussi di gioco, editor) aggiunge o aggiorna uno scenario e2e; ogni test lascia il server pulito (`Termina la partita` + `Torna alla lobby`).
+- Prima di dichiarare conclusa una fase, eseguire i test (`pnpm test` e `pnpm test:e2e`) e la demo indicata in `PIANO.md`.
 
 ## Git
 
