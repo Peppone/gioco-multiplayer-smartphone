@@ -11,7 +11,13 @@ export interface ParticipantInfo {
 export interface TeamInfo {
   id: string;
   name: string;
+  color?: string;
 }
+
+/** Cerca un'istanza della libreria per id (la implementa il server leggendo il database). */
+export type InstanceLookup = (instanceId: string) => { typeId: string; title: string; theme: ThemeId; config: unknown } | undefined;
+
+export type BuildConfigResult<Config> = { ok: true; config: Config } | { ok: false; error: string };
 
 export interface MinigameContext {
   players: ParticipantInfo[];
@@ -71,6 +77,15 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   commandSchema: ZodType<Command>;
   /** Configurazione di esempio, valida per `configSchema`. */
   sampleConfig: Config;
+
+  /**
+   * Solo per i plugin «modalità» (es. il Duello dei Cavalieri), che si scelgono come modalità di una partita
+   * invece di essere un round: schema della configurazione impostata dall'admin sulla partita,
+   * esempio, e costruzione della configurazione completa leggendo la libreria.
+   */
+  modeConfigSchema?: ZodType<unknown>;
+  sampleModeConfig?: unknown;
+  buildConfig?(modeConfig: unknown, lookup: InstanceLookup, roster: { players: ParticipantInfo[]; teams: TeamInfo[] }): BuildConfigResult<Config>;
 
   init(config: Config, ctx: MinigameContext, now: number): State;
   onInput(state: State, playerId: string, input: Input, meta: InputMeta): State;
