@@ -67,9 +67,9 @@ function StartPicker({ onStart }: { onStart: (matchId: string) => void }) {
         {detail?.matches.map((m) => (
           <li key={m.id}>
             <span>
-              {m.order}. {m.name} <small className="muted">· {m.mode === "classic" ? `${m.rounds.length} round` : "Duello dei Cavalieri"} · {m.status === "pending" ? "pronta" : m.status === "running" ? "avviata" : "conclusa"}</small>
+              {m.order}. {m.name} <small className="muted">· {m.rounds.length} round ·{m.status === "pending" ? "pronta" : m.status === "running" ? "avviata" : "conclusa"}</small>
             </span>
-            <button className="primary" disabled={m.status !== "pending" || (m.mode === "classic" && m.rounds.length === 0)} onClick={() => onStart(m.id)}>
+            <button className="primary" disabled={m.status !== "pending" || m.rounds.length === 0} onClick={() => onStart(m.id)}>
               Avvia
             </button>
           </li>

@@ -33,7 +33,7 @@ test("duello completo con 4 telefoni: minigioco, draft segreto, battaglia simult
   const [b1, b2] = blues as [Client, Client];
 
   // ---- Avvio: il duello è un unico round ----
-  await admin.page.getByRole("button", { name: /Avvia round 1: Duello dei Cavalieri/ }).click();
+  await admin.page.getByRole("button", { name: /Avvia round 1: Duello/ }).click();
   await expect(screen.page.locator(".duel-screen")).toBeVisible();
   await expect(screen.page.getByText("Il mare è salato.")).toBeVisible();
   await expect(screen.page.getByText(/Battaglia 1 di 3/)).toBeVisible();
@@ -116,18 +116,13 @@ test("duello completo con 4 telefoni: minigioco, draft segreto, battaglia simult
   await expect(players.filter({ hasText: "100" })).toHaveCount(2);
 });
 
-test("la regia configura il duello dall'editor: sfidanti, minigiochi e mazzo", async ({ browser, request }) => {
+test("la regia crea il duello dalla Libreria come ogni minigioco e lo aggiunge a una partita", async ({ browser, request }) => {
   const { adminApi, adminToken, openAdmin, unique } = await import("./support");
   const token = await adminToken(request);
   const api = adminApi(request, token);
 
-  const redName = unique("Rossi");
-  const blueName = unique("Blu");
-  const red = await api.call<{ id: string }>("post", "/teams", { name: redName, color: "#ef4444", emblem: "🔥" });
-  const blue = await api.call<{ id: string }>("post", "/teams", { name: blueName, color: "#3b82f6", emblem: "🌊" });
   const eventName = unique("Serata duello");
-  const event = await api.call<{ id: string }>("post", "/events", { name: eventName });
-  await api.call("put", `/events/${event.id}/teams`, { teamIds: [red.id, blue.id] });
+  await api.call("post", "/events", { name: eventName });
   const instTitle = unique("Raffica");
   await api.call("post", "/instances", { typeId: "vero-falso", title: instTitle, config: { statements: [{ text: "x", answer: true }] } });
   const deckTitle = unique("Mazzo");
@@ -136,40 +131,39 @@ test("la regia configura il duello dall'editor: sfidanti, minigiochi e mazzo", a
 
   const admin = await openAdmin(browser, token);
   const { page } = admin;
-  await page.getByRole("button", { name: "Serate" }).click();
-  await page.locator(".list li", { hasText: eventName }).getByRole("button", { name: "Apri" }).click();
 
-  // Nuova partita in modalità duello
-  await page.getByPlaceholder("Nome partita").fill("Finale");
-  await page.locator("form.row select").selectOption("knight-duel");
-  await page.getByRole("button", { name: "Aggiungi" }).click();
-  const match = page.locator(".match", { hasText: "Finale" });
-  await expect(match).toContainText("Duello dei Cavalieri");
-  await expect(match.getByText("Nessun round")).toHaveCount(0); // un duello non ha round da comporre
-
-  await match.getByRole("button", { name: "Configura il duello" }).click();
-  // squadre presenti nella serata come sfidanti (con la loro emoji)
-  await match.getByLabel("Primo sfidante").selectOption({ label: `🔥 ${redName}` });
-  await match.getByLabel("Secondo sfidante").selectOption({ label: `🌊 ${blueName}` });
-  // il minigioco si sceglie dalla libreria (solo minigiochi, non mazzi)
-  const pool = match.getByLabel("Minigioco 1");
+  // Il duello è nella Libreria come gli altri minigiochi, con il suo modulo (niente sfidanti: li decide la serata)
+  const duelTitle = unique("Finale a cavalieri");
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Duello dei Cavalieri" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(duelTitle);
+  const editor = page.locator("form.editor");
+  await expect(editor.getByLabel("Primo sfidante")).toHaveCount(0);
+  // i minigiochi si scelgono dalla libreria: solo minigiochi, non mazzi né altri duelli
+  const pool = editor.getByLabel("Minigioco 1");
   await expect(pool.locator("option", { hasText: deckTitle })).toHaveCount(0);
   await pool.selectOption({ label: instTitle });
-  await match.getByLabel("Mazzo di carte").selectOption({ label: deckTitle });
-  await match.getByLabel("Punti vita dei cavalieri").fill("15");
-  await match.getByRole("button", { name: "Salva configurazione" }).click();
-  await expect(match.getByText("Configurazione salvata.")).toBeVisible();
+  await editor.getByLabel("Mazzo di carte").selectOption({ label: deckTitle });
+  await editor.getByLabel("Punti vita dei cavalieri").fill("15");
+  await page.getByRole("button", { name: "Salva", exact: true }).click();
+  await expect(page.getByText("Salvato.")).toBeVisible();
+  await expect(page.locator(".library ul.list li", { hasText: duelTitle })).toContainText("Duello dei Cavalieri");
 
-  const matches = await api.call<{ matches: { name: string; mode: string; modeConfig: any }[] }>("get", `/events/${event.id}`);
-  const saved = matches.matches.find((m) => m.name === "Finale")!;
-  expect(saved.mode).toBe("knight-duel");
-  expect(saved.modeConfig).toMatchObject({ kind: "teams", hp: 15, sideA: red.id, sideB: blue.id });
-  expect(saved.modeConfig.pool).toHaveLength(1);
+  const saved = (await api.call<{ title: string; typeId: string; config: any }[]>("get", "/instances")).find((i) => i.title === duelTitle)!;
+  expect(saved.typeId).toBe("knight-duel");
+  expect(saved.config).toMatchObject({ kind: "teams", hp: 15 });
+  expect(saved.config.pool).toHaveLength(1);
+  expect(saved.config).not.toHaveProperty("sideA");
 
-  // Sfidanti uguali: il server lo rifiuta con un messaggio comprensibile
-  await match.getByLabel("Secondo sfidante").selectOption({ label: `🔥 ${redName}` });
-  await match.getByRole("button", { name: "Salva configurazione" }).click();
-  await expect(match.locator(".error")).toContainText("diversi");
+  // Si aggiunge a una partita come un round qualsiasi
+  await page.getByRole("button", { name: "Serate" }).click();
+  await page.locator(".list li", { hasText: eventName }).getByRole("button", { name: "Apri" }).click();
+  await page.getByPlaceholder("Nome partita").fill("Finale");
+  await page.getByRole("button", { name: "Aggiungi" }).click();
+  const match = page.locator(".match", { hasText: "Finale" });
+  await match.locator("select").selectOption({ label: duelTitle });
+  await expect(match.locator(".rounds li")).toContainText(duelTitle);
+  await expect(match.locator(".rounds li")).toContainText("knight-duel");
 });
 
 // ---- Interfaccia del duello nell'anteprima: verifiche su DOM e stili, senza screenshot ----

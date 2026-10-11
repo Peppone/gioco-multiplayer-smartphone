@@ -16,7 +16,7 @@ const buzz = (nick: string) => w.engine.input(w.ids[nick]!, { type: "buzz" }, w.
 describe("Engine: avvio", () => {
   it("rifiuta comandi senza partita, e partite senza round o senza giocatori", () => {
     expect(next()).toEqual({ ok: false, error: "Nessuna partita in corso." });
-    const empty = w.admin.createMatch(w.event.id, { name: "Vuota", mode: "classic" });
+    const empty = w.admin.createMatch(w.event.id, { name: "Vuota" });
     if (!empty.ok) throw new Error();
     expect(w.engine.startMatch(empty.value.id)).toEqual({ ok: false, error: "La partita non ha round." });
   });

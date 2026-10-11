@@ -230,14 +230,13 @@ describe("serate, team e giocatori", () => {
   it("le partite sono numerate e si rinumerano dopo una cancellazione", async () => {
     const ev = await newEvent();
     const m1 = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Quiz" })).json();
-    const m2 = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Buzzer", mode: "classic" })).json();
-    const m3 = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Duello", mode: "knight-duel" })).json();
+    const m2 = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Buzzer" })).json();
+    const m3 = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Duello" })).json();
     expect([m1.order, m2.order, m3.order]).toEqual([1, 2, 3]);
 
     await call("DELETE", `/api/admin/matches/${m1.id}`);
     const detail = (await call("GET", `/api/admin/events/${ev.id}`)).json() as EventDetail;
     expect(detail.matches.map((m) => [m.name, m.order])).toEqual([["Buzzer", 1], ["Duello", 2]]);
-    expect(detail.matches[1]?.mode).toBe("knight-duel");
   });
 
   it("eliminare la serata elimina partite e assegnazioni", async () => {
@@ -309,21 +308,23 @@ describe("libreria minigiochi", () => {
   });
 });
 
-describe("modalità di partita e mazzi", () => {
-  type TypeView = { id: string; kind: string; modeConfigJsonSchema?: { properties: Record<string, unknown> }; configJsonSchema: { properties?: Record<string, unknown> } };
+describe("duello e mazzi", () => {
+  type TypeView = { id: string; kind: string; configJsonSchema: { properties?: Record<string, unknown> } };
   const types = async () => (await call("GET", "/api/admin/minigame-types")).json() as TypeView[];
 
-  it("i tipi distinguono minigiochi, modalità (con schema della partita) e contenuti (mazzo)", async () => {
+  it("il duello è un minigioco con il suo modulo (senza sfidanti); il mazzo è un contenuto", async () => {
     const list = await types();
     const byId = Object.fromEntries(list.map((t) => [t.id, t]));
     expect(byId["quiz-multipla"]?.kind).toBe("minigame");
-    expect(byId["knight-duel"]?.kind).toBe("mode");
-    expect(Object.keys(byId["knight-duel"]!.modeConfigJsonSchema!.properties)).toEqual(expect.arrayContaining(["sideA", "sideB", "pool", "hp", "winnerPoints"]));
+    expect(byId["knight-duel"]?.kind).toBe("minigame");
+    const duelFields = Object.keys(byId["knight-duel"]!.configJsonSchema.properties!);
+    expect(duelFields).toEqual(expect.arrayContaining(["kind", "pool", "hp", "winnerPoints"]));
+    expect(duelFields).not.toContain("sideA");
     expect(byId["deck"]?.kind).toBe("content");
     expect(byId["deck"]!.configJsonSchema.properties).toHaveProperty("cards");
   });
 
-  it("si crea un mazzo di carte dalla libreria, validato; non si crea un'istanza di una modalità", async () => {
+  it("si crea un mazzo di carte dalla libreria, validato", async () => {
     const deckType = (await types()).find((t) => t.id === "deck")!;
     void deckType;
     const sample = (await call("GET", "/api/admin/minigame-types")).json().find((t: { id: string }) => t.id === "deck").sampleConfig;
@@ -335,28 +336,15 @@ describe("modalità di partita e mazzi", () => {
     expect(dup.statusCode).toBe(400);
     expect(dup.json().detail).toContain("diversi");
 
-    expect((await call("POST", "/api/admin/instances", { typeId: "knight-duel", title: "X", config: {} })).statusCode).toBe(404);
   });
 
-  it("la configurazione del duello si salva sulla partita, validata; cambiando modalità si azzera", async () => {
-    const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
-    const m = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Duello", mode: "knight-duel" })).json();
-    const cfg = { sideA: "t1", sideB: "t2", pool: ["i1"], hp: 25 };
+  it("l'istanza del duello si crea dalla libreria, validata, con i valori predefiniti", async () => {
+    const cfg = { pool: ["i1"], hp: 25 };
+    const saved = await call("POST", "/api/admin/instances", { typeId: "knight-duel", title: "Duello", config: cfg });
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json().config).toMatchObject({ kind: "teams", hp: 25, maxBattles: 6 });
 
-    const saved = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: cfg });
-    expect(saved.statusCode).toBe(200);
-    expect(saved.json().modeConfig).toMatchObject({ kind: "teams", sideA: "t1", hp: 25, maxBattles: 6 }); // con i valori predefiniti
-
-    const same = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: { ...cfg, sideB: "t1" } });
-    expect(same.statusCode).toBe(400);
-    expect(same.json().detail).toContain("diversi");
-
-    const bad = await call("PATCH", `/api/admin/matches/${m.id}`, { modeConfig: { ...cfg, hp: 1 } });
-    expect(bad.statusCode).toBe(400);
-
-    const back = await call("PATCH", `/api/admin/matches/${m.id}`, { mode: "classic" });
-    expect(back.json()).toMatchObject({ mode: "classic", modeConfig: {} });
-    const again = await call("PATCH", `/api/admin/matches/${m.id}`, { mode: "knight-duel" });
-    expect(again.json().modeConfig).toEqual({}); // la vecchia configurazione non riaffiora
+    expect((await call("POST", "/api/admin/instances", { typeId: "knight-duel", title: "X", config: { ...cfg, hp: 1 } })).statusCode).toBe(400);
+    expect((await call("POST", "/api/admin/instances", { typeId: "knight-duel", title: "X", config: { pool: [] } })).statusCode).toBe(400);
   });
 });

@@ -24,4 +24,33 @@ describe("migrazione del database", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("le partite in modalità duello diventano classiche con un round-duello, senza gli sfidanti", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gioco-db-"));
+    try {
+      const file = join(dir, "duello.sqlite");
+      const first = openDb(file).sqlite;
+      first.exec(`INSERT INTO matches VALUES ('m1', 'e1', 1, 'Finale', 'pending', 'knight-duel', '{"kind":"teams","sideA":"t1","sideB":"t2","pool":["q1"],"hp":15}');
+        INSERT INTO matches VALUES ('m2', 'e1', 2, 'Vuoto', 'pending', 'knight-duel', '{}');
+        INSERT INTO matches VALUES ('m3', 'e1', 3, 'Quiz', 'pending', 'classic', '{}');`);
+      first.close();
+
+      const { sqlite } = openDb(file);
+      expect(sqlite.prepare("SELECT id, mode, mode_config_json FROM matches ORDER BY id").all()).toEqual([
+        { id: "m1", mode: "classic", mode_config_json: "{}" },
+        { id: "m2", mode: "classic", mode_config_json: "{}" },
+        { id: "m3", mode: "classic", mode_config_json: "{}" },
+      ]);
+      const rounds = sqlite.prepare("SELECT r.match_id, i.type_id, i.title, i.config_json FROM match_rounds r JOIN minigame_instances i ON i.id = r.instance_id").all() as { match_id: string; type_id: string; title: string; config_json: string }[];
+      expect(rounds).toHaveLength(1); // la partita senza configurazione resta senza round
+      expect(rounds[0]).toMatchObject({ match_id: "m1", type_id: "knight-duel", title: "Duello: Finale" });
+      expect(JSON.parse(rounds[0]!.config_json)).toEqual({ kind: "teams", pool: ["q1"], hp: 15 });
+      sqlite.close();
+      const again = openDb(file).sqlite; // una seconda apertura non duplica nulla
+      expect(again.prepare("SELECT count(*) AS n FROM match_rounds").get()).toEqual({ n: 1 });
+      again.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -19,12 +19,16 @@ beforeEach(() => {
       config: { statements: [{ text: "Il mare è salato.", answer: true }], timeSec: 5, revealSec: 1 },
     }),
   );
-  const match = must(w.admin.createMatch(w.event.id, { name: "Duello", mode: "knight-duel" }));
-  must(
-    w.admin.patchMatch(match.id, {
-      modeConfig: { sideA: w.red.id, sideB: w.blue.id, pool: [inst.id], hp: 10, minigamesPerBattle: 1, maxBattles: 3, draftSeconds: 5, battleSeconds: 5 },
+  // Il duello è un'istanza della libreria come le altre: si aggiunge come round di una partita.
+  const duel = must(
+    w.admin.library.createInstance({
+      typeId: "knight-duel",
+      title: "Duello di prova",
+      config: { pool: [inst.id], hp: 10, minigamesPerBattle: 1, maxBattles: 3, draftSeconds: 5, battleSeconds: 5 },
     }),
   );
+  const match = must(w.admin.createMatch(w.event.id, { name: "Duello" }));
+  must(w.admin.library.addRound(match.id, duel.id));
   matchId = match.id;
 });
 
@@ -68,14 +72,25 @@ function playUntilResults(maxSteps = 400) {
   return seen;
 }
 
-describe("Engine: partita in modalità duello", () => {
-  it("la partita non ha round, ma parte: il duello è un unico round che contiene tutto", () => {
+describe("Engine: round duello", () => {
+  it("il duello è un round come gli altri; gli sfidanti sono le prime due squadre della serata per nome", () => {
     expect(start()).toEqual({ ok: true });
     expect(w.engine.screenState()).toMatchObject({ phase: "ready", roundCount: 1 });
     expect(next()).toEqual({ ok: true });
     const screen = w.engine.screenState();
     expect(screen.frame).toMatchObject({ typeId: "knight-duel", theme: "pixel" });
-    expect((screen.frame!.view as any).sides.map((s: any) => [s.name.startsWith("Rossi"), s.hp])).toEqual([[true, 10], [false, 10]]);
+    expect((screen.frame!.view as any).sides.map((s: any) => [s.name.startsWith("Blu"), s.hp])).toEqual([[true, 10], [false, 10]]);
+  });
+
+  it("un duello può stare in una partita insieme ad altri round", () => {
+    const quiz = w.admin.library.listInstances().find((i) => i.typeId === "vero-falso")!;
+    const m = w.admin.createMatch(w.event.id, { name: "Mista" });
+    if (!m.ok) throw new Error();
+    w.admin.library.addRound(m.value.id, quiz.id);
+    const duel = w.admin.library.listInstances().find((i) => i.typeId === "knight-duel")!;
+    w.admin.library.addRound(m.value.id, duel.id);
+    expect(w.engine.startMatch(m.value.id)).toEqual({ ok: true });
+    expect(w.engine.screenState()).toMatchObject({ roundCount: 2 });
   });
 
   it("si gioca un duello intero e solo l'esito dà punti serata: 500 ai vincitori, 100 ai perdenti", () => {
@@ -127,20 +142,33 @@ describe("Engine: partita in modalità duello", () => {
     expect(secrets.size).toBeGreaterThan(0); // il test ha visto davvero delle mani
   });
 
-  it("la configurazione sbagliata viene spiegata all'avvio (sfidanti fuori serata, nessun minigioco)", () => {
-    const patch = (cfg: unknown) => w.admin.patchMatch(matchId, { modeConfig: cfg });
-    expect(patch({ sideA: "x", sideB: "y", pool: [] })).toMatchObject({ ok: false, error: "invalid" }); // pool vuoto: rifiutata subito
+  it("la configurazione sbagliata viene spiegata (istanze nel form, minigioco mancante, serata senza due squadre)", () => {
+    const create = (config: unknown) => w.admin.library.createInstance({ typeId: "knight-duel", title: "D", config });
+    expect(create({ pool: [] })).toMatchObject({ ok: false, error: "invalid" }); // pool vuoto: rifiutata subito
 
-    patch({ sideA: w.red.id, sideB: "squadra-inesistente", pool: ["istanza-inesistente"] });
-    expect(start()).toMatchObject({ ok: false, error: expect.stringContaining("non fa parte della serata") });
+    const missing = create({ pool: ["istanza-inesistente"] });
+    if (!missing.ok) throw new Error();
+    const m = w.admin.createMatch(w.event.id, { name: "Rotta" });
+    if (!m.ok) throw new Error();
+    w.admin.library.addRound(m.value.id, missing.value.id);
+    expect(w.engine.startMatch(m.value.id)).toMatchObject({ ok: false, error: expect.stringContaining("non utilizzabile") });
 
-    patch({ sideA: w.red.id, sideB: w.blue.id, pool: ["istanza-inesistente"] });
-    expect(start()).toMatchObject({ ok: false, error: expect.stringContaining("non utilizzabile") });
+    // una sola squadra in serata: il duello tra squadre non può partire
+    w.admin.setEventTeams(w.event.id, [w.red.id]);
+    expect(start()).toMatchObject({ ok: false, error: expect.stringContaining("almeno due squadre") });
   });
 
-  it("una modalità sconosciuta o una partita senza configurazione non si avvia", () => {
-    const empty = w.admin.createMatch(w.event.id, { name: "Vuoto", mode: "knight-duel" });
-    if (!empty.ok) throw new Error();
-    expect(w.engine.startMatch(empty.value.id)).toMatchObject({ ok: false });
+  it("il duello tra giocatori estrae due giocatori della serata", () => {
+    const quiz = w.admin.library.listInstances().find((i) => i.typeId === "vero-falso")!;
+    const duel = w.admin.library.createInstance({ typeId: "knight-duel", title: "Singolo", config: { kind: "players", pool: [quiz.id] } });
+    if (!duel.ok) throw new Error();
+    const m = w.admin.createMatch(w.event.id, { name: "Singoli" });
+    if (!m.ok) throw new Error();
+    w.admin.library.addRound(m.value.id, duel.value.id);
+    expect(w.engine.startMatch(m.value.id)).toEqual({ ok: true });
+    w.engine.hostCommand({ type: "engine", action: "next" });
+    const sides = (w.engine.screenState().frame!.view as any).sides as { name: string }[];
+    expect(new Set(sides.map((s) => s.name)).size).toBe(2);
+    expect(sides.every((s) => ["ada", "bob", "cleo", "dan"].includes(s.name))).toBe(true);
   });
 });

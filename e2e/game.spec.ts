@@ -26,7 +26,7 @@ test("partita completa: quiz e buzzer, dal telefono alla classifica finale", asy
     config: { questions: [{ text: "Domanda del buzzer?", answer: SECRET }], defaultPoints: 100, wrongPenalty: 50 },
   });
   const matchName = unique("Partita");
-  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName, mode: "classic" });
+  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName });
   await api.call("post", `/matches/${match.id}/rounds`, { instanceId: quiz.id });
   await api.call("post", `/matches/${match.id}/rounds`, { instanceId: buzzer.id });
 
@@ -136,7 +136,7 @@ test("la regia assegna punti a mano e la classifica si aggiorna", async ({ brows
     config: { questions: [{ text: "Domanda?", options: ["Sì", "No"], correctIndex: 0 }] },
   });
   const matchName = unique("Partita");
-  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName, mode: "classic" });
+  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName });
   await api.call("post", `/matches/${match.id}/rounds`, { instanceId: quiz.id });
 
   const nick = unique("Eva");

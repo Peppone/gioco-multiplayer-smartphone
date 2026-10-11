@@ -2,17 +2,15 @@ import { z } from "zod";
 import { type Deck, deckSchema } from "./cards.js";
 
 /**
- * Configurazione della partita-duello come la imposta l'admin (salvata in `matches.mode_config_json`):
- * riferisce istanze della libreria per id. Il server la «risolve» in `DuelConfig` prima di avviare il duello.
+ * Istanza del duello in libreria, come la compila l'admin: riferisce altre istanze (minigiochi, mazzo) per id.
+ * Gli sfidanti non ci sono: li sceglie `buildConfig` tra squadre o giocatori della serata. All'avvio della
+ * partita il server la «risolve» in `DuelConfig`.
  */
-export const duelModeSchema = z
-  .object({
+export const duelLibrarySchema = z.object({
     kind: z.enum(["teams", "players"]).default("teams").meta({
       title: "Chi si sfida",
-      enumLabels: { teams: "Due squadre", players: "Due giocatori" },
+      enumLabels: { teams: "Due squadre (le prime due della serata, in ordine alfabetico)", players: "Due giocatori (estratti a sorte tra quelli della serata)" },
     }),
-    sideA: z.string().min(1).meta({ title: "Primo sfidante", widget: "contestant" }),
-    sideB: z.string().min(1).meta({ title: "Secondo sfidante", widget: "contestant" }),
     pool: z
       .array(z.string().min(1))
       .min(1)
@@ -43,7 +41,13 @@ export const duelModeSchema = z
     }),
     winnerPoints: z.number().int().min(0).max(10_000).default(500).meta({ title: "Punti serata a ogni vincitore" }),
     loserPoints: z.number().int().min(0).max(10_000).default(100).meta({ title: "Punti serata a ogni perdente" }),
-  })
+  });
+
+export type DuelLibrary = z.infer<typeof duelLibrarySchema>;
+
+/** Impostazioni del duello con gli sfidanti già scelti (id di squadre o di giocatori). */
+export const duelModeSchema = duelLibrarySchema
+  .extend({ sideA: z.string().min(1), sideB: z.string().min(1) })
   .refine((c) => c.sideA !== c.sideB, { message: "I due sfidanti devono essere diversi", path: ["sideB"] });
 
 export type DuelMode = z.infer<typeof duelModeSchema>;

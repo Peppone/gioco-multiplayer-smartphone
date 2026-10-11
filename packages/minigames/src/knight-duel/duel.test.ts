@@ -408,32 +408,45 @@ describe("configurazione della partita", () => {
   const roster = { players, teams: ctx.teams };
 
   it("risolve le istanze della libreria e usa il mazzo base se non ne è indicato uno", () => {
-    const r = duel.buildConfig!({ sideA: "t1", sideB: "t2", pool: ["vf"] }, lookup, roster);
+    const r = duel.buildConfig!({ pool: ["vf"] }, lookup, roster);
     expect(r).toMatchObject({ ok: true });
     if (r.ok) {
       expect(r.config.pool).toEqual([expect.objectContaining({ instanceId: "vf", typeId: "vero-falso" })]);
       expect(r.config.deck.cards).toHaveLength(15);
       expect(r.config.mode).toMatchObject({ hp: 20, maxBattles: 6, minigamesPerBattle: 2 });
     }
-    expect(duel.buildConfig!({ sideA: "t1", sideB: "t2", pool: ["vf"], deck: "deck1" }, lookup, roster)).toMatchObject({ ok: true });
+    expect(duel.buildConfig!({ pool: ["vf"], deck: "deck1" }, lookup, roster)).toMatchObject({ ok: true });
   });
 
-  it("rifiuta sfidanti uguali, pool vuoto, istanze o mazzi inesistenti e minigiochi non utilizzabili", () => {
+  it("rifiuta pool vuoto, istanze o mazzi inesistenti e minigiochi non utilizzabili", () => {
     const bad = (raw: unknown) => duel.buildConfig!(raw, lookup, roster);
-    expect(bad({ sideA: "t1", sideB: "t1", pool: ["vf"] })).toMatchObject({ ok: false });
-    expect(bad({ sideA: "t1", sideB: "t2", pool: [] })).toMatchObject({ ok: false });
-    expect(bad({ sideA: "t1", sideB: "t2", pool: ["boh"] })).toMatchObject({ ok: false });
-    expect(bad({ sideA: "t1", sideB: "t2", pool: ["vf"], deck: "boh" })).toMatchObject({ ok: false });
-    expect(bad({ sideA: "t1", sideB: "t2", pool: ["deck1"] })).toMatchObject({ ok: false }); // un mazzo non è un minigioco
+    expect(bad({ pool: [] })).toMatchObject({ ok: false });
+    expect(bad({ pool: ["boh"] })).toMatchObject({ ok: false });
+    expect(bad({ pool: ["vf"], deck: "boh" })).toMatchObject({ ok: false });
+    expect(bad({ pool: ["deck1"] })).toMatchObject({ ok: false }); // un mazzo non è un minigioco
     expect(bad(null)).toMatchObject({ ok: false });
   });
 
-  it("gli sfidanti devono far parte della serata e, se squadre, avere giocatori", () => {
+  it("gli sfidanti sono le prime due squadre della serata per nome, purché abbiano giocatori", () => {
     const run = (raw: unknown, r = roster) => duel.buildConfig!(raw, lookup, r);
-    expect(run({ sideA: "t1", sideB: "tX", pool: ["vf"] })).toMatchObject({ ok: false, error: expect.stringContaining("non fa parte della serata") });
+    const ok = run({ pool: ["vf"] });
+    expect(ok).toMatchObject({ ok: true });
+    if (ok.ok) expect([ok.config.mode.sideA, ok.config.mode.sideB]).toEqual(["t2", "t1"]); // Blu prima di Rossi
     const noMembers = { players: players.filter((p) => p.teamId !== "t2"), teams: ctx.teams };
-    expect(run({ sideA: "t1", sideB: "t2", pool: ["vf"] }, noMembers)).toMatchObject({ ok: false, error: expect.stringContaining("non ha giocatori") });
-    expect(run({ kind: "players", sideA: "r1", sideB: "b1", pool: ["vf"] })).toMatchObject({ ok: true });
-    expect(run({ kind: "players", sideA: "r1", sideB: "nessuno", pool: ["vf"] })).toMatchObject({ ok: false });
+    expect(run({ pool: ["vf"] }, noMembers)).toMatchObject({ ok: false, error: expect.stringContaining("almeno due squadre") });
+  });
+
+  it("il duello tra giocatori ne estrae due diversi della serata", () => {
+    const run = (r = roster) => duel.buildConfig!({ kind: "players", pool: ["vf"] }, lookup, r);
+    for (let i = 0; i < 20; i++) {
+      const r = run();
+      expect(r).toMatchObject({ ok: true });
+      if (r.ok) {
+        const { sideA, sideB } = r.config.mode;
+        expect(sideA).not.toBe(sideB);
+        expect(players.map((p) => p.id)).toEqual(expect.arrayContaining([sideA, sideB]));
+      }
+    }
+    expect(run({ players: players.slice(0, 1), teams: ctx.teams })).toMatchObject({ ok: false, error: expect.stringContaining("almeno due giocatori") });
   });
 });

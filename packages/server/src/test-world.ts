@@ -46,7 +46,7 @@ export function buildWorld() {
   const quiz = must(admin.library.createInstance({ typeId: "quiz-multipla", title: "Quiz", config: quizCfg }));
   const buzz = must(admin.library.createInstance({ typeId: "buzzer", title: "Buzzer", config: buzzCfg }));
 
-  const match = must(admin.createMatch(event.id, { name: "Partita 1", mode: "classic" }));
+  const match = must(admin.createMatch(event.id, { name: "Partita 1" }));
   must(admin.library.addRound(match.id, quiz.id));
   must(admin.library.addRound(match.id, buzz.id));
 

@@ -22,28 +22,18 @@ export class LibraryService {
     private readonly content: Record<string, LibraryContentType> = libraryContentTypes,
   ) {}
 
-  /** Un plugin con `modeConfigSchema` è una modalità di partita, non un round che si aggiunge. */
-  getMode(id: string): AnyMinigame | undefined {
-    const t = this.registry[id];
-    return t?.modeConfigSchema ? t : undefined;
-  }
-
   listTypes(): MinigameTypeView[] {
     const schema = (s: z.ZodType) => z.toJSONSchema(s, { io: "input", reused: "inline", unrepresentable: "any" });
-    const plugins = Object.values(this.registry).map((t): MinigameTypeView =>
-      t.modeConfigSchema
-        ? {
-            id: t.id,
-            kind: "mode",
-            title: t.title,
-            defaultTheme: t.defaultTheme,
-            sampleConfig: {},
-            configJsonSchema: {},
-            modeConfigJsonSchema: schema(t.modeConfigSchema),
-            sampleModeConfig: t.sampleModeConfig,
-          }
-        : { id: t.id, kind: "minigame", title: t.title, defaultTheme: t.defaultTheme, sampleConfig: t.sampleConfig, draftConfig: t.draftConfig, configJsonSchema: schema(t.configSchema) },
-    );
+    const plugins = Object.values(this.registry).map((t): MinigameTypeView => ({
+      id: t.id,
+      kind: "minigame",
+      title: t.title,
+      defaultTheme: t.defaultTheme,
+      // Un plugin con `libraryConfigSchema` (es. il duello) si compila con quello schema, non con la configurazione completa.
+      sampleConfig: t.libraryConfigSchema ? t.draftLibraryConfig : t.sampleConfig,
+      draftConfig: t.libraryConfigSchema ? t.draftLibraryConfig : t.draftConfig,
+      configJsonSchema: schema(t.libraryConfigSchema ?? t.configSchema),
+    }));
     const content = Object.values(this.content).map((t): MinigameTypeView => ({
       id: t.id,
       kind: "content",
@@ -65,11 +55,10 @@ export class LibraryService {
 
   /** Valida la configurazione con lo schema del tipo; restituisce la config normalizzata (con i default). */
   private validate(typeId: string, config: unknown): Result<unknown> {
-    // Si creano istanze di minigiochi e di contenuti (es. mazzi), non di modalità di partita.
-    const plugin = this.registry[typeId];
-    const type = plugin && !plugin.modeConfigSchema ? plugin : this.content[typeId];
+    const type = this.registry[typeId] ?? this.content[typeId];
     if (!type) return fail("not_found", "Tipo di minigioco sconosciuto");
-    const parsed = type.configSchema.safeParse(config);
+    const schema = "libraryConfigSchema" in type && type.libraryConfigSchema ? type.libraryConfigSchema : type.configSchema;
+    const parsed = schema.safeParse(config);
     if (parsed.success) return ok(parsed.data);
     const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ");
     return fail("invalid", detail);

@@ -155,42 +155,41 @@ export class Engine {
     const teamNames = new Map(teamRows.map((t) => [t.id, t.name]));
     const teamColors = new Map(teamRows.map((t) => [t.id, t.color]));
 
-    let rounds: RoundSpec[];
-    if (match.mode !== "classic") {
-      // Modalità di partita (es. duello): un solo «round» che contiene tutto, configurato dalla partita.
-      const plugin = this.deps.registry[match.mode];
-      if (!plugin?.buildConfig) return fail(`Modalità sconosciuta: ${match.mode}`);
-      const lookup: InstanceLookup = (id) => {
-        const row = this.db.select().from(minigameInstances).where(eq(minigameInstances.id, id)).get();
-        return row ? { typeId: row.typeId, title: row.title, theme: row.theme as ThemeId, config: JSON.parse(row.configJson) as unknown } : undefined;
-      };
-      const built = plugin.buildConfig(JSON.parse(match.modeConfigJson || "{}") as unknown, lookup, { players: roster, teams: teamRows });
-      if (!built.ok) return fail(built.error);
-      rounds = [{ roundId: match.id, typeId: plugin.id, title: plugin.title, theme: plugin.defaultTheme, config: built.config }];
-    } else {
-      rounds = this.db
-        .select({
-          roundId: matchRounds.id,
-          typeId: minigameInstances.typeId,
-          title: minigameInstances.title,
-          theme: minigameInstances.theme,
-          configJson: minigameInstances.configJson,
-        })
-        .from(matchRounds)
-        .innerJoin(minigameInstances, eq(minigameInstances.id, matchRounds.instanceId))
-        .where(eq(matchRounds.matchId, matchId))
-        .orderBy(asc(matchRounds.order))
-        .all()
-        .map((r) => ({
-          roundId: r.roundId,
-          typeId: r.typeId,
-          title: r.title,
-          theme: r.theme as ThemeId,
-          config: JSON.parse(r.configJson) as unknown,
-        }));
-      if (rounds.length === 0) return fail("La partita non ha round.");
-      const missing = rounds.find((r) => !this.deps.registry[r.typeId]);
-      if (missing) return fail(`Tipo di minigioco sconosciuto: ${missing.typeId}`);
+    const rounds: RoundSpec[] = this.db
+      .select({
+        roundId: matchRounds.id,
+        typeId: minigameInstances.typeId,
+        title: minigameInstances.title,
+        theme: minigameInstances.theme,
+        configJson: minigameInstances.configJson,
+      })
+      .from(matchRounds)
+      .innerJoin(minigameInstances, eq(minigameInstances.id, matchRounds.instanceId))
+      .where(eq(matchRounds.matchId, matchId))
+      .orderBy(asc(matchRounds.order))
+      .all()
+      .map((r) => ({
+        roundId: r.roundId,
+        typeId: r.typeId,
+        title: r.title,
+        theme: r.theme as ThemeId,
+        config: JSON.parse(r.configJson) as unknown,
+      }));
+    if (rounds.length === 0) return fail("La partita non ha round.");
+    const missing = rounds.find((r) => !this.deps.registry[r.typeId]);
+    if (missing) return fail(`Tipo di minigioco sconosciuto: ${missing.typeId}`);
+
+    // I round che riferiscono altre istanze o la serata (es. il duello) si completano ora e restano fissati per tutta la partita.
+    const lookup: InstanceLookup = (id) => {
+      const row = this.db.select().from(minigameInstances).where(eq(minigameInstances.id, id)).get();
+      return row ? { typeId: row.typeId, title: row.title, theme: row.theme as ThemeId, config: JSON.parse(row.configJson) as unknown } : undefined;
+    };
+    for (const round of rounds) {
+      const plugin = this.deps.registry[round.typeId]!;
+      if (!plugin.buildConfig) continue;
+      const built = plugin.buildConfig(round.config, lookup, { players: roster, teams: teamRows });
+      if (!built.ok) return fail(`«${round.title}»: ${built.error}`);
+      round.config = built.config;
     }
 
     this.db.update(matches).set({ status: "running" }).where(eq(matches.id, matchId)).run();

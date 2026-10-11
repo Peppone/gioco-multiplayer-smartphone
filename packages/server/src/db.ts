@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
@@ -195,7 +196,34 @@ export function openDb(file: string) {
   const playerColumns = sqlite.prepare("PRAGMA table_info(players)").all() as { name: string }[];
   if (!playerColumns.some((c) => c.name === "pin")) sqlite.exec("ALTER TABLE players ADD COLUMN pin TEXT");
 
+  migrateDuelMatches(sqlite);
+
   return { sqlite, db: drizzle(sqlite) };
+}
+
+/**
+ * Il duello era una «modalità» di partita con la configurazione nella partita; ora è un'istanza della libreria
+ * aggiunta come round. Le partite create in quel modo diventano classiche con un round-duello equivalente.
+ */
+function migrateDuelMatches(sqlite: Database.Database) {
+  const old = sqlite.prepare("SELECT id, name, mode_config_json FROM matches WHERE mode = 'knight-duel'").all() as { id: string; name: string; mode_config_json: string }[];
+  for (const m of old) {
+    sqlite.transaction(() => {
+      let config: Record<string, unknown> | null = null;
+      try {
+        config = JSON.parse(m.mode_config_json || "{}") as Record<string, unknown>;
+      } catch {
+        // configurazione illeggibile: la partita resta senza round
+      }
+      if (config && Array.isArray(config.pool) && config.pool.length > 0) {
+        const { sideA: _a, sideB: _b, ...settings } = config;
+        const instanceId = randomUUID();
+        sqlite.prepare("INSERT INTO minigame_instances (id, type_id, title, theme, config_json) VALUES (?, 'knight-duel', ?, 'pixel', ?)").run(instanceId, `Duello: ${m.name}`, JSON.stringify(settings));
+        sqlite.prepare("INSERT INTO match_rounds (id, match_id, \"order\", instance_id) VALUES (?, ?, 1, ?)").run(randomUUID(), m.id, instanceId);
+      }
+      sqlite.prepare("UPDATE matches SET mode = 'classic', mode_config_json = '{}' WHERE id = ?").run(m.id);
+    })();
+  }
 }
 
 export type Db = ReturnType<typeof openDb>["db"];

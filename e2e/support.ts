@@ -98,7 +98,7 @@ export interface GameSetup {
 export interface GameOptions {
   /** Giocatori per squadra (default 1). */
   playersPerTeam?: number;
-  /** Se presente la partita è un duello: minigiochi del pool e impostazioni (sfidanti e pool si compilano da soli). */
+  /** Se presente la partita ha come unico round un duello: minigiochi del pool e impostazioni (il pool si compila da solo). */
   duel?: { pool: { typeId: string; title: string; theme?: string; config: unknown }[]; config?: Record<string, unknown> };
 }
 
@@ -124,12 +124,14 @@ export async function createGame(
   const event = await api.call<{ id: string }>("post", "/events", { name: eventName });
   await api.call("put", `/events/${event.id}/teams`, { teamIds: [t1.id, t2.id] });
   const matchName = unique("Partita");
-  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName, mode: options.duel ? "knight-duel" : "classic" });
+  const match = await api.call<{ id: string }>("post", `/events/${event.id}/matches`, { name: matchName });
 
   if (options.duel) {
+    // Il duello è un'istanza della libreria aggiunta come round; gli sfidanti sono le due squadre della serata.
     const pool: string[] = [];
     for (const inst of options.duel.pool) pool.push((await api.call<{ id: string }>("post", "/instances", inst)).id);
-    await api.call("patch", `/matches/${match.id}`, { modeConfig: { sideA: t1.id, sideB: t2.id, pool, ...options.duel.config } });
+    const duel = await api.call<{ id: string }>("post", "/instances", { typeId: "knight-duel", title: unique("Duello"), config: { pool, ...options.duel.config } });
+    await api.call("post", `/matches/${match.id}/rounds`, { instanceId: duel.id });
   } else {
     for (const r of rounds) {
       const inst = await api.call<{ id: string }>("post", "/instances", r);

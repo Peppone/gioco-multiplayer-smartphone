@@ -81,13 +81,14 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   draftConfig?: unknown;
 
   /**
-   * Solo per i plugin «modalità» (es. il Duello dei Cavalieri), che si scelgono come modalità di una partita
-   * invece di essere un round: schema della configurazione impostata dall'admin sulla partita,
-   * esempio, e costruzione della configurazione completa leggendo la libreria.
+   * Solo per i plugin la cui istanza in libreria riferisce altri contenuti o la serata (es. il Duello dei
+   * Cavalieri, che riferisce minigiochi e mazzo): schema dell'istanza come la compila l'admin (genera il form
+   * dell'editor), punto di partenza dell'editor e costruzione della configurazione completa (`Config`)
+   * all'avvio della partita, leggendo la libreria e la serata. Senza questi campi vale `configSchema`.
    */
-  modeConfigSchema?: ZodType<unknown>;
-  sampleModeConfig?: unknown;
-  buildConfig?(modeConfig: unknown, lookup: InstanceLookup, roster: { players: ParticipantInfo[]; teams: TeamInfo[] }): BuildConfigResult<Config>;
+  libraryConfigSchema?: ZodType<unknown>;
+  draftLibraryConfig?: unknown;
+  buildConfig?(libraryConfig: unknown, lookup: InstanceLookup, roster: { players: ParticipantInfo[]; teams: TeamInfo[] }): BuildConfigResult<Config>;
 
   init(config: Config, ctx: MinigameContext, now: number): State;
   onInput(state: State, playerId: string, input: Input, meta: InputMeta): State;

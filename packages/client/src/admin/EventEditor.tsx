@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AdminPlayerView, EventDetail, EventStatus, InstanceView, MatchMode, TeamView } from "@gioco/shared";
+import type { AdminPlayerView, EventDetail, EventStatus, InstanceView, TeamView } from "@gioco/shared";
 import { STATUS_LABEL } from "./EventsPanel";
 import { api, errorMessage } from "./api";
-import { DuelConfigPanel } from "./DuelConfigPanel";
 import { moveItem } from "./schema-form/logic";
-
-const MODE_LABEL: Record<MatchMode, string> = { classic: "Classica (punti)", "knight-duel": "Duello dei Cavalieri" };
 
 export function EventEditor({
   eventId,
@@ -21,7 +18,6 @@ export function EventEditor({
   const [players, setPlayers] = useState<AdminPlayerView[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
   const [matchName, setMatchName] = useState("");
-  const [matchMode, setMatchMode] = useState<MatchMode>("classic");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -69,7 +65,7 @@ export function EventEditor({
   const addMatch = (e: React.FormEvent) => {
     e.preventDefault();
     void run(async () => {
-      await api("POST", `/events/${eventId}/matches`, { name: matchName, mode: matchMode });
+      await api("POST", `/events/${eventId}/matches`, { name: matchName });
       setMatchName("");
     });
   };
@@ -142,9 +138,6 @@ export function EventEditor({
       <h3>Partite</h3>
       <form className="row" onSubmit={addMatch}>
         <input value={matchName} onChange={(e) => setMatchName(e.target.value)} placeholder="Nome partita" maxLength={60} required />
-        <select value={matchMode} onChange={(e) => setMatchMode(e.target.value as MatchMode)}>
-          {(Object.keys(MODE_LABEL) as MatchMode[]).map((m) => <option key={m} value={m}>{MODE_LABEL[m]}</option>)}
-        </select>
         <button className="primary" type="submit">Aggiungi</button>
       </form>
       <ol className="list">
@@ -154,17 +147,13 @@ export function EventEditor({
               <span>
                 {m.order}. {m.name}{" "}
                 <small className="muted">
-                  · {MODE_LABEL[m.mode]} · {m.status === "pending" ? "da giocare" : m.status === "running" ? "avviata" : "conclusa"}
+                  · {m.status === "pending" ? "da giocare" : m.status === "running" ? "avviata" : "conclusa"}
                 </small>
               </span>
               <button onClick={() => void run(() => api("DELETE", `/matches/${m.id}`))} disabled={m.status === "running"}>
                 Elimina
               </button>
             </div>
-            {m.mode === "knight-duel" ? (
-              <DuelConfigPanel match={m} event={event} teams={teams} players={players} instances={instances} onSaved={() => void load()} />
-            ) : (
-            <>
             <ol className="rounds">
               {m.rounds.map((r, i) => {
                 const ids = m.rounds.map((x) => x.id);
@@ -192,8 +181,6 @@ export function EventEditor({
                 <option value="">+ Aggiungi round dalla libreria…</option>
                 {instances.filter((i) => i.typeId !== "deck").map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
               </select>
-            )}
-            </>
             )}
           </li>
         ))}

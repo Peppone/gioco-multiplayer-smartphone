@@ -8,7 +8,6 @@ import type {
   EventInput,
   EventStatus,
   EventSummary,
-  MatchMode,
   MatchView,
   RoundView,
   TeamInput,
@@ -34,8 +33,6 @@ const toMatch = (m: typeof matches.$inferSelect, rounds: RoundView[]): MatchView
   id: m.id,
   order: m.order,
   name: m.name,
-  mode: m.mode as MatchMode,
-  modeConfig: JSON.parse(m.modeConfigJson || "{}") as unknown,
   status: m.status as MatchView["status"],
   rounds,
 });
@@ -228,7 +225,7 @@ export class AdminService {
 
   // ---- Partite ----
 
-  createMatch(eventId: string, input: { name: string; mode: MatchMode }): Result<MatchView> {
+  createMatch(eventId: string, input: { name: string }): Result<MatchView> {
     if (!this.db.select().from(events).where(eq(events.id, eventId)).get()) return fail("not_found");
     const last = this.db
       .select({ max: sql<number | null>`max(${matches.order})` })
@@ -241,38 +238,18 @@ export class AdminService {
       order: (last?.max ?? 0) + 1,
       name: input.name,
       status: "pending",
-      mode: input.mode,
+      mode: "classic", // colonne rimaste per compatibilità con i database esistenti
       modeConfigJson: "{}",
     };
     this.db.insert(matches).values(row).run();
     return ok(toMatch(row, []));
   }
 
-  /**
-   * Cambia nome, modalità o configurazione della modalità. La configurazione si controlla qui nella forma;
-   * le istanze e gli sfidanti si verificano all'avvio, quando la serata è completa.
-   */
-  patchMatch(id: string, patch: { name?: string; mode?: MatchMode; modeConfig?: unknown }): Result<MatchView> {
+  patchMatch(id: string, patch: { name?: string }): Result<MatchView> {
     const m = this.db.select().from(matches).where(eq(matches.id, id)).get();
     if (!m) return fail("not_found");
-    if (m.status !== "pending" && (patch.mode !== undefined || patch.modeConfig !== undefined)) {
-      return fail("conflict", "La partita è già avviata: la modalità non si modifica");
-    }
-    const mode = patch.mode ?? (m.mode as MatchMode);
-    let modeConfigJson = patch.mode !== undefined && patch.mode !== m.mode ? "{}" : m.modeConfigJson;
-    if (mode === "classic") {
-      modeConfigJson = "{}";
-    } else if (patch.modeConfig !== undefined) {
-      const plugin = this.library.getMode(mode);
-      const parsed = plugin?.modeConfigSchema?.safeParse(patch.modeConfig);
-      if (!plugin || !parsed?.success) {
-        const detail = parsed && !parsed.success ? parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ") : "Modalità sconosciuta";
-        return fail("invalid", detail);
-      }
-      modeConfigJson = JSON.stringify(parsed.data);
-    }
-    const next = { ...m, ...(patch.name && { name: patch.name }), mode, modeConfigJson };
-    this.db.update(matches).set({ name: next.name, mode: next.mode, modeConfigJson: next.modeConfigJson }).where(eq(matches.id, id)).run();
+    const next = { ...m, ...(patch.name && { name: patch.name }) };
+    this.db.update(matches).set({ name: next.name }).where(eq(matches.id, id)).run();
     return ok(toMatch(next, this.library.rounds(id)));
   }
 

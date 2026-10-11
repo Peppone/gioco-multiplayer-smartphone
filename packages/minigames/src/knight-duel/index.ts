@@ -11,7 +11,7 @@ import type {
 } from "@gioco/shared";
 import { type BattleEvent, type Knight, type Side, newKnight, other, redactEvent, resolveBattle } from "./battle.js";
 import { type Card, type HandCard, cardIndex, describeCard, expandDeck, DEFAULT_DECK } from "./cards.js";
-import { type DuelConfig, type DuelMode, duelConfigSchema, duelModeSchema } from "./config.js";
+import { type DuelConfig, type DuelMode, duelConfigSchema, duelLibrarySchema, duelModeSchema } from "./config.js";
 import { type DraftState, draftCast, draftConfirm, draftPublicView, draftResult, draftTick, draftViewFor, startDraft } from "./draft.js";
 import { deriveSeed, makeRng, shuffle } from "./rng.js";
 import { type TeamVote, castVote, confirmVote, createVote, isVoteDone, memberView, publicVoteView, resolveVote } from "./team-vote.js";
@@ -375,23 +375,28 @@ export function createKnightDuel(children: Record<string, AnyMinigame>): Minigam
       deck: DEFAULT_DECK,
     },
 
-    // Configurazione impostata dall'admin sulla partita e sua traduzione in configurazione completa.
-    modeConfigSchema: duelModeSchema as unknown as z.ZodType<unknown>,
-    sampleModeConfig: { kind: "teams", sideA: "", sideB: "", pool: [] },
+    // Istanza in libreria (compilata dall'admin) e sua traduzione in configurazione completa all'avvio.
+    libraryConfigSchema: duelLibrarySchema as unknown as z.ZodType<unknown>,
+    draftLibraryConfig: { kind: "teams", pool: [""] }, // un campo da compilare: il modulo parte già con il primo minigioco da scegliere
     buildConfig(raw, lookup, roster) {
-      const parsed = duelModeSchema.safeParse(raw);
+      const parsed = duelLibrarySchema.safeParse(raw);
       if (!parsed.success) return { ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ") };
-      const mode = parsed.data;
+      const settings = parsed.data;
 
-      // Gli sfidanti devono far parte della serata e avere almeno un giocatore.
-      for (const [label, id] of [["Primo", mode.sideA], ["Secondo", mode.sideB]] as const) {
-        if (mode.kind === "teams") {
-          if (!roster.teams.some((t) => t.id === id)) return { ok: false, error: `${label} sfidante: la squadra non fa parte della serata` };
-          if (!roster.players.some((p) => p.teamId === id)) return { ok: false, error: `${label} sfidante: la squadra non ha giocatori assegnati` };
-        } else if (!roster.players.some((p) => p.id === id)) {
-          return { ok: false, error: `${label} sfidante: il giocatore non fa parte della serata` };
-        }
+      // Sfidanti: le prime due squadre della serata (per nome) che hanno giocatori, oppure due giocatori estratti a sorte.
+      let sideA: string;
+      let sideB: string;
+      if (settings.kind === "teams") {
+        const withPlayers = roster.teams.filter((t) => roster.players.some((p) => p.teamId === t.id)).sort((a, b) => a.name.localeCompare(b.name, "it"));
+        if (withPlayers.length < 2) return { ok: false, error: "servono almeno due squadre della serata con dei giocatori" };
+        [sideA, sideB] = [withPlayers[0]!.id, withPlayers[1]!.id];
+      } else {
+        if (roster.players.length < 2) return { ok: false, error: "servono almeno due giocatori in serata" };
+        const picked = shuffle(roster.players.map((p) => p.id), Math.random); // solo all'avvio: poi gli sfidanti restano fissati nella configurazione
+        [sideA, sideB] = [picked[0]!, picked[1]!];
       }
+      const mode = { ...settings, sideA, sideB };
+
       const pool = [];
       for (const id of mode.pool) {
         const inst = lookup(id);

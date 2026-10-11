@@ -91,8 +91,9 @@ describe("ripresa dopo il riavvio", () => {
       return r.value;
     };
     const inst = must(w.admin.library.createInstance({ typeId: "vero-falso", title: "R", config: { statements: [{ text: "x", answer: true }], timeSec: 5, revealSec: 1 } }));
-    const m = must(w.admin.createMatch(w.event.id, { name: "Duello", mode: "knight-duel" }));
-    must(w.admin.patchMatch(m.id, { modeConfig: { sideA: w.red.id, sideB: w.blue.id, pool: [inst.id], hp: 10, minigamesPerBattle: 1, maxBattles: 2, draftSeconds: 30, battleSeconds: 30 } }));
+    const duel = must(w.admin.library.createInstance({ typeId: "knight-duel", title: "D", config: { pool: [inst.id], hp: 10, minigamesPerBattle: 1, maxBattles: 2, draftSeconds: 30, battleSeconds: 30 } }));
+    const m = must(w.admin.createMatch(w.event.id, { name: "Duello" }));
+    must(w.admin.library.addRound(m.id, duel.id));
     const store1 = new SnapshotStore(w.db, w.engine, () => w.clock.t);
     w.engine.hostCommand({ type: "start", matchId: m.id });
     w.engine.hostCommand({ type: "engine", action: "next" });

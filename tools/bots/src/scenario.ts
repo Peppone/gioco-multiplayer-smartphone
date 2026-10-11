@@ -43,7 +43,7 @@ export async function setupEvent(api: AdminApi, playerIds: string[], label = "St
 
 /** Partita classica con un round per ogni tipo di minigioco. */
 export async function classicMatch(api: AdminApi, eventId: string): Promise<{ matchId: string; rounds: number }> {
-  const match = await api.post(`/events/${eventId}/matches`, { name: "Partita classica", mode: "classic" });
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Partita classica" });
   for (const r of ROUND_CONFIGS) {
     const inst = await api.post("/instances", r);
     await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
@@ -51,13 +51,16 @@ export async function classicMatch(api: AdminApi, eventId: string): Promise<{ ma
   return { matchId: match.id, rounds: ROUND_CONFIGS.length };
 }
 
-/** Partita-duello tra le due squadre, con un quiz e una raffica come minigiochi. */
+/** Partita con un round-duello tra le due squadre della serata, con un quiz e una raffica come minigiochi. */
 export async function duelMatch(api: AdminApi, setup: EventSetup): Promise<{ matchId: string }> {
-  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Duello", mode: "knight-duel" });
+  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Duello" });
   const pool: string[] = [];
   for (const r of ROUND_CONFIGS.filter((c) => c.typeId === "vero-falso" || c.typeId === "quiz-multipla")) pool.push((await api.post("/instances", { ...r, title: `${r.title} (duello)` })).id);
-  await api.patch(`/matches/${match.id}`, {
-    modeConfig: { sideA: setup.teamIds[0], sideB: setup.teamIds[1], pool, hp: 12, minigamesPerBattle: 1, maxBattles: 2, draftSeconds: 20, battleSeconds: 20 },
+  const duel = await api.post("/instances", {
+    typeId: "knight-duel",
+    title: "Duello",
+    config: { pool, hp: 12, minigamesPerBattle: 1, maxBattles: 2, draftSeconds: 20, battleSeconds: 20 },
   });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: duel.id });
   return { matchId: match.id };
 }

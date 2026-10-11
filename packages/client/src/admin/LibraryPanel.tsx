@@ -48,7 +48,7 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
         api<MinigameTypeView[]>("GET", "/minigame-types"),
         api<InstanceView[]>("GET", "/instances"),
       ]);
-      setTypes(t.filter((x) => x.kind !== "mode")); // le modalità (es. duello) si impostano sulla partita, non sono istanze
+      setTypes(t);
       setInstances(i);
     } catch (e) {
       setError(errorMessage(e));
@@ -216,6 +216,14 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
               schema={current.configJsonSchema as JsonSchema}
               value={draft.config}
               onChange={(config) => setDraft({ ...draft, config })}
+              context={{
+                teams: [],
+                players: [],
+                // Il duello sceglie i minigiochi e il mazzo tra le istanze; non può contenere un altro duello.
+                instances: instances
+                  .filter((i) => i.typeId !== draft.typeId)
+                  .map((i) => ({ id: i.id, title: i.title, kind: typeOf(i.typeId)?.kind === "content" ? "content" : "minigame", typeId: i.typeId })),
+              }}
             />
           ) : (
             <textarea value={jsonText} onChange={(e) => setJsonText(e.target.value)} rows={18} spellCheck={false} />

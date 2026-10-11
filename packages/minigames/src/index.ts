@@ -25,9 +25,9 @@ export const roundMinigames: Record<string, AnyMinigame> = {
 const knightDuel = createKnightDuel(roundMinigames);
 
 /**
- * Registro di tutti i plugin, per id. I plugin con `modeConfigSchema` (come il duello) sono modalità di
- * partita: si scelgono impostando `matches.mode`, non si aggiungono come round. Per aggiungere un
- * minigioco: vedi docs/NUOVO-MINIGIOCO.md.
+ * Registro di tutti i plugin, per id. Il duello è un minigioco come gli altri (si aggiunge come round), ma la
+ * sua istanza riferisce altre istanze della libreria, quindi non è tra quelli che può orchestrare.
+ * Per aggiungere un minigioco: vedi docs/NUOVO-MINIGIOCO.md.
  */
 export const minigames: Record<string, AnyMinigame> = { ...roundMinigames, [knightDuel.id]: knightDuel };
 

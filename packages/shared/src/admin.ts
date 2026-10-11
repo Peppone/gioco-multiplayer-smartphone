@@ -29,24 +29,17 @@ export const eventTeamsSchema = z.object({ teamIds: z.array(z.string().min(1)).m
 
 export const assignPlayerSchema = z.object({ teamId: z.string().min(1).nullable() });
 
-export const matchModeSchema = z.enum(["classic", "knight-duel"]);
-
 export const matchInputSchema = z.object({
   name: z.string().trim().min(1).max(60),
-  mode: matchModeSchema.default("classic"),
 });
 
 export const matchPatchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
-  mode: matchModeSchema.optional(),
-  /** Configurazione della modalità (es. del duello); validata dal plugin della modalità. */
-  modeConfig: z.unknown().optional(),
 });
 
 export type TeamInput = z.infer<typeof teamInputSchema>;
 export type EventInput = z.infer<typeof eventInputSchema>;
 export type EventStatus = z.infer<typeof eventStatusSchema>;
-export type MatchMode = z.infer<typeof matchModeSchema>;
 
 // ---- Viste dell'admin ----
 
@@ -82,9 +75,6 @@ export interface MatchView {
   id: string;
   order: number;
   name: string;
-  mode: MatchMode;
-  /** Configurazione della modalità (vuota per la modalità classica). */
-  modeConfig: unknown;
   status: "pending" | "running" | "done";
   rounds: RoundView[];
 }
@@ -111,8 +101,8 @@ export interface InstanceView {
 
 export interface MinigameTypeView {
   id: string;
-  /** minigame: si aggiunge come round · mode: modalità di partita · content: contenuto della libreria (es. mazzo di carte) */
-  kind: "minigame" | "mode" | "content";
+  /** minigame: si aggiunge come round · content: contenuto della libreria (es. mazzo di carte) */
+  kind: "minigame" | "content";
   title: string;
   defaultTheme: "gameshow" | "pixel" | "manga" | "retro80";
   sampleConfig: unknown;
@@ -120,9 +110,6 @@ export interface MinigameTypeView {
   draftConfig?: unknown;
   /** JSON Schema della configurazione (da `configSchema`): genera il form dell editor. */
   configJsonSchema: unknown;
-  /** Solo per le modalità: schema ed esempio della configurazione impostata sulla partita. */
-  modeConfigJsonSchema?: unknown;
-  sampleModeConfig?: unknown;
 }
 
 export interface EventSummary {
