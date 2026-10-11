@@ -1,0 +1,18 @@
+{
+  "name": "gioco-ros",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @gioco/server --filter @gioco/client dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @gioco/client build && pnpm --filter @gioco/server start",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
