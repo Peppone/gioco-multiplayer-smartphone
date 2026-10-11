@@ -57,6 +57,16 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 - Commit piccoli e mirati, uno per modifica logica.
 - Fare commit o push solo quando l'utente lo chiede.
 
+## Ambiente Windows: trucchi e problemi noti
+
+- **Scrivere file**: usare sempre lo strumento `Write`/`Edit`, non heredoc (`cat > file <<'EOF'`) nella shell Bash. Con testo italiano (apostrofi come `l'ora`, `c'è`) e backtick il parsing fallisce con `unexpected EOF while looking for matching`, e **nessun file viene scritto** (il comando fallisce per intero). Gli heredoc vanno bene solo per testo senza apostrofi.
+- **Python non è installato** (c'è solo l'alias del Microsoft Store): non usare `python` per modificare file; usare `Edit`.
+- **Slash nei flag Windows**: in Git Bash i flag di `taskkill` vanno con doppia barra (`taskkill //F //IM node.exe`); con una sola `/F` viene interpretata come percorso. Nei percorsi usare `/` o percorsi assoluti `C:\...` tra virgolette; non mischiare `\` dentro stringhe Bash.
+- **PowerShell 5.1**: niente `&&`/`||` (usare `;` o `if ($?)`), niente `2>&1` sugli eseguibili nativi.
+- **Processi rimasti attivi**: dopo una prova del server controllare che la porta 3000 sia libera (`netstat -ano | grep ":3000 "`) prima di riavviare, altrimenti `EADDRINUSE` e si finisce per testare un server vecchio. Spegnere con `taskkill //F //IM node.exe` e `//IM cloudflared.exe`.
+- **Fine riga**: Git avvisa `LF will be replaced by CRLF`; è solo un warning, ignorabile.
+- **cloudflared**: il file in `bin/` deve chiamarsi esattamente `cloudflared.exe` (non il nome originale del download).
+
 ## Sicurezza e dati sensibili
 
 - **Non leggere dati sensibili e non accedere a password**: file `.env`, credenziali, chiavi, token, il database `data/*.sqlite` con i dati dei giocatori, keychain e gestori di password. Se un'attività sembra richiederlo, fermati e chiedi all'utente.

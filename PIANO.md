@@ -106,6 +106,7 @@ interface MinigameType<Config, State, Input> {
   ControllerView: React.FC<{ view: PlayerView, send }>; // cosa si vede sul telefono
 }
 ```
+**Nota di implementazione (F3):** il plugin è diviso in due parti. La logica (`MinigameType`, funzioni pure, senza React) sta in `packages/minigames` e gira sul server; le viste React (`Screen` e `Controller`) stanno in `packages/client/src/minigames/<id>/` e sono registrate per `id` in `registry.ts`. Così il server non dipende da React. Il plugin espone anche `inputSchema`/`commandSchema` (zod), `hostView` (vista della regia, con i segreti, e azioni generiche) e `isFinished`. Il client invia solo l'intenzione e un timestamp; l'ora equa (`fairTime`) la calcola il plugin.
 In questo modo le "nuove interazioni definite via via" si aggiungono come nuovo plugin e nuovi controlli del telecomando, senza toccare il resto.
 
 **Regola d'oro (introdotta per il Duello dei Cavalieri, vale per tutti):** i client ricevono solo **viste filtrate** (`screenView` / `viewFor`), mai lo stato grezzo. Così le carte segrete di un team non arrivano tecnicamente agli avversari, nemmeno ispezionando il traffico.
