@@ -1,3 +1,10 @@
+export * from "./admin.js";
+export * from "./fairtime.js";
+export * from "./game.js";
+export * from "./minigame.js";
+export * from "./clock.js";
+export * from "./protocol.js";
+
 export const DEFAULT_PORT = 3000;
 
 export type TunnelStatus = "off" | "starting" | "ready" | "error";
