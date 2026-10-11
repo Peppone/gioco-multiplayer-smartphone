@@ -6,7 +6,7 @@ Party game multiplayer **in presenza** (fino a ~30 giocatori) in stile Jackbox/K
 - **`/play`** – il telefono di ogni giocatore
 - **`/admin`** – la regia: squadre, serate, minigiochi, conduzione live
 
-Minigiochi: quiz a scelta multipla, buzzer (equo con la latenza), vero/falso a raffica, stima numerica, sondaggio e il **Duello dei Cavalieri** (meta-gioco a squadre con carte segrete). Quattro temi grafici: game show, pixel, manga, retro anni 80.
+Minigiochi: quiz a scelta multipla, buzzer (equo con la latenza), vero/falso a raffica, stima numerica, sondaggio e il **Duello dei Cavalieri** (minigioco a squadre con carte segrete, che si aggiunge a una partita come ogni round). Quattro temi grafici: game show, pixel, manga, retro anni 80.
 
 ## Per chi organizza una serata
 

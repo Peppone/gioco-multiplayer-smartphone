@@ -111,12 +111,10 @@ In questo modo le "nuove interazioni definite via via" si aggiungono come nuovo 
 
 **Regola d'oro (introdotta per il Duello dei Cavalieri, vale per tutti):** i client ricevono solo **viste filtrate** (`screenView` / `viewFor`), mai lo stato grezzo. Così le carte segrete di un team non arrivano tecnicamente agli avversari, nemmeno ispezionando il traffico.
 
-### D6. Modalità partita: punti classici oppure meta-gioco
-Una partita ha una **modalità**:
-- **Classica:** i round sono minigiochi e i loro `scores()` alimentano le classifiche.
-- **Meta-gioco** (es. *Duello dei Cavalieri*): un plugin "contenitore" orchestra i minigiochi della libreria. Usa il loro `result()` per assegnare **premi** invece di punti, e aggiunge fasi proprie (draft, battaglia).
+### D6. Meta-gioco: un minigioco che ne orchestra altri
+Una partita è sempre una sequenza di round, e ogni round è un minigioco. Un **meta-gioco** (es. *Duello dei Cavalieri*) è un minigioco come gli altri, ma un plugin "contenitore" orchestra altri minigiochi della libreria: usa il loro `result()` per assegnare **premi** invece di punti e aggiunge fasi proprie (draft, battaglia). La sua istanza in libreria riferisce le altre istanze per id e la serata decide chi gioca.
 
-Alla fine il meta-gioco converte comunque l'esito in punti serata, così la classifica cumulativa resta coerente.
+Alla fine il meta-gioco converte comunque l'esito in punti serata, così la classifica cumulativa resta coerente. (Una versione precedente trattava il duello come «modalità di partita» con configurazione a parte; è stata abolita perché era un secondo modo, poco chiaro, di preparare una partita.)
 
 **Modulo riusabile `team-vote`:** voto di team con timer. Mostra a ogni membro le preferenze dei compagni in tempo reale. Lo usano il draft, la battaglia e, in futuro, qualunque decisione collettiva.
 
@@ -193,7 +191,7 @@ Il duello è sempre 1 contro 1. Se la serata ha più team, l'admin crea più par
 - **Personalizzazione:** colore del team sul cavaliere tramite palette swap.
 
 ### Decisioni di implementazione (confermate con l'utente)
-- **Architettura:** il duello è un **plugin contenitore** (`knight-duel`): per l'engine è un solo round. Il suo stato contiene la fase del duello (`minigioco → draft → battaglia → fine`) e lo **stato del minigioco figlio**, a cui delega input, tick, comandi e viste durante la fase "minigioco". L'engine passa al plugin una copia fissata all'avvio delle istanze della libreria; la configurazione della modalità sta in `matches.mode_config_json`.
+- **Architettura:** il duello è un **plugin contenitore** (`knight-duel`): per l'engine è un solo round. Il suo stato contiene la fase del duello (`minigioco → draft → battaglia → fine`) e lo **stato del minigioco figlio**, a cui delega input, tick, comandi e viste durante la fase "minigioco". L'istanza del duello sta in libreria come le altre (`minigame_instances`) e si aggiunge a una partita come round; all'avvio `buildConfig` la risolve in una copia fissata delle istanze riferite (minigiochi, mazzo) e sceglie gli sfidanti dalla serata (le prime due squadre per nome con giocatori, oppure due giocatori estratti a sorte).
 - **Contendenti:** due team o due singoli giocatori (un "lato" è un insieme di giocatori); gli altri sono spettatori.
 - **Vincitore del minigioco:** il lato con più punti nel minigioco figlio; in parità decide il miglior piazzamento individuale, poi un lancio di moneta con il seme.
 - **Segretezza del draft:** la squadra che sceglie vede le carte offerte; chi sceglie per secondo vede solo quelle rimaste, non quale è stata presa. Le carte non scelte tornano nel mazzo.
@@ -216,7 +214,7 @@ Il duello è sempre 1 contro 1. Se la serata ha più team, l'admin crea più par
 - `minigame_instances` (id, type_id, title, theme, config_json): libreria riutilizzabile
 - `match_rounds` (match_id, order, minigame_instance_id)
 - `score_entries` (event_id, match_id, round_id, player_id, team_id, points, reason, ts): un registro da cui si calcolano entrambe le classifiche e che permette correzioni manuali tracciabili
-- `matches.mode` (`classic` | `knight-duel` | …) + `matches.mode_config_json` (PV, X minigiochi per battaglia, carte per draft, mazzo usato)
+- le colonne `matches.mode` e `matches.mode_config_json` restano nel database per compatibilità ma valgono sempre `classic` e `{}`; la configurazione del duello (PV, X minigiochi per battaglia, carte per draft, mazzo usato) sta in `minigame_instances.config_json`
 - `ability_cards` (id, deck_id, name, sprite, rarity, initiative, effects_json) e `decks` (id, name)
 - `match_state_snapshots` (match_id, state_json, ts): salvataggio periodico dello stato in corso, così una serata non si perde se il PC si riavvia
 

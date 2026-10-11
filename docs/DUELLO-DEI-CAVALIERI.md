@@ -38,11 +38,18 @@ Ogni carta ha: nome, icona, rarità, **iniziativa**, **copie** nel mazzo e da 1 
 
 ## Come si prepara una serata con un duello
 
-1. **Squadre e giocatori**: in *Serate* crea la serata, scegli le due squadre e assegna i giocatori (almeno uno per squadra; per un duello tra singoli bastano due giocatori della serata).
+Il duello è un minigioco come gli altri: si crea in *Libreria* e si aggiunge a una partita come round.
+
+1. **Squadre e giocatori**: in *Serate* crea la serata, scegli le squadre e assegna i giocatori. Gli sfidanti li decide la serata, non il modulo del duello:
+   - **Due squadre**: le prime due squadre della serata **in ordine alfabetico** che hanno almeno un giocatore. Con più di due squadre le altre fanno da spettatori; per far sfidare altre squadre, togli dalla serata quelle che non devono giocare.
+   - **Due giocatori**: due giocatori della serata estratti a sorte all'avvio.
 2. **Minigiochi**: in *Libreria* crea le istanze che vuoi usare nel duello (quiz, buzzer, vero/falso, stima, sondaggio). Meglio quelli rapidi.
 3. **Mazzo** (facoltativo): in *Libreria* crea un «Mazzo di carte (Duello)». Parte dal mazzo base da 15 carte, che puoi modificare dal modulo: nome, icona, rarità, iniziativa, copie ed effetti. Senza un mazzo si usa quello base.
-4. **Partita**: in *Serate*, nella serata, aggiungi una partita con modalità **Duello dei Cavalieri** e premi **Configura il duello**: sfidanti, minigiochi, mazzo e le impostazioni (PV, battaglie, tempi, ecc.).
-5. **Conduzione**: in *Live* avvia la partita e poi «Avvia round 1: Duello dei Cavalieri». La regia può chiudere un minigioco, saltare un draft o rivelare subito le carte; tutto il resto va avanti da solo.
+4. **Il duello**: in *Libreria* premi **+ Duello dei Cavalieri**, dai un titolo, scegli chi si sfida, i minigiochi, il mazzo e le impostazioni (PV, battaglie, tempi, ecc.).
+5. **Partita**: in *Serate* aggiungi una partita e, con **+ Aggiungi round dalla libreria…**, scegli il duello. Può stare da solo o insieme ad altri round (un quiz, poi il duello…): i punti del duello entrano in classifica come quelli di ogni round.
+6. **Conduzione**: in *Live* avvia la partita e poi «Avvia round N: <titolo del duello>». La regia può chiudere un minigioco, saltare un draft o rivelare subito le carte; tutto il resto va avanti da solo.
+
+Una stessa istanza del duello si può riusare in più serate e duplicare dalla Libreria per avere varianti (più brevi, con un altro mazzo…).
 
 ### Impostazioni (con i valori predefiniti)
 
@@ -83,6 +90,7 @@ I bot sono casuali: i risultati sono una guida, non una verità. Una vera serata
 ## Per chi sviluppa
 
 - Logica pura e testata in `packages/minigames/src/knight-duel/`: `cards.ts` (carte, schema e mazzo base), `battle.ts` (risoluzione), `team-vote.ts`, `draft.ts`, `index.ts` (il plugin contenitore), `simulate.ts` e `analysis.ts` (bot e analisi).
-- Il duello è un **plugin modalità**: ha `modeConfigSchema` e `buildConfig`, che traduce la configurazione della partita (id delle istanze) in quella completa leggendo la libreria. Per l'engine è un solo round.
+- Il duello è un normale plugin-round. La sua istanza in libreria (`libraryConfigSchema`, che genera il modulo) riferisce altre istanze per id; `buildConfig` la traduce nella configurazione completa (`DuelConfig`) all'avvio della partita, leggendo la libreria e la serata, e sceglie gli sfidanti. Per l'engine è un round qualunque.
+- I database creati quando il duello era una «modalità» di partita vengono migrati all'apertura (`migrateDuelMatches` in `packages/server/src/db.ts`): la partita diventa classica con un round-duello equivalente.
 - Viste: `packages/client/src/minigames/knight-duel/`. Gli sprite sono **Kenney «Tiny Dungeon»** (CC0) in `packages/client/public/assets/kenney/`.
 - Test: `pnpm test` (battaglie con tabelle di casi, 1000 duelli simulati, segretezza delle viste) e `pnpm test:e2e` (`e2e/duel.spec.ts`: duello completo con 4 telefoni e controllo del traffico WebSocket).

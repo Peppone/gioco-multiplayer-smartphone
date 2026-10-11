@@ -36,7 +36,7 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 
 - **Ogni minigioco è un plugin** che implementa `MinigameType` (guida passo-passo in [docs/NUOVO-MINIGIOCO.md](docs/NUOVO-MINIGIOCO.md)). Le funzioni `init`, `onInput`, `onTick`, `onHostCommand`, `result`, `scores`, `screenView` e `viewFor` sono **pure e deterministiche** (casualità tramite seed nello stato), così si possono testare.
 - **Tipo** (codice) vs **istanza** (contenuto creato dall'admin): i contenuti non si scrivono mai nel codice. Il `configSchema` zod genera il form dell'editor.
-- **Modalità partita**: `classic` (punti) o meta-gioco (es. `knight-duel`, che usa `result()` dei minigiochi per assegnare premi).
+- **Meta-gioco**: un minigioco può orchestrare altri minigiochi della libreria (es. `knight-duel`, che usa `result()` dei figli per assegnare premi). È un round come gli altri: la sua istanza riferisce altre istanze per id (`libraryConfigSchema`) e `buildConfig` le risolve all'avvio della partita.
 - I **controlli del telefono** riusano le primitive condivise (`buttons`, `buzzer`, `text`, `number`, `vote`, `reactions`, `waiting`) e il modulo `team-vote`.
 - **Temi** (`gameshow`, `pixel`, `manga`, `retro80`) come theme pack: variabili CSS, font locali, suoni, transizioni.
 - Messaggi socket sempre **validati con zod** lato server.
