@@ -192,6 +192,18 @@ Il duello è sempre 1 contro 1. Se la serata ha più team, l'admin crea più par
 - **Partenza:** asset CC0 (es. Kenney "Tiny Dungeon") e palette limitata.
 - **Personalizzazione:** colore del team sul cavaliere tramite palette swap.
 
+### Decisioni di implementazione (confermate con l'utente)
+- **Architettura:** il duello è un **plugin contenitore** (`knight-duel`): per l'engine è un solo round. Il suo stato contiene la fase del duello (`minigioco → draft → battaglia → fine`) e lo **stato del minigioco figlio**, a cui delega input, tick, comandi e viste durante la fase "minigioco". L'engine passa al plugin una copia fissata all'avvio delle istanze della libreria; la configurazione della modalità sta in `matches.mode_config_json`.
+- **Contendenti:** due team o due singoli giocatori (un "lato" è un insieme di giocatori); gli altri sono spettatori.
+- **Vincitore del minigioco:** il lato con più punti nel minigioco figlio; in parità decide il miglior piazzamento individuale, poi un lancio di moneta con il seme.
+- **Segretezza del draft:** la squadra che sceglie vede le carte offerte; chi sceglie per secondo vede solo quelle rimaste, non quale è stata presa. Le carte non scelte tornano nel mazzo.
+- **Fine del duello:** KO a 0 PV; dopo i cicli massimi vince chi ha più PV; **in parità si gioca una battaglia a oltranza** (senza minigioco) finché c'è un vincitore.
+- **Punti serata:** contano **solo l'esito del duello** (ogni vincitore X punti, ogni perdente Y, configurabili, default 500 e 100). I punti dei minigiochi diventano premi (carte) e non entrano in classifica.
+- **Sabotaggio:** riduce del X% (configurabile sulla carta) i punti del lato avversario nel prossimo minigioco; funziona con qualsiasi plugin.
+- **Mazzo:** è un'istanza della libreria (tipo "mazzo"), modificabile con lo stesso editor a form generato dallo schema, invece delle tabelle `decks` e `ability_cards`.
+- **Sprite:** asset **Kenney "Tiny Dungeon" (CC0)** per cavalieri e icone delle carte, più colore del team aggiunto in codice (base, barra PV, mantello/pennacchio). Le animazioni sono movimenti ed effetti in PixiJS, caricato in modo lazy solo sullo schermo condiviso.
+- **Passi:** 7.1 carte e motore di battaglia · 7.2 `team-vote` e draft · 7.3 contenitore, configurazione ed editor del mazzo · 7.4 interfacce giocabili (telefono e arena HTML) · 7.5 arena PixiJS · 7.6 bilanciamento e documenti.
+
 ---
 
 ## Modello dati (SQLite)
