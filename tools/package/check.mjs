@@ -4,7 +4,7 @@
 //   pnpm package:check            → controlli di base (senza internet)
 //   pnpm package:check --tunnel   → verifica anche che cloudflared parta e fornisca l'indirizzo pubblico (serve internet)
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,12 +21,34 @@ const withTunnel = process.argv.includes("--tunnel");
 const port = 3800 + Math.floor(Math.random() * 150);
 const base = `http://localhost:${port}`;
 const dataDir = join(pkg, "data");
-rmSync(dataDir, { recursive: true, force: true });
+
+// Chi gioca dal pacchetto ha lì i dati veri (database e brani): il test non li cancella mai.
+// Si mettono da parte e si rimettono a posto alla fine; se non si riesce a spostarli (gioco acceso) ci si ferma.
+const parked = join(pkg, "data.in-pausa-per-il-test");
+if (existsSync(parked)) {
+  if (existsSync(dataDir)) {
+    console.error(`Trovo sia "data" sia "data.in-pausa-per-il-test" in ${pkg}: un test precedente si è interrotto. Unisci le due cartelle a mano (quella buona è di solito "data.in-pausa-per-il-test") e riprova.`);
+    process.exit(1);
+  }
+  renameSync(parked, dataDir); // un test interrotto: i dati tornano al loro posto
+}
+if (existsSync(dataDir)) {
+  try {
+    renameSync(dataDir, parked);
+  } catch (err) {
+    console.error(`Non riesco a mettere da parte la cartella dei dati (il gioco è acceso o una finestra la tiene aperta?): ${err instanceof Error ? err.message : err}\nNon ho toccato nulla. Chiudi il gioco e riprova.`);
+    process.exit(1);
+  }
+}
+const restoreData = () => {
+  rmSync(dataDir, { recursive: true, force: true }); // solo i dati del test
+  if (existsSync(parked)) renameSync(parked, dataDir);
+};
 
 // Il comando di «Reimposta password regia.bat» funziona dal pacchetto (e crea il database accanto all'app).
 const reset = spawnSync(nodeExe, [join(pkg, "app", "server.mjs"), "--reset-admin"], { cwd: tmpdir(), env: { ...process.env, GIOCO_ROOT: pkg + "\\" }, encoding: "utf8" });
 const resetOk = reset.status === 0 && reset.stdout.includes("password della regia è stata rimossa");
-rmSync(dataDir, { recursive: true, force: true });
+rmSync(dataDir, { recursive: true, force: true }); // a questo punto contiene solo il database creato dal test
 
 // Si lancia da una cartella qualsiasi: il pacchetto non deve dipendere dalla cartella di lavoro.
 const child = spawn(nodeExe, [join(pkg, "app", "server.mjs")], {
@@ -133,7 +155,7 @@ try {
     }
   }
   await new Promise((r) => setTimeout(r, 400));
-  rmSync(dataDir, { recursive: true, force: true }); // il pacchetto resta pulito
+  restoreData(); // il pacchetto resta com'era, con i suoi dati
 }
 
 console.log("\nVerifica del pacchetto:");

@@ -5,7 +5,7 @@
 // Contenuto: Node.js (copiato da questo computer), il server in un solo file, il client già compilato,
 // il modulo nativo di SQLite, cloudflared (se presente in bin/) e i lanciatori .bat.
 import { execSync } from "node:child_process";
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -21,7 +21,11 @@ if (process.platform !== "win32") {
 }
 
 step("Pulizia della cartella di destinazione");
-rmSync(out, { recursive: true, force: true });
+// Si svuota il contenuto senza cancellare la cartella: su Windows una finestra di Esplora file o un terminale
+// aperti lì dentro la tengono occupata (EPERM) anche se è vuota.
+// `data` (database e brani caricati) non si tocca mai: chi gioca dal pacchetto lo ha lì accanto.
+mkdirSync(out, { recursive: true });
+for (const name of readdirSync(out)) if (name !== "data") rmSync(join(out, name), { recursive: true, force: true });
 mkdirSync(join(out, "app"), { recursive: true });
 
 step("Compilazione del client");
@@ -137,7 +141,10 @@ writeFileSync(
     "Se non c'e' internet usa  \"Avvia senza internet (solo rete locale).bat\"",
     "(il PC puo' fare da hotspot, oppure collegatevi tutti allo stesso Wi-Fi).",
     "",
-    "I dati (giocatori, serate, punteggi) sono nella cartella  data  : copiala per fare un backup.",
+    "I dati (giocatori, serate, punteggi, brani caricati) sono nella cartella  data  : copiala per fare un backup.",
+    "Ad ogni avvio il gioco salva da solo una copia del database in  data\\backup  (restano le ultime 15):",
+    "per tornare indietro, chiudi il gioco e sostituisci  data\\gioco.sqlite  con una di quelle copie.",
+    "Quando aggiorni il gioco, decomprimi il nuovo zip in una cartella nuova e copia dentro  data  della vecchia.",
     "Se il PC si spegne a meta' partita, riavvia il gioco: la partita riprende.",
     "",
     "Per tutto il resto leggi GUIDA-HOST.md.",
@@ -164,5 +171,9 @@ writeFileSync(
 step("Archivio zip");
 const zip = join(root, "dist", "gioco-ros-win.zip");
 rmSync(zip, { force: true });
-execSync(`powershell -NoProfile -Command "Compress-Archive -Path '${out}\\*' -DestinationPath '${zip}' -CompressionLevel Optimal"`, { stdio: "inherit" });
+// Nello zip non finiscono i dati di chi ha giocato dal pacchetto (database, password della regia, brani).
+execSync(
+  `powershell -NoProfile -Command "Compress-Archive -Path (Get-ChildItem -LiteralPath '${out}' | Where-Object { \$_.Name -ne 'data' }).FullName -DestinationPath '${zip}' -CompressionLevel Optimal"`,
+  { stdio: "inherit" },
+);
 console.log(`\nFatto: ${out}\n       ${zip} (${mb(zip)})\n`);
