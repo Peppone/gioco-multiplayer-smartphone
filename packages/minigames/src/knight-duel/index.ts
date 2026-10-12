@@ -193,6 +193,8 @@ export function createKnightDuel(children: Record<string, AnyMinigame>): Minigam
       members: [s.sides[0].members, s.sides[1].members],
       now,
       voteMs: s.cfg.mode.draftSeconds * 1000,
+      winnerPicks: s.cfg.mode.winnerPicks,
+      loserPicks: s.cfg.mode.loserPicks,
     });
     const next: DuelState = { ...s2, phase: "draft", draft, child: null, minigameWinner: winner, sabotage: [0, 0], minigamesSince: s.minigamesSince + 1 };
     return advanceDraft(next, now); // un draft senza carte o senza votanti si chiude subito
@@ -203,7 +205,7 @@ export function createKnightDuel(children: Record<string, AnyMinigame>): Minigam
   const finishDraft = (s: DuelState, now: number): DuelState => {
     const { picks, leftover } = draftResult(s.draft!);
     let next: DuelState = { ...s, draft: null, supply: [...s.supply, ...leftover] }; // le non scelte tornano nel mazzo
-    for (const side of [0, 1] as const) if (picks[side]) next = addToHand(next, side, picks[side]!);
+    for (const side of [0, 1] as const) for (const card of picks[side]) next = addToHand(next, side, card);
     return s.minigamesSince >= s.cfg.mode.minigamesPerBattle ? startBattle(next, now) : selectNext(next, now);
   };
 

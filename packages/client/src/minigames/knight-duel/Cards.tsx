@@ -126,6 +126,7 @@ export function CardPicker({
   onCast,
   onConfirm,
   confirmLabel,
+  heading,
 }: {
   cards: HandCardV[];
   vote: MemberVoteV;
@@ -134,6 +135,8 @@ export function CardPicker({
   onCast: (uid: string) => void;
   onConfirm: () => void;
   confirmLabel: string;
+  /** Sostituisce l'invito standard (es. «Prima scelta: ne avrai un'altra dopo»). */
+  heading?: string;
 }) {
   const [peek, setPeek] = useState<HandCardV | null>(null);
   const remaining = useRemaining(vote.deadline, clock);
@@ -142,7 +145,7 @@ export function CardPicker({
   return (
     <div className="card-picker">
       <p className="muted">
-        {vote.max === 1 ? "Scegli una carta" : `Scegli fino a ${vote.max} carte`} · {Math.ceil(remaining / 1000)}s
+        {heading ?? (vote.max === 1 ? "Scegli una carta" : `Scegli fino a ${vote.max} carte`)} ·{Math.ceil(remaining / 1000)}s
       </p>
       <div className="picker-grid">
         {cards.map((c) => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { HandCard } from "./cards.js";
-import { draftCast, draftConfirm, draftPublicView, draftResult, draftTick, draftViewFor, startDraft } from "./draft.js";
+import { draftCast, draftConfirm, draftPublicView, draftResult, draftTick, draftViewFor, pickOrder, startDraft } from "./draft.js";
 import { makeRng } from "./rng.js";
 
 const card = (id: string): HandCard => ({ uid: `${id}#1`, cardId: id });
@@ -15,7 +15,7 @@ describe("priorità: il vincitore sceglie per primo", () => {
     d = draftCast(d, "r1", "scudo#1");
     d = draftCast(d, "r2", "scudo#1");
     d = draftTick(d, 10_000, rng()); // scade il voto dei Rossi
-    expect(d.picks[0]?.cardId).toBe("scudo");
+    expect(d.picks[0].map((c) => c.cardId)).toEqual(["scudo"]);
     expect(d.step).toBe(1);
     expect(d.offered.map((c) => c.cardId)).toEqual(["fendente", "martello"]);
 
@@ -25,7 +25,7 @@ describe("priorità: il vincitore sceglie per primo", () => {
     d = draftTick(d, 11_000, rng());
     expect(d.phase).toBe("done");
     const r = draftResult(d);
-    expect(r.picks.map((c) => c?.cardId)).toEqual(["scudo", "martello"]);
+    expect(r.picks.map((p) => p.map((c) => c.cardId))).toEqual([["scudo"], ["martello"]]);
     expect(r.leftover.map((c) => c.cardId)).toEqual(["fendente"]); // torna al mazzo
   });
 
@@ -34,7 +34,7 @@ describe("priorità: il vincitore sceglie per primo", () => {
     expect(draftPublicView(d).picker).toBe(1);
     d = draftCast(d, "b1", "fendente#1");
     d = draftTick(d, 10_000, rng());
-    expect(d.picks[1]?.cardId).toBe("fendente");
+    expect(d.picks[1].map((c) => c.cardId)).toEqual(["fendente"]);
     expect(draftPublicView(d).picker).toBe(0);
   });
 
@@ -49,13 +49,13 @@ describe("priorità: il vincitore sceglie per primo", () => {
     d = draftCast(d, "r1", "martello#1");
     d = draftCast(d, "r2", "fendente#1");
     d = draftTick(d, 10_000, rng());
-    expect(d.picks[0]?.cardId).toBe("martello");
+    expect(d.picks[0].map((c) => c.cardId)).toEqual(["martello"]);
 
     const silent = draftTick(draftTick(start(0), 10_000, rng()), 20_000, rng());
     expect(silent.phase).toBe("done");
-    expect(silent.picks[0]).not.toBeNull();
-    expect(silent.picks[1]).not.toBeNull();
-    expect(silent.picks[0]!.uid).not.toBe(silent.picks[1]!.uid);
+    expect(silent.picks[0]).toHaveLength(1);
+    expect(silent.picks[1]).toHaveLength(1);
+    expect(silent.picks[0][0]!.uid).not.toBe(silent.picks[1][0]!.uid);
   });
 
   it("è deterministico: stesso seme = stessa scelta casuale", () => {
@@ -71,14 +71,34 @@ describe("priorità: il vincitore sceglie per primo", () => {
 
   it("un lato senza membri (nessun giocatore connesso) sceglie a caso subito", () => {
     const d = draftTick(startDraft({ offered: OFFER, winner: 0, members: [[], ["b1"]], now: 0, voteMs: 10_000 }), 0, rng());
-    expect(d.picks[0]).not.toBeNull();
+    expect(d.picks[0]).toHaveLength(1);
     expect(d.step).toBe(1);
+  });
+
+  it("scelte multiple: il vincitore prende due carte (V, S, V) e riceve il giusto numero di turni", () => {
+    expect(pickOrder(0, 2, 1)).toEqual([0, 1, 0]);
+    expect(pickOrder(1, 2, 1)).toEqual([1, 0, 1]);
+    expect(pickOrder(0, 1, 1)).toEqual([0, 1]);
+    expect(pickOrder(0, 3, 1)).toEqual([0, 1, 0, 0]);
+
+    const offer = [card("a"), card("b"), card("c"), card("d")];
+    let d = startDraft({ offered: offer, winner: 0, members, now: 0, voteMs: 10_000, winnerPicks: 2, loserPicks: 1 });
+    expect(draftViewFor(d, 0, "r1")).toMatchObject({ role: "picker", picksLeft: 2 });
+    d = draftTick(draftCast(d, "r1", "a#1"), 10_000, rng());
+    expect(draftViewFor(d, 0, "r1")).toMatchObject({ role: "waiting" });
+    d = draftTick(draftCast(d, "b1", "b#1"), 20_000, rng());
+    expect(draftViewFor(d, 0, "r1")).toMatchObject({ role: "picker", picksLeft: 1, first: false });
+    d = draftTick(draftCast(d, "r1", "c#1"), 30_000, rng());
+    expect(d.phase).toBe("done");
+    const r = draftResult(d);
+    expect(r.picks.map((p) => p.map((c) => c.cardId))).toEqual([["a", "c"], ["b"]]);
+    expect(r.leftover.map((c) => c.cardId)).toEqual(["d"]);
   });
 
   it("con una sola carta offerta sceglie solo il vincitore; senza carte il draft è già finito", () => {
     const one = draftTick(draftCast(startDraft({ offered: [card("a")], winner: 0, members, now: 0, voteMs: 5_000 }), "r1", "a#1"), 5_000, rng());
     expect(one.phase).toBe("done");
-    expect(one.picks).toEqual([card("a"), null]);
+    expect(one.picks).toEqual([[card("a")], []]);
     expect(startDraft({ offered: [], winner: 0, members, now: 0, voteMs: 5_000 }).phase).toBe("done");
   });
 });

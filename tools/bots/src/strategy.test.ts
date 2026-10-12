@@ -86,7 +86,9 @@ describe("strategia dei bot", () => {
     act(1_600); // sceglie il team vincitore...
     s = duel.onTick(s, 1_650); // ...e il draft passa all'altro
     act(1_700);
-    s = duel.onTick(s, 1_750);
+    s = duel.onTick(s, 1_750); // ...e il vincitore sceglie la sua seconda carta
+    act(1_760);
+    s = duel.onTick(s, 1_770);
     expect(s.phase).toBe("battle"); // i due team hanno votato e confermato il draft
     act(1_800);
     s = duel.onTick(s, 1_900);

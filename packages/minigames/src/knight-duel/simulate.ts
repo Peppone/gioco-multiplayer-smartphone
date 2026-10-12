@@ -1,5 +1,6 @@
 import { type Knight, type Side, newKnight, other, resolveBattle } from "./battle.js";
 import { type Deck, type HandCard, cardIndex, expandDeck } from "./cards.js";
+import { pickOrder } from "./draft.js";
 import { deriveSeed, makeRng, randInt, shuffle } from "./rng.js";
 
 export interface SimOptions {
@@ -10,6 +11,8 @@ export interface SimOptions {
   /** Cicli massimi: poi vince chi ha più PV (in parità, battaglie a oltranza). */
   maxBattles?: number;
   draftSize?: number;
+  winnerPicks?: number;
+  loserPicks?: number;
   maxPlays?: number;
   /** Battaglie a oltranza prima di arrendersi al sorteggio. */
   suddenDeathLimit?: number;
@@ -33,7 +36,7 @@ export interface SimResult {
  * Riproduce il flusso reale: minigioco (vince un lato a caso) → draft a priorità → battaglia.
  */
 export function simulateDuel(opts: SimOptions): SimResult {
-  const { deck, hp = 30, minigamesPerBattle = 2, maxBattles = 8, draftSize = 3, maxPlays = 2, suddenDeathLimit = 10, seed } = opts;
+  const { deck, hp = 30, minigamesPerBattle = 2, maxBattles = 8, draftSize = 5, winnerPicks = 2, loserPicks = 1, maxPlays = 2, suddenDeathLimit = 10, seed } = opts;
   const rng = makeRng(seed);
   const cards = cardIndex(deck);
 
@@ -86,7 +89,7 @@ export function simulateDuel(opts: SimOptions): SimResult {
     for (let m = 0; m < minigamesPerBattle; m++) {
       const offered = draw(draftSize);
       const first: Side = rng() < 0.5 ? 0 : 1;
-      for (const side of [first, other(first)]) {
+      for (const side of pickOrder(first, winnerPicks, loserPicks)) {
         if (offered.length === 0) break;
         const picked = offered.splice(randInt(rng, offered.length), 1)[0]!;
         knights[side].hand.push(picked);

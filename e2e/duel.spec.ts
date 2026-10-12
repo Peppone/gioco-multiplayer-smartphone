@@ -45,13 +45,14 @@ test("duello completo con 4 telefoni: minigioco, draft segreto, battaglia simult
 
   // ---- Draft: solo il team che sceglie vede le carte ----
   await expect(screen.page.getByText(`${teams.red.name} sta scegliendo una carta`)).toBeVisible();
-  await expect(r1.page.locator(".card-picker .duel-card:not(.back)")).toHaveCount(3);
+  await expect(r1.page.locator(".card-picker .duel-card:not(.back)")).toHaveCount(5);
+  await expect(r1.page.getByText(/te ne restano 2/)).toBeVisible();
   for (const spectator of [screen, b1, b2]) {
-    await expect(spectator.page.locator(".duel-draft .duel-card.back")).toHaveCount(3);
+    await expect(spectator.page.locator(".duel-draft .duel-card.back")).toHaveCount(5);
     await expect(spectator.page.locator(".duel-draft .duel-card:not(.back)")).toHaveCount(0);
   }
   const offered = (lastPlayerView(r1.traffic)!.draft.cards as { uid: string }[]).map((c) => c.uid);
-  expect(offered).toHaveLength(3);
+  expect(offered).toHaveLength(5);
   for (const uid of offered) {
     expect(screen.traffic.text(), `schermo non deve vedere ${uid}`).not.toContain(uid);
     expect(b1.traffic.text(), `blu non deve vedere ${uid}`).not.toContain(uid);
@@ -66,18 +67,26 @@ test("duello completo con 4 telefoni: minigioco, draft segreto, battaglia simult
   await r2.page.getByRole("button", { name: "Conferma la carta" }).click();
 
   // Tocca ai Blu: vedono solo le 2 carte rimaste, e la carta scelta dai Rossi non transita da loro
-  await expect(b1.page.locator(".card-picker .duel-card:not(.back)")).toHaveCount(2);
+  await expect(b1.page.locator(".card-picker .duel-card:not(.back)")).toHaveCount(4);
+  await expect(b1.page.getByText(/Ultima scelta/)).toBeVisible();
   await expect(screen.page.getByText(`${teams.blue.name} sta scegliendo una carta`)).toBeVisible();
   expect(b1.traffic.text(), "la carta scelta dai Rossi non arriva ai Blu").not.toContain(redPick);
+  const blueSaw = (lastPlayerView(b1.traffic)!.draft.cards as { uid: string }[]).map((c) => c.uid); // le carte rimaste che i Blu hanno visto (e lasciato)
   await act(b1, "blue");
   await act(b2, "blue");
+
+  // Chi ha vinto il minigioco sceglie una seconda carta tra le 3 rimaste
+  await expect(r1.page.locator(".card-picker .duel-card:not(.back)")).toHaveCount(3);
+  await expect(r1.page.getByText(/Ultima scelta/)).toBeVisible();
+  await act(r1, "red");
+  await act(r2, "red");
 
   // ---- Battaglia: scelte segrete, simultanee ----
   await expect(screen.page.getByText(/Scegliete le carte in segreto/)).toBeVisible();
   await expect(r1.page.getByRole("button", { name: "Conferma le carte" })).toBeVisible();
   const redHand = (lastPlayerView(r1.traffic)!.hand as { uid: string }[]).map((c) => c.uid);
   expect(redHand.length).toBeGreaterThan(0);
-  for (const uid of redHand) {
+  for (const uid of redHand.filter((u) => !blueSaw.includes(u))) {
     expect(screen.traffic.text(), "la mano dei Rossi non arriva allo schermo").not.toContain(uid); // lo schermo non ha mai visto quella carta
     expect(b1.traffic.text(), "la mano dei Rossi non arriva ai Blu").not.toContain(uid);
   }

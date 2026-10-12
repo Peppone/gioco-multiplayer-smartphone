@@ -210,6 +210,7 @@ export function createDuelController(childViews: ChildViews) {
                 onCast={(uid) => send({ type: "draft-cast", uid })}
                 onConfirm={() => send({ type: "draft-confirm" })}
                 confirmLabel="Conferma la carta"
+                heading={v.draft.picksLeft > 1 ? `Scegli una carta (te ne restano ${v.draft.picksLeft})` : v.draft.first ? "Scegli una carta" : "Ultima scelta: prendi una carta"}
               />
             ) : (
               <>

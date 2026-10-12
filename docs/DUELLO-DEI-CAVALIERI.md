@@ -9,8 +9,8 @@ Due **squadre** (o due **singoli giocatori**) sono rappresentate da due cavalier
 ```
 
 1. **Minigioco**: uno qualsiasi tra quelli scelti dalla regia (a caso senza ripetizioni, oppure scelto dalla regia ogni volta). Lo giocano i membri dei due lati; vince chi totalizza più punti (in parità: miglior piazzamento individuale, poi sorteggio). I punti del minigioco **non** vanno in classifica: servono solo a decidere chi sceglie per primo.
-2. **Draft**: si offrono alcune carte (default 3). **Il vincitore sceglie per primo**, poi lo sconfitto sceglie tra quelle rimaste. Le carte non scelte tornano nel mazzo.
-   - Vede le carte solo il team che sta scegliendo. Chi sceglie per secondo vede solo quelle rimaste, non quale è stata presa.
+2. **Draft**: si offrono alcune carte (default 5). **Il vincitore ne sceglie una, poi lo sconfitto ne sceglie una, poi il vincitore ne sceglie una seconda** (default 2 + 1; si cambia con «Carte scelte da chi vince/perde»). Le carte non scelte tornano nel mazzo. Così, con 2 minigiochi per battaglia, la mano è di circa 3 carte e se ne giocano al massimo 2: si sceglie davvero cosa giocare e cosa tenere per dopo.
+   - Vede le carte solo il team che sta scegliendo, e solo quelle rimaste: non sa quale hanno preso gli altri. (Il vincitore, alla sua seconda scelta, vede le carte che lo sconfitto ha lasciato.)
    - La scelta è un **voto di team**: ogni membro tocca la carta che preferisce e vede in tempo reale cosa hanno scelto i compagni. Vince la maggioranza; in parità prevale la carta votata per prima; se nessuno vota, si sceglie a caso.
 3. **Battaglia** (ogni X minigiochi, default 2): i due team scelgono **in segreto e in contemporanea** fino a N carte da giocare (default 2), con lo stesso tipo di voto. Poi le carte si **rivelano insieme** e lo schermo racconta lo scontro evento per evento.
 4. **Fine**: vince chi mette KO l'avversario (0 PV). Dopo le battaglie massime vince chi ha più PV; **in parità si gioca a oltranza** (battaglie senza minigioco, con carte fresche) finché uno ha più PV. Se dopo 10 battaglie a oltranza è ancora pari, decide il sorteggio.
@@ -58,7 +58,8 @@ Una stessa istanza del duello si può riusare in più serate e duplicare dalla L
 | Punti vita dei cavalieri | 20 | Con più PV i duelli si allungano |
 | Minigiochi tra una battaglia e l'altra | 2 | |
 | Battaglie massime | 6 | Poi vince chi ha più PV (o si va a oltranza) |
-| Carte offerte a ogni draft | 3 | |
+| Carte offerte a ogni draft | 5 | Meglio più delle carte che si prendono |
+| Carte scelte da chi vince / perde il minigioco | 2 / 1 | Il vincitore sceglie per primo e per ultimo |
 | Carte giocabili per battaglia | 2 | |
 | Carte massime in mano | 6 | Oltre il limite si scarta la più vecchia |
 | Tempo per scegliere al draft / in battaglia | 15 s / 20 s | Il voto si chiude prima se tutti confermano |

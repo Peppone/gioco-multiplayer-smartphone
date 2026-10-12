@@ -86,7 +86,7 @@ export interface DuelCommonV {
 export type DraftPublicV = { phase: "picking" | "done"; picker: Side | null; offeredCount: number; progress: ProgressV | null };
 export type DraftPlayerV =
   | { phase: "done" }
-  | { phase: "picking"; role: "picker"; cards: HandCardV[]; vote: MemberVoteV; first: boolean }
+  | { phase: "picking"; role: "picker"; cards: HandCardV[]; vote: MemberVoteV; first: boolean; picksLeft: number }
   | { phase: "picking"; role: "waiting"; offeredCount: number; picker: Side };
 
 export interface DuelScreenV extends DuelCommonV {

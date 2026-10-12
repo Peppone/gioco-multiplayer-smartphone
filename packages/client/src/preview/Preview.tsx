@@ -210,7 +210,7 @@ function duelScene(scene: Scene, now: number) {
         screen: { ...duelCommon("draft", now), draft: { phase: "picking", picker: 0, offeredCount: 3, progress }, battle: null, result: null },
         phone: {
           ...duelCommon("draft", now), side: 0, team, hand: hand.slice(0, 2), spied: hc(CARDS.carica, 1), result: null, battle: null,
-          draft: { phase: "picking", role: "picker", first: true, cards: [hc(CARDS.carica, 1), hc(CARDS.veleno, 1), hc(CARDS.scudo, 2)], vote: { options: [], max: 1, deadline: now + 15_000, mine: ["veleno#1"], confirmed: false, mates: [{ playerId: "m1", picks: ["carica#1"], confirmed: true }, { playerId: "m2", picks: [], confirmed: false }] } },
+          draft: { phase: "picking", role: "picker", first: true, picksLeft: 2, cards: [hc(CARDS.carica, 1), hc(CARDS.veleno, 1), hc(CARDS.scudo, 2)], vote: { options: [], max: 1, deadline: now + 15_000, mine: ["veleno#1"], confirmed: false, mates: [{ playerId: "m1", picks: ["carica#1"], confirmed: true }, { playerId: "m2", picks: [], confirmed: false }] } },
         },
       };
     case "duel-battle":

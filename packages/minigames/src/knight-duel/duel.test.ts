@@ -35,6 +35,9 @@ function makeConfig(over: Record<string, unknown> = {}): DuelConfig {
     maxBattles: 3,
     draftSeconds: 5,
     battleSeconds: 5,
+    draftSize: 3,
+    winnerPicks: 1,
+    loserPicks: 1,
     ...over,
   });
   return {
@@ -132,6 +135,20 @@ describe("avvio e minigioco", () => {
     const blue = playMinigame(start(), 0, false);
     expect(blue.minigameWinner).toBe(1);
     expect(blue.draft!.order).toEqual([1, 0]);
+  });
+
+  it("con le impostazioni predefinite il vincitore prende 2 carte e lo sconfitto 1, da un'offerta di 5", () => {
+    const defaults = duelModeSchema.parse({ kind: "teams", sideA: "t1", sideB: "t2", pool: ["vf"] });
+    expect([defaults.draftSize, defaults.winnerPicks, defaults.loserPicks, defaults.maxPlays]).toEqual([5, 2, 1, 2]);
+    let s = playMinigame(start({ draftSize: 5, winnerPicks: 2, loserPicks: 1 }), 0, true);
+    expect(s.draft!.order).toEqual([0, 1, 0]);
+    expect(s.draft!.offered).toHaveLength(5);
+    s = draftPick(s, RED, 1_500);
+    expect(s.draft!.picks.map((p) => p.length)).toEqual([1, 0]);
+    s = draftPick(s, BLUE, 1_600);
+    s = draftPick(s, RED, 1_700);
+    expect(s.phase).toBe("battle");
+    expect(s.knights.map((k) => k.hand.length)).toEqual([2, 1]);
   });
 
   it("il minigioco non assegna punti serata: restano premi (le carte)", () => {

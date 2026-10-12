@@ -111,7 +111,7 @@ describe("ripresa dopo il riavvio", () => {
     const { engine, store } = reboot();
     store.restoreOnStart();
     expect(views(engine)).toBe(before);
-    expect(draftView(engine)?.cards).toHaveLength(3);
+    expect(draftView(engine)?.cards).toHaveLength(5); // offerta predefinita del draft
   });
 
   it("una partita rimasta avviata senza fotografia (arresto brusco) viene chiusa, non resta bloccata", () => {
