@@ -186,6 +186,11 @@ export function LivePanel() {
           <h2>{state.matchName} <small className="muted">· {PHASE_LABEL[state.phase]}</small></h2>
           <p className="muted">Round {state.roundNumber} di {state.roundCount}{state.frame ? ` · ${state.frame.title}` : ""}</p>
 
+          {state.host && HostUi && state.master && (
+            <p className="muted master-hint" role="note">
+              Stai conducendo tu come Game Master: puoi usare qui sotto tutti i comandi, senza il link. Il link serve solo per far condurre un altro telefono.
+            </p>
+          )}
           {state.host && HostUi ? (
             <Suspense fallback={<p>Caricamento…</p>}>
               <HostUi

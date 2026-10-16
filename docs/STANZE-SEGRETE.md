@@ -25,7 +25,7 @@ messaggero. Il GM **non gioca**: non è in classifica e non ha un profilo giocat
 Il link vale **solo per questa partita** (al massimo 12 ore), apre solo i comandi di questo gioco e si può
 **revocare o rigenerare** in ogni momento: il telefono revocato perde subito l'accesso. Il token sta nel frammento
 `#` dell'indirizzo (non finisce nei log) e il telefono lo ricorda, così dopo il blocco schermo si rientra da soli.
-Se regia e GM sono la stessa persona, la stessa interfaccia è già nel pannello Live.
+**La regia può essere il Game Master:** non serve nessun link. Nel pannello Live, avviato il round, compare la stessa interfaccia del GM (con la nota «Stai conducendo tu come Game Master») e tutti i comandi funzionano da lì; il link serve solo per far condurre un altro telefono. Si possono usare anche insieme.
 
 ## 2. Che cosa vede e fa il GM (`/master`)
 

@@ -298,3 +298,29 @@ test("stanze segrete: un link del GM sbagliato non apre nulla", async ({ browser
   expect(gm.traffic.text()).not.toContain("game:master");
   await gm.context.close();
 });
+
+test("stanze segrete: la regia può fare il Game Master da sola, senza link", async ({ newGame }) => {
+  const g = await newGame([{ typeId: "stanze-segrete", title: "Complesso solo regia", theme: "retro80", config: CONFIG }], { playersPerTeam: 1 });
+  const { admin, screen, a, b } = g;
+  const nick = async (c: Client) => (await c.page.locator("h1").first().innerText()).trim();
+  const [na, nb] = [await nick(a), await nick(b)];
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await expect(admin.page.getByRole("note")).toContainText("Stai conducendo tu come Game Master");
+
+  // Nessun link generato: la regia piazza i giocatori e inizia dal proprio pannello.
+  const sh = admin.page.locator(".sh");
+  await sh.getByRole("button", { name: "Distribuisci", exact: true }).first().click();
+  await expect(a.page.getByRole("heading", { name: /^Sei nella Stanza [0-9]$/ })).toBeVisible();
+  await sh.getByRole("button", { name: "Inizia", exact: true }).click();
+  // Abilita una capacità, manda un messaggio e un evento, ricevuti dai telefoni.
+  await sh.locator(`details.sh-player[data-player="${na}"] summary`).click();
+  await sh.locator(`details.sh-player[data-player="${na}"] .sh-toggle[data-action="message"]`).click();
+  await expect(a.page.getByRole("button", { name: /Scrivi al Master/ }).or(a.page.getByRole("button", { name: /Master/ }).first())).toBeVisible();
+  await sh.getByLabel("Testo dell'evento").fill("Dalla regia");
+  await sh.getByRole("button", { name: /Invia l'evento a tutti/ }).click();
+  for (const c of [a, b]) await expect(c.page.getByTestId("event-card")).toContainText("Evento: Dalla regia");
+  for (const c of [a, b]) await c.page.getByRole("button", { name: "Accetta" }).click();
+  await expect(sh.locator(".sh-event-list li").first()).toContainText("Accettato da 2 di 2");
+  expect(nb).not.toBe(na);
+  await expect(screen.page.getByText(/avvolto nel buio/)).toBeVisible();
+});
