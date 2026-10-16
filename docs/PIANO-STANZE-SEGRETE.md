@@ -1,6 +1,6 @@
 # Piano: «Stanze Segrete» (GDR in stile Room 25) e ruolo Game Master
 
-> Stato: **piano, non implementato.** Branch: `feat/stanze-segrete-master`.
+> Stato: **implementato** (passi S1–S9). Guida per il GM: [STANZE-SEGRETE.md](STANZE-SEGRETE.md). Branch: `feat/stanze-segrete-master`.
 > Da leggere insieme a [PIANO.md](../PIANO.md) e [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md).
 
 ## 1. Obiettivo

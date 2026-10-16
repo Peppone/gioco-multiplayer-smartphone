@@ -51,6 +51,8 @@ I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li as
 4. Tra un round e l'altro compare la classifica (giocatori e squadre). Puoi **assegnare o togliere punti a mano** con un motivo; resta tutto registrato.
 5. A fine partita premi **Concludi la partita** e poi **Torna alla lobby**: lo schermo rimostra i QR per chi arriva dopo.
 
+**Stanze Segrete (con Game Master)**: se il round in corso è un gioco con Game Master, nel pannello Live compare il riquadro **«Link del Game Master»**. Premi *Genera il link* e fai inquadrare il QR al telefono di chi conduce (o copia il link). Il link vale solo per quella partita e puoi revocarlo o rigenerarlo quando vuoi. Il gioco accetta al massimo 10 giocatori per serata. Dopo la serata, scheda **Messaggi** per rileggere, esportare o eliminare messaggi ed eventi. Guida completa: [STANZE-SEGRETE.md](STANZE-SEGRETE.md).
+
 **Reazioni**: i giocatori possono mandare emoji dal telefono; volano sullo schermo.
 
 **Audio**: il browser blocca l'audio finché non si clicca. Sulla pagina `/screen` clicca una volta sul pulsante 🔊 (o ovunque). L'audio dello schermo esce dal PC: se usi un proiettore/TV via HDMI, scegli l'uscita HDMI come dispositivo audio di Windows.

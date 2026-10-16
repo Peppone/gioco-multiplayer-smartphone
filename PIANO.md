@@ -217,6 +217,8 @@ Il duello è sempre 1 contro 1. Se la serata ha più team, l'admin crea più par
 - le colonne `matches.mode` e `matches.mode_config_json` restano nel database per compatibilità ma valgono sempre `classic` e `{}`; la configurazione del duello (PV, X minigiochi per battaglia, carte per draft, mazzo usato) sta in `minigame_instances.config_json`
 - `ability_cards` (id, deck_id, name, sprite, rarity, initiative, effects_json) e `decks` (id, name)
 - `match_state_snapshots` (match_id, state_json, ts): salvataggio periodico dello stato in corso, così una serata non si perde se il PC si riavvia
+- `round_messages` (event_id, match_id, round_id, message_id, kind, from/to, recipients_json, text, ts, read_at, cancelled): messaggi ed eventi dei round con Game Master, chiave unica (round, message_id) per un salvataggio idempotente; `round_event_receipts` (round_id, message_id, player_id, accepted_at): una riga per destinatario di un evento
+- `settings` custodisce anche l'hash del token del Game Master (`master_session`, con scadenza e partita di appartenenza)
 
 ---
 
@@ -256,6 +258,13 @@ Il duello è sempre 1 contro 1. Se la serata ha più team, l'admin crea più par
 4. **Anti-trucco.** Si scartano i timestamp incoerenti: nel futuro, precedenti all'apertura del buzzer, o con offset fuori dal RTT misurato.
 
 Lo stesso meccanismo vale per i punti-velocità del quiz. Lo schermo mostra il ping di ogni giocatore, così si vede chi ha una connessione problematica.
+
+### 🔐 Stanze Segrete (`stanze-segrete`, tema `retro80`): GDR con Game Master
+
+Sessione ispirata a *Room 25*, condotta da una persona (il **Game Master**, che non gioca): giocatori da 1 a 10 in un complesso di stanze a griglia, ognuna con una lettera nascosta (la mappa di esempio intreccia MORTA e USCITA). Il GM piazza i giocatori, accende e spegne le **capacità** (muoversi con una croce direzionale, sbirciare, guardare la lettera a tempo, scrivere, proporre la soluzione, azioni libere), approva ogni spostamento, chiude le porte, manda messaggi segreti ed **eventi** da accettare. Dettagli e decisioni in [docs/PIANO-STANZE-SEGRETE.md](docs/PIANO-STANZE-SEGRETE.md), guida d'uso in [docs/STANZE-SEGRETE.md](docs/STANZE-SEGRETE.md).
+- **Ruolo Game Master** (generico, riusabile da altri plugin): ruolo `master` del server con **link limitato** (token con scadenza, solo l'hash nel database, revocabile, valido per la partita in corso e solo per i comandi del plugin). Nuovi campi facoltativi di `MinigameType`: `master`, `maxPlayers`, `messages()`; componente client facoltativo `Host` (caricato a richiesta, non finisce nel bundle del telefono). Area `/master` e riquadro «Link del Game Master» nel pannello Live.
+- **Messaggi ed eventi nel database**: il plugin li tiene nello stato (ultimi 300) e l'engine li copia dopo ogni cambio di stato in modo idempotente; la regia li consulta, filtra, esporta ed elimina dalla scheda «Messaggi».
+- **Privacy**: le lettere arrivano a un telefono solo durante un'occhiata concessa (e spariscono alla scadenza); schermo e telefoni non ricevono mai note, porte, permessi, richieste o messaggi altrui; i testi dei giocatori non vanno mai sullo schermo. Coperto da test anti-leak, e2e sui frame WebSocket e stress (`pnpm stress --players 10 --scenario stanze`).
 
 ### 👻 Caccia ai Fantasmi (`caccia-fantasmi`, tema `retro80`): gioco fisico con QR
 Re della collina con ruoli nascosti, da giocare muovendosi nella location.
@@ -316,6 +325,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F6 Altri minigiochi | ✅ | Vero/Falso, Stima, Sondaggio; guida `docs/NUOVO-MINIGIOCO.md` |
 | F7 Duello dei Cavalieri | ✅ (da provare con persone) | Guida `docs/DUELLO-DEI-CAVALIERI.md`; arena in HTML/CSS con sprite Kenney |
 | F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
+| Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 
 **Scostamenti dal piano originale (concordati)**
 - **Test end-to-end con Playwright** (Edge, senza screenshot) oltre a Vitest.
