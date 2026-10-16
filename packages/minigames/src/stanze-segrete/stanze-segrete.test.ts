@@ -318,6 +318,38 @@ describe("esiti, fasi e punti", () => {
   });
 });
 
+describe("la mappa è nascosta finché il GM non la mostra", () => {
+  it("di default schermo e telefoni non ricevono griglia, posizioni né dimensioni", () => {
+    const s = started();
+    expect(game.screenView(s)).toEqual({ phase: "play", mapShown: false });
+    const v = view(s, "a");
+    expect(v.mapShown).toBe(false);
+    expect(v).not.toHaveProperty("rows");
+    expect(v).not.toHaveProperty("cols");
+    expect(v.others).toEqual([]);
+    expect(v.rules).not.toHaveProperty("rows");
+    expect(JSON.stringify(view(s, "z"))).not.toContain("rows");
+  });
+
+  it("show-map la mostra e la nasconde di nuovo; la rivelazione la mostra comunque", () => {
+    let s = cmd(started(), { type: "show-map", visible: true });
+    expect((game.screenView(s) as any).rows).toBe(3);
+    expect(view(s, "a").rows).toBe(3);
+    expect(view(s, "a").others).toHaveLength(2);
+    expect(view(s, "a").rules.rows).toBe(3);
+    expect(cmd(s, { type: "show-map", visible: true })).toBe(s);
+    s = cmd(s, { type: "show-map", visible: false });
+    expect(game.screenView(s)).toEqual({ phase: "play", mapShown: false });
+    s = cmd(s, { type: "public-reveal" });
+    expect((game.screenView(s) as any).letters).toHaveLength(9);
+  });
+
+  it("anche in preparazione il GM può mostrarla", () => {
+    const s = cmd(game.init(config, ctx, 0), { type: "show-map", visible: true });
+    expect((game.screenView(s) as any).rows).toBe(3);
+  });
+});
+
 describe("anti-leak", () => {
   const letters = ["A", "C", "S", "T", "I", "U", "R", "O", "M"];
   const hasLetterField = (v: unknown) => /"letters?":/.test(JSON.stringify(v));
@@ -341,6 +373,7 @@ describe("anti-leak", () => {
     // alla rivelazione lo schermo mostra lettere e percorsi
     const done = cmd(started(), { type: "public-reveal" });
     const sv = game.screenView(done) as any;
+    expect(sv.mapShown).toBe(true);
     expect(sv.letters).toEqual(letters);
     expect(sv.paths.map((p: any) => p.word)).toEqual(["MORTA", "USCITA"]);
   });
@@ -365,6 +398,7 @@ describe("anti-leak", () => {
     const cfg = game.configSchema.parse({ ...game.sampleConfig, positionsPublic: false });
     let s = game.init(cfg, ctx, 0);
     s = cmd(s, { type: "place", playerId: "a", cellId: 3 });
+    s = cmd(s, { type: "show-map", visible: true });
     expect((game.screenView(s) as any).positions).toEqual({});
     expect(view(s, "b").others).toEqual([]);
     expect(view(s, "a").cell).toBe(3);

@@ -65,6 +65,7 @@ interface HostInfo {
   outcome: Record<string, Outcome>;
   solved: Record<string, boolean>;
   unplaced: number;
+  mapShown: boolean;
   grants: HostGrant[];
   closedDoors: { a: number; b: number }[];
   sightings: { playerId: string; cellId: number; until: number }[];
@@ -502,10 +503,15 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   return (
     <div className="sh" data-phase={info.phase}>
       <section className="sh-sec">
-        <h3>Fase: {info.phase === "setup" ? "preparazione" : info.phase === "play" ? "in gioco" : info.phase === "reveal" ? "rivelazione" : "conclusa"}</h3>
+        <h3 data-map={info.mapShown ? "shown" : "hidden"}>Fase: {info.phase === "setup" ? "preparazione" : info.phase === "play" ? "in gioco" : info.phase === "reveal" ? "rivelazione" : "conclusa"}</h3>
         <div className="row">
           {info.phase === "setup" && <button onClick={() => void run({ type: "place-spread" })}>Distribuisci</button>}
           {info.phase === "setup" && <button className="primary" disabled={unplaced.length > 0} onClick={() => void run({ type: "start" })}>Inizia</button>}
+          {editable && (
+            <button className={info.mapShown ? "" : "primary"} aria-pressed={info.mapShown} onClick={() => void run({ type: "show-map", visible: !info.mapShown })}>
+              {info.mapShown ? "Nascondi la mappa" : "Mostra la mappa a schermo e telefoni"}
+            </button>
+          )}
           {info.phase === "play" && <button className="primary" onClick={() => void run({ type: "public-reveal" })}>Rivela la mappa sullo schermo</button>}
           {info.phase === "play" && <button className="danger" onClick={() => { if (confirm("Concludere senza rivelare la mappa?")) void run({ type: "end" }); }}>Concludi</button>}
           {info.phase === "reveal" && <button className="primary" onClick={() => void run({ type: "end" })}>Concludi</button>}

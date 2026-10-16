@@ -117,6 +117,8 @@ export interface StanzeState {
   feedback: Record<PlayerId, Feedback>;
   log: LogEntry[];
   publicReveal: boolean;
+  /** La mappa (griglia e posizioni) è visibile a schermo e telefoni: di default no, la mostra il GM quando vuole. */
+  mapShown: boolean;
 }
 
 // ---- Schemi ----
@@ -183,6 +185,7 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancel-event"), eventId: z.number().int() }),
   z.object({ type: z.literal("set-outcome"), playerId: z.string().min(1), outcome: z.enum(["in-gioco", "fuggito", "eliminato"]) }),
   z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("show-map"), visible: z.boolean() }),
   z.object({ type: z.literal("public-reveal") }),
   z.object({ type: z.literal("end") }),
 ]);
@@ -546,10 +549,12 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       return addLog({ ...s, outcome: { ...s.outcome, [cmd.playerId]: cmd.outcome } }, now, `${nick(s, cmd.playerId)}: ${cmd.outcome}`);
     case "start":
       return begin(s, now);
+    case "show-map":
+      return s.mapShown === cmd.visible ? s : addLog({ ...s, mapShown: cmd.visible }, now, cmd.visible ? "Mappa mostrata ai giocatori" : "Mappa nascosta");
     case "public-reveal":
-      return s.phase === "play" ? { ...s, phase: "reveal", publicReveal: true } : s;
+      return s.phase === "play" ? { ...s, phase: "reveal", publicReveal: true, mapShown: true } : s;
     case "end":
-      return { ...s, phase: "done", publicReveal: true };
+      return { ...s, phase: "done", publicReveal: true, mapShown: true };
   }
 }
 
@@ -602,15 +607,16 @@ function toRoundMessages(s: StanzeState): RoundMessage[] {
 const shortName = (s: StanzeState) => s.roster.map((p) => ({ id: p.id, nickname: p.nickname }));
 
 export interface RulesInfo {
-  rows: number;
-  cols: number;
+  /** Assenti finché la mappa non è stata mostrata: i giocatori non devono conoscerne la forma. */
+  rows?: number;
+  cols?: number;
   sightSec: number;
   messageMaxLength: number;
   positionsPublic: boolean;
 }
 
 const rulesOf = (s: StanzeState): RulesInfo => ({
-  rows: s.cfg.rows, cols: s.cfg.cols, sightSec: s.cfg.defaultSightSec, messageMaxLength: s.cfg.messageMaxLength, positionsPublic: s.cfg.positionsPublic,
+  ...(s.mapShown && { rows: s.cfg.rows, cols: s.cfg.cols }), sightSec: s.cfg.defaultSightSec, messageMaxLength: s.cfg.messageMaxLength, positionsPublic: s.cfg.positionsPublic,
 });
 
 const revealed = (s: StanzeState) => ({
@@ -653,6 +659,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       feedback: {},
       log: [],
       publicReveal: false,
+      mapShown: false,
     };
   },
 
@@ -673,8 +680,11 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
 
   // Pubblico: la griglia, le posizioni (se pubbliche) e nient'altro fino alla rivelazione. Nessun testo dei giocatori.
   screenView(s) {
+    // Finché il GM non mostra la mappa lo schermo non sa nulla della sua forma né di dove stanno i giocatori.
+    if (!s.mapShown) return { phase: s.phase, mapShown: false as const };
     const base = {
       phase: s.phase,
+      mapShown: true as const,
       rows: s.cfg.rows,
       cols: s.cfg.cols,
       players: s.cfg.positionsPublic ? shortName(s) : [],
@@ -685,7 +695,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
 
   viewFor(s, playerId) {
     const me = s.roster.find((p) => p.id === playerId);
-    if (!me) return { phase: s.phase, rows: s.cfg.rows, cols: s.cfg.cols, member: false };
+    if (!me) return { phase: s.phase, member: false };
     const pos = s.positions[playerId] ?? null;
     const mine = s.grants.filter((g) => g.playerId === playerId);
     const compass: Partial<Record<"move" | "peek", Record<Dir, ArrowState>>> = {};
@@ -711,12 +721,12 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
     return {
       phase: s.phase,
       member: true,
-      rows: s.cfg.rows,
-      cols: s.cfg.cols,
+      mapShown: s.mapShown,
+      ...(s.mapShown && { rows: s.cfg.rows, cols: s.cfg.cols }),
       cell: pos,
       outcome: s.outcome[playerId] ?? "in-gioco",
       solved: s.solved[playerId] === true,
-      others: s.cfg.positionsPublic ? s.roster.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, nickname: p.nickname, cell: s.positions[p.id] ?? null })) : [],
+      others: s.mapShown && s.cfg.positionsPublic ? s.roster.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, nickname: p.nickname, cell: s.positions[p.id] ?? null })) : [],
       abilities: mine.filter((g) => g.usesLeft === null || g.usesLeft > 0).map((g) => ({
         id: g.id,
         action: g.action,
@@ -756,6 +766,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         outcome: s.outcome,
         solved: s.solved,
         unplaced: left,
+        mapShown: s.mapShown,
         grants: s.grants,
         closedDoors: s.closedDoors,
         sightings: s.sightings,

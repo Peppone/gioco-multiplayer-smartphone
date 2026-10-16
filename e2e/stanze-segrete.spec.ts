@@ -47,9 +47,11 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   // Il GM non è un giocatore e non compare né in lobby né in classifica.
   await expect(m.locator(".sh-player")).toHaveCount(4);
 
-  // Lo schermo e i telefoni mostrano solo i numeri delle stanze.
-  await expect(screen.page.locator(".ss-room")).toHaveCount(9);
-  await expect(screen.page.locator(".ss-letter")).toHaveCount(0);
+  // La mappa non si conosce a priori: schermo e telefoni non ricevono né griglia né dimensioni.
+  await expect(screen.page.locator(".ss-room")).toHaveCount(0);
+  await expect(screen.page.getByText("Il complesso si sta preparando")).toBeVisible();
+  expect(screen.traffic.text()).not.toMatch(/"rows"|"cols"|"positions"/);
+  for (const p of [p0, p1]) expect(p.traffic.text()).not.toMatch(/"rows"|"cols"/);
   await expect(p0.page.getByText("Aspetta il Game Master").first()).toBeVisible();
 
   // ---- Stanze di partenza scelte dal GM: tocca il giocatore, poi la stanza ----
@@ -68,8 +70,17 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await expect(p1.page.getByRole("heading", { name: "Sei nella Stanza 5" })).toBeVisible();
   await expect(p2.page.getByRole("heading", { name: "Sei nella Stanza 9" })).toBeVisible();
   await m.getByRole("button", { name: "Inizia", exact: true }).click();
-  await expect(screen.page.getByText("Trovate l'uscita.")).toBeVisible();
+  await expect(screen.page.getByText(/avvolto nel buio/)).toBeVisible();
+  await expect(p0.page.locator(".ss-mini")).toHaveCount(0);
+  expect(screen.traffic.text()).not.toMatch(/"positions"/);
+  // Il GM mostra la mappa quando vuole, e la può nascondere di nuovo.
+  await m.getByRole("button", { name: "Mostra la mappa a schermo e telefoni" }).click();
+  await expect(screen.page.locator(".ss-room")).toHaveCount(9);
   await expect(screen.page.locator('.ss-room[data-cell="4"] .ss-avatar')).toHaveCount(2);
+  await expect(p0.page.locator(".ss-mini-room")).toHaveCount(9);
+  await m.getByRole("button", { name: "Nascondi la mappa" }).click();
+  await expect(screen.page.locator(".ss-room")).toHaveCount(0);
+  await expect(p0.page.locator(".ss-mini")).toHaveCount(0);
 
   const card = (nick: string) => m.locator(`details.sh-player[data-player="${nick}"]`);
   const open = async (nick: string) => {
@@ -116,6 +127,7 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await req.getByRole("button", { name: "Approva" }).click();
   await expect(p1.page.getByRole("heading", { name: "Sei nella Stanza 6" })).toBeVisible();
   await expect(p1.page.getByText("Il Master ti ha fatto entrare nella Stanza 6")).toBeVisible();
+  await m.getByRole("button", { name: "Mostra la mappa a schermo e telefoni" }).click(); // lo schermo la mostra di nuovo
   await expect(screen.page.locator('.ss-room[data-cell="5"] .ss-avatar')).toHaveCount(1);
 
   // ---- Spegnere una capacità: il controllo sparisce dal telefono ----
@@ -181,7 +193,7 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   // ---- Regole con i dati veri ----
   await p0.page.getByRole("button", { name: /Regole/ }).click();
   await expect(p0.page.locator(".ss-rules")).toContainText("2 secondi"); // defaultSightSec: 2
-  await expect(p0.page.locator(".ss-rules")).toContainText("9 stanze");
+  await expect(p0.page.locator(".ss-rules")).toContainText("9 stanze"); // la mappa è stata mostrata
 
   // ---- Esito, rivelazione, fine ----
   await p0.page.getByRole("button", { name: "Gioco", exact: true }).click();

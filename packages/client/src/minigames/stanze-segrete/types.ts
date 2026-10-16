@@ -12,12 +12,14 @@ export interface PublicPlayerRef {
   nickname: string;
 }
 
+/** Finché il GM non mostra la mappa lo schermo riceve solo la fase: niente griglia, posizioni o dimensioni. */
 export interface ScreenView {
   phase: "setup" | "play" | "reveal" | "done";
-  rows: number;
-  cols: number;
-  players: PublicPlayerRef[];
-  positions: Record<string, number | null>;
+  mapShown: boolean;
+  rows?: number;
+  cols?: number;
+  players?: PublicPlayerRef[];
+  positions?: Record<string, number | null>;
   letters?: string[];
   paths?: { word: string; cells: number[] }[];
   outcomes?: { id: string; nickname: string; outcome: Outcome; solved: boolean }[];
@@ -58,8 +60,9 @@ export interface PhoneEvent {
 }
 
 export interface Rules {
-  rows: number;
-  cols: number;
+  /** Assenti finché la mappa non è stata mostrata. */
+  rows?: number;
+  cols?: number;
   sightSec: number;
   messageMaxLength: number;
   positionsPublic: boolean;
@@ -68,8 +71,9 @@ export interface Rules {
 export interface PhoneView {
   phase: "setup" | "play" | "reveal" | "done";
   member: boolean;
-  rows: number;
-  cols: number;
+  mapShown?: boolean;
+  rows?: number;
+  cols?: number;
   cell?: number | null;
   outcome?: Outcome;
   solved?: boolean;

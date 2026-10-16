@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { rulesSections } from "./rulesText";
+import type { Rules } from "./types";
 
-const rules = { rows: 3, cols: 3, sightSec: 8, messageMaxLength: 280, positionsPublic: true };
+const rules: Rules = { rows: 3, cols: 3, sightSec: 8, messageMaxLength: 280, positionsPublic: true };
 const text = (r = rules) => rulesSections(r).flatMap((s) => [s.title, ...s.paragraphs]).join("\n");
 
 describe("regole di Stanze Segrete", () => {
@@ -11,6 +12,12 @@ describe("regole di Stanze Segrete", () => {
     expect(text()).toContain("280 caratteri");
     expect(text({ ...rules, rows: 2, cols: 4, sightSec: 3 })).toContain("8 stanze (2 × 4)");
     expect(text({ ...rules, sightSec: 3 })).toContain("3 secondi");
+  });
+
+  it("non rivelano la forma della mappa finché non è mostrata", () => {
+    const t = text({ sightSec: 8, messageMaxLength: 280, positionsPublic: true });
+    expect(t).not.toMatch(/d+ stanze/);
+    expect(t).toContain("La mappa la mostra il Game Master");
   });
 
   it("dicono se le posizioni sono pubbliche", () => {

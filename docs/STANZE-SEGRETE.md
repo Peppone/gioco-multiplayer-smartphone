@@ -31,7 +31,7 @@ Se regia e GM sono la stessa persona, la stessa interfaccia è già nel pannello
 
 L'interfaccia è una colonna unica, pensata per il telefono.
 
-- **Fase** e comandi: *Distribuisci*, *Inizia* (solo con tutti piazzati), *Rivela la mappa sullo schermo*, *Concludi*.
+- **Fase** e comandi: *Mostra la mappa a schermo e telefoni* / *Nascondi la mappa*, *Distribuisci*, *Inizia* (solo con tutti piazzati), *Rivela la mappa sullo schermo*, *Concludi*.
 - **Richieste**: la coda di spostamenti, sbirciate, azioni libere e soluzioni, con *Approva / Rifiuta*,
   *Approva tutti gli spostamenti* e *Mostra la lettera per N s*. Suona e vibra quando ne arriva una.
 - **Mappa** con le lettere e le note. Per piazzare o spostare un giocatore: **tocca il giocatore, poi la stanza**
@@ -80,6 +80,8 @@ un evento non ancora accettato da tutti. Ogni giocatore trova i **propri** event
 (un multicast non rivela agli altri chi l'ha ricevuto). Gli eventi non vanno sullo schermo condiviso: se sono
 pubblici, leggili ad alta voce.
 
+**La mappa è nascosta.** Di default i giocatori non sanno com'è fatto il complesso: lo schermo dice solo che è "avvolto nel buio" e i telefoni non hanno la mini-mappa né le dimensioni (nemmeno nelle regole). Né la griglia né le posizioni arrivano ai client. Il GM la mostra con *Mostra la mappa a schermo e telefoni* quando vuole (anche subito in preparazione) e la può nascondere di nuovo. La rivelazione finale la mostra comunque. Restano visibili il numero della propria stanza e la croce con le frecce, che il GM controlla.
+
 **Fasi.** *Preparazione* (scegli la stanza di partenza di ognuno, accendi capacità, chiudi porte) → *In gioco* (nessun
 timer: si va al ritmo del GM) → *Rivelazione* (lo schermo accende le lettere e traccia i due percorsi, con l'esito
 di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi ha la soluzione **convalidata**
@@ -89,7 +91,7 @@ di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi 
 
 | | Schermo | Telefono del giocatore | GM |
 |---|---|---|---|
-| Griglia e numeri delle stanze | ✅ | ✅ | ✅ |
+| Griglia e numeri delle stanze | solo se il GM mostra la mappa | solo se il GM mostra la mappa (il numero della propria stanza sempre) | ✅ |
 | Lettere | solo alla rivelazione | solo durante un'occhiata concessa | ✅ |
 | Note sulle stanze, porte chiuse, diario | ❌ | ❌ | ✅ |
 | Posizioni | se pubbliche | la propria (e le altre se pubbliche) | ✅ |

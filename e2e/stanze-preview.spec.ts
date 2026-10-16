@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80"] as const;
-const SCENES = ["stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
+const SCENES = ["stanze-dark", "stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
 
 // Le scene dell'anteprima mostrano schermo e telefono senza giocare una partita: qui si controllano layout e privacy.
 for (const theme of THEMES) {
@@ -15,7 +15,7 @@ for (const theme of THEMES) {
         expect(sizes.sw, "overflow orizzontale del telefono").toBeLessThanOrEqual(sizes.cw + 1);
         const screenSizes = await page.locator(".screen-frame .screen").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
         expect(screenSizes.sw, "overflow orizzontale dello schermo").toBeLessThanOrEqual(screenSizes.cw + 1);
-        await expect(page.locator(".screen-frame .ss-room")).toHaveCount(9);
+        await expect(page.locator(".screen-frame .ss-room")).toHaveCount(scene === "stanze-dark" ? 0 : 9);
       });
     }
 
@@ -72,4 +72,14 @@ test("in preparazione lo schermo non mostra lettere e il telefono dice il numero
   await expect(page.locator(".screen-frame .ss-letter")).toHaveCount(0);
   await expect(page.locator(".screen-frame")).toContainText("Il complesso si sta preparando");
   await expect(page.locator(".phone-frame")).toContainText("Sei nella Stanza 1");
+});
+
+test("a mappa nascosta né lo schermo né il telefono mostrano griglia, stanze o dimensioni", async ({ page }) => {
+  await page.goto("/preview?theme=retro80&scene=stanze-dark&still=1");
+  await expect(page.locator(".screen-frame .ss-grid")).toHaveCount(0);
+  await expect(page.locator(".screen-frame")).toContainText("avvolto nel buio");
+  await expect(page.locator(".phone-frame .ss-mini")).toHaveCount(0);
+  await page.locator(".phone-frame").getByRole("button", { name: /Regole/ }).click();
+  await expect(page.locator(".phone-frame .ss-rules")).not.toContainText("stanze (");
+  await expect(page.locator(".phone-frame .ss-rules")).toContainText("La mappa la mostra il Game Master");
 });

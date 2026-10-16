@@ -11,7 +11,9 @@ export function rulesSections(r: Rules): RulesSection[] {
     {
       title: "L'idea",
       paragraphs: [
-        `Siete chiusi in un complesso di ${r.rows * r.cols} stanze (${r.rows} × ${r.cols}) e dovete trovare l'uscita. Ogni stanza nasconde una lettera.`,
+        r.rows !== undefined && r.cols !== undefined
+          ? `Siete chiusi in un complesso di ${r.rows * r.cols} stanze (${r.rows} × ${r.cols}) e dovete trovare l'uscita. Ogni stanza nasconde una lettera.`
+          : "Siete chiusi in un complesso di stanze e dovete trovare l'uscita. Ogni stanza nasconde una lettera. La mappa la mostra il Game Master quando vuole.",
         "Il Game Master è una persona, non il telefono: racconta la storia e decide cosa potete fare e quando.",
       ],
     },

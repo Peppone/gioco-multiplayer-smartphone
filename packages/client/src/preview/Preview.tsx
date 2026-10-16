@@ -50,6 +50,7 @@ type Scene =
   | "duel-battle"
   | "duel-replay"
   | "duel-ended"
+  | "stanze-dark"
   | "stanze-setup"
   | "stanze-compass"
   | "stanze-pending"
@@ -75,6 +76,7 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "duel-battle", label: "Duello: battaglia" },
   { id: "duel-replay", label: "Duello: scontro" },
   { id: "duel-ended", label: "Duello: fine" },
+  { id: "stanze-dark", label: "Stanze: mappa nascosta" },
   { id: "stanze-setup", label: "Stanze: preparazione" },
   { id: "stanze-compass", label: "Stanze: croce" },
   { id: "stanze-pending", label: "Stanze: in attesa" },
@@ -190,6 +192,7 @@ function sceneViews(scene: Scene, now: number) {
     case "duel-replay":
     case "duel-ended":
       return { typeId: "knight-duel", ...duelScene(scene, now) };
+    case "stanze-dark":
     case "stanze-setup":
     case "stanze-compass":
     case "stanze-pending":
@@ -212,7 +215,8 @@ const SS_PLAYERS = [
 ];
 function stanzeScene(scene: Scene, now: number) {
   const reveal = scene === "stanze-reveal";
-  const screen = {
+  const screen = scene === "stanze-dark" ? { phase: "play", mapShown: false } : {
+    mapShown: true,
     phase: reveal ? "reveal" : scene === "stanze-setup" ? "setup" : "play",
     rows: 3,
     cols: 3,
@@ -234,8 +238,8 @@ function stanzeScene(scene: Scene, now: number) {
   const phone: Record<string, unknown> = {
     phase: "play",
     member: true,
-    rows: 3,
-    cols: 3,
+    mapShown: scene !== "stanze-dark",
+    ...(scene !== "stanze-dark" && { rows: 3, cols: 3 }),
     cell: scene === "stanze-setup" ? 0 : 4,
     outcome: "in-gioco",
     solved: false,
@@ -248,7 +252,7 @@ function stanzeScene(scene: Scene, now: number) {
     messages: [],
     pendingEvents: [],
     history: [],
-    rules: { rows: 3, cols: 3, sightSec: 8, messageMaxLength: 280, positionsPublic: true },
+    rules: { ...(scene !== "stanze-dark" && { rows: 3, cols: 3 }), sightSec: 8, messageMaxLength: 280, positionsPublic: true },
   };
   if (scene === "stanze-compass") {
     phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }, { id: "g2", action: "sight", label: null, usesLeft: 1, expiresAt: now + 30_000 }];

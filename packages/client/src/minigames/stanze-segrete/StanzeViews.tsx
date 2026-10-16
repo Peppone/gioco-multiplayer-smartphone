@@ -32,8 +32,22 @@ export function StanzeScreen({ view, theme }: ViewProps) {
     if (revealed) sfx("reveal");
   }, [revealed, sfx]);
 
-  const cells = Array.from({ length: v.rows * v.cols }, (_, i) => i);
-  const occupants = (c: number) => v.players.map((p, i) => ({ p, i })).filter(({ p }) => v.positions[p.id] === c);
+  if (!v.mapShown) {
+    return (
+      <section className="ss-screen" aria-label="Il complesso">
+        <h1>Stanze Segrete</h1>
+        <p className="muted ss-status ss-dark">
+          {v.phase === "setup" ? "Il complesso si sta preparando…" : "Il complesso è avvolto nel buio. Trovate l'uscita."}
+        </p>
+      </section>
+    );
+  }
+  const rows = v.rows ?? 0;
+  const cols = v.cols ?? 0;
+  const players = v.players ?? [];
+  const positions = v.positions ?? {};
+  const cells = Array.from({ length: rows * cols }, (_, i) => i);
+  const occupants = (c: number) => players.map((p, i) => ({ p, i })).filter(({ p }) => positions[p.id] === c);
   const pathIndex = (c: number) => (v.paths ?? []).flatMap((pa, wi) => (pa.cells.includes(c) ? [wi] : []));
 
   return (
@@ -43,7 +57,7 @@ export function StanzeScreen({ view, theme }: ViewProps) {
         {v.phase === "setup" ? "Il complesso si sta preparando…" : v.phase === "play" ? "Trovate l'uscita." : revealed ? "Ecco il complesso." : ""}
       </p>
       <LayoutGroup>
-        <div className="ss-grid" style={{ gridTemplateColumns: `repeat(${v.cols}, 1fr)` }}>
+        <div className="ss-grid" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
           {cells.map((c) => {
             const onPaths = pathIndex(c);
             return (
@@ -69,9 +83,9 @@ export function StanzeScreen({ view, theme }: ViewProps) {
           })}
         </div>
       </LayoutGroup>
-      {v.players.length > 0 && (
+      {players.length > 0 && (
         <ul className="ss-legend">
-          {v.players.map((p, i) => (
+          {players.map((p, i) => (
             <li key={p.id}>
               <span className="ss-avatar small" style={{ background: playerColor(i) }}>{p.nickname.slice(0, 1).toUpperCase()}</span> {p.nickname}
             </li>
@@ -107,6 +121,8 @@ type Tab = "game" | "master" | "events" | "rules";
 
 /** Piccola mappa con la propria posizione (e gli altri, se pubblici). Mai lettere. */
 function MiniMap({ v }: { v: PhoneView }) {
+  // La mappa non si conosce a priori: compare solo quando il GM la mostra.
+  if (!v.mapShown || !v.rows || !v.cols) return null;
   const cells = Array.from({ length: v.rows * v.cols }, (_, i) => i);
   return (
     <div className="ss-mini" style={{ gridTemplateColumns: `repeat(${v.cols}, 1fr)` }} aria-label="Mappa">
