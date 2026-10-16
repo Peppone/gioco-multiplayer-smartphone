@@ -63,6 +63,7 @@ export const ClientEvent = {
   GameInput: "game:input",
   HostCommand: "host:cmd",
   Reaction: "reaction:send",
+  MasterCommand: "master:cmd",
 } as const;
 
 export const ServerEvent = {
@@ -71,9 +72,10 @@ export const ServerEvent = {
   GamePlayer: "game:player",
   GameAdmin: "game:admin",
   Reaction: "reaction",
+  GameMaster: "game:master",
 } as const;
 
-export type Role = "screen" | "play" | "admin";
+export type Role = "screen" | "play" | "admin" | "master";
 
 // ---- Reazioni emoji (interazione blanda, sempre disponibile) ----
 
