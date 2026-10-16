@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MinigameContext } from "@gioco/shared";
-import { type Command, type Input, type StanzeState, stanzeSegrete as game, stanzeConfigSchema } from "./index.js";
+import { type Command, type Input, type StanzeState, elapsedMs, stanzeSegrete as game, stanzeConfigSchema } from "./index.js";
 
 const players = ["a", "b", "c"].map((id) => ({ id, nickname: `Nick-${id}`, teamId: null }));
 const ctx: MinigameContext = { players, teams: [], seed: 5 };
@@ -437,6 +437,77 @@ describe("oggetti", () => {
     expect(game.configSchema.safeParse({ ...game.sampleConfig, items: [{ id: "x", name: "A", cell: 40 }] }).success).toBe(false);
     const placed = game.configSchema.parse({ ...game.sampleConfig, items: [{ id: "x", name: "A", cell: 3 }] });
     expect(game.init(placed, ctx, 0).items[0]).toMatchObject({ cell: 3, enabled: false });
+  });
+});
+
+describe("cronometri del master", () => {
+  const timers = (s: any) => (game.hostView(s).info as any).timers as { id: string; label: string; running: boolean; laps: number; intervalSec: number | null }[];
+
+  it("il tempo di gioco c'è fin dall'inizio, parte con «Inizia» e avvisa a ogni intervallo", () => {
+    const init = game.init(config, ctx, 0);
+    expect(timers(init)[0]).toMatchObject({ id: "t0", label: "Tempo di gioco", running: false, intervalSec: 300 });
+    let s = started(); // «Inizia» a t = 1000
+    expect(timers(s)[0]!.running).toBe(true);
+    expect(game.onTick(s, 1000 + 299_000)).toBe(s); // nessun cambiamento prima dell'intervallo
+    s = game.onTick(s, 1000 + 300_000);
+    expect(timers(s)[0]!.laps).toBe(1);
+    expect(s.log.at(-1)!.text).toBe("⏱ Tempo di gioco: trascorsi 5 min");
+    expect(game.onTick(s, 1000 + 301_000)).toBe(s); // un solo avviso per intervallo
+    s = game.onTick(s, 1000 + 600_500);
+    expect(timers(s)[0]!.laps).toBe(2);
+    expect(s.log.at(-1)!.text).toContain("10 min");
+  });
+
+  it("intervallo 0 = nessun avviso, solo il conto del tempo", () => {
+    const cfg = game.configSchema.parse({ ...game.sampleConfig, clockIntervalSec: 0, messageCooldownSec: 0 });
+    let s = game.init(cfg, ctx, 0);
+    s = cmd(cmd(cmd(cmd(s, { type: "place", playerId: "a", cellId: 0 }), { type: "place", playerId: "b", cellId: 1 }), { type: "place", playerId: "c", cellId: 2 }), { type: "start" });
+    expect(game.onTick(s, 10_000_000)).toBe(s);
+    expect(elapsedMs(s.timers[0]!, 10_001_000)).toBe(10_000_000);
+  });
+
+  it("si aggiungono cronometri e intervalli, si fermano, riprendono, azzerano ed eliminano", () => {
+    let s = cmd(started(), { type: "timer-add", label: "Gas nella Stanza 5", intervalSec: 60 }, 2000);
+    const t = timers(s).find((x) => x.label === "Gas nella Stanza 5")!;
+    expect(t).toMatchObject({ running: false, intervalSec: 60 });
+    s = cmd(s, { type: "timer-start", timerId: t.id }, 2000);
+    s = game.onTick(s, 2000 + 125_000); // due minuti: due intervalli
+    expect(s.timers.find((x) => x.id === t.id)!.laps).toBe(2);
+    s = cmd(s, { type: "timer-pause", timerId: t.id }, 2000 + 130_000);
+    const paused = s.timers.find((x) => x.id === t.id)!;
+    expect(paused).toMatchObject({ running: false, accumulatedMs: 130_000 });
+    expect(game.onTick(s, 2000 + 999_000).timers.find((x) => x.id === t.id)!.laps).toBe(2); // in pausa non conta
+    s = cmd(s, { type: "timer-start", timerId: t.id }, 500_000);
+    expect(elapsedMs(s.timers.find((x) => x.id === t.id)!, 530_000)).toBe(160_000);
+    s = cmd(s, { type: "timer-reset", timerId: t.id });
+    expect(s.timers.find((x) => x.id === t.id)).toMatchObject({ running: false, accumulatedMs: 0, laps: 0 });
+    s = cmd(s, { type: "timer-remove", timerId: t.id });
+    expect(timers(s).map((x) => x.id)).toEqual(["t0"]);
+    expect(cmd(s, { type: "timer-start", timerId: "inesistente" })).toBe(s);
+  });
+
+  it("al massimo 10 cronometri", () => {
+    let s = started();
+    for (let i = 0; i < 15; i++) s = cmd(s, { type: "timer-add", label: `T${i}` });
+    expect(s.timers).toHaveLength(10);
+  });
+
+  it("rivelazione e fine li fermano, e il tempo trascorso resta quello", () => {
+    let s = started();
+    s = cmd(s, { type: "public-reveal" }, 61_000);
+    expect(s.timers[0]).toMatchObject({ running: false, accumulatedMs: 60_000 });
+    expect(game.onTick(s, 9_999_999)).toBe(s);
+  });
+
+  it("i cronometri sono solo del master: mai a schermo né sui telefoni", () => {
+    let s = cmd(started(), { type: "timer-add", label: "SEGRETISSIMO", intervalSec: 60 });
+    s = game.onTick(s, 1000 + 400_000);
+    for (const v of [game.screenView(s), view(s, "a"), view(s, "z")]) {
+      const raw = JSON.stringify(v);
+      expect(raw).not.toContain("SEGRETISSIMO");
+      expect(raw).not.toContain("Tempo di gioco");
+      expect(raw).not.toContain("timers");
+    }
   });
 });
 

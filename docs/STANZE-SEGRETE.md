@@ -32,6 +32,7 @@ Se regia e GM sono la stessa persona, la stessa interfaccia è già nel pannello
 L'interfaccia è una colonna unica, pensata per il telefono.
 
 - **Fase** e comandi: *Mostra la mappa a schermo e telefoni* / *Nascondi la mappa*, *Distribuisci*, *Inizia* (solo con tutti piazzati), *Rivela la mappa sullo schermo*, *Concludi*.
+- **⏱ Tempo**: il **tempo di gioco** parte da solo con *Inizia* e si ferma alla rivelazione. Se l'istanza ha un intervallo (default 5 minuti) a ogni intervallo trascorso il contatore segna +1, la riga lampeggia, suona e vibra, e nel diario compare «⏱ Tempo di gioco: trascorsi 10 min». Puoi aggiungere altri **cronometri** (fino a 10, es. «Gas nella Stanza 5» ogni 2 minuti, oppure senza intervallo per un semplice conteggio), con *Avvia / Pausa / Riprendi / Azzera / Elimina*. Sono solo per il GM: schermo e telefoni non ne ricevono nulla.
 - **Richieste**: la coda di spostamenti, sbirciate, azioni libere e soluzioni, con *Approva / Rifiuta*,
   *Approva tutti gli spostamenti* e *Mostra la lettera per N s*. Suona e vibra quando ne arriva una.
 - **Mappa** con le lettere e le note. Per piazzare o spostare un giocatore: **tocca il giocatore, poi la stanza**
@@ -96,7 +97,7 @@ di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi 
 |---|---|---|---|
 | Griglia e numeri delle stanze | solo se il GM mostra la mappa | solo se il GM mostra la mappa (il numero della propria stanza sempre) | ✅ |
 | Lettere | solo alla rivelazione | solo durante un'occhiata concessa | ✅ |
-| Note sulle stanze, porte chiuse, diario | ❌ | ❌ | ✅ |
+| Note sulle stanze, porte chiuse, diario, cronometri | ❌ | ❌ | ✅ |
 | Oggetti | ❌ | solo quelli della propria stanza, misteriosi finché il GM non li palesa a lui | ✅ con note e chi li conosce |
 | Posizioni | se pubbliche | la propria (e le altre se pubbliche) | ✅ |
 | Capacità e richieste | ❌ | solo le proprie | ✅ |

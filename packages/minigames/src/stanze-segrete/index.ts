@@ -3,6 +3,7 @@ import type { MinigameType, ParticipantInfo, RoundMessage } from "@gioco/shared"
 import { makeRng, shuffle } from "../knight-duel/rng.js";
 import { rankByPoints } from "../util.js";
 import { type StanzeConfig, SAMPLE_CONFIG, stanzeConfigSchema } from "./config.js";
+import { MAX_TIMERS, type TimerState, elapsedMs, formatDuration, lapsAt, newTimer, pauseTimer, resetTimer, startTimer } from "./timers.js";
 import { type CellId, DIRS, type Dir, directionBetween, findWordPath, isCell, neighbor } from "./map.js";
 
 /**
@@ -14,6 +15,7 @@ import { type CellId, DIRS, type Dir, directionBetween, findWordPath, isCell, ne
 
 export { SAMPLE_CONFIG, stanzeConfigSchema, type StanzeConfig } from "./config.js";
 export * from "./map.js";
+export * from "./timers.js";
 
 export const MAX_PLAYERS = 10;
 /** Messaggi tenuti nello stato (viste e snapshot leggeri); il database li tiene tutti. */
@@ -117,6 +119,9 @@ export interface StanzeState {
   grants: Grant[];
   closedDoors: { a: CellId; b: CellId }[];
   items: ItemState[];
+  /** Cronometri del GM (il primo è il tempo di gioco, che parte con «Inizia»). Mai visibili a schermo e telefoni. */
+  timers: TimerState[];
+  nextTimerId: number;
   sightings: Sighting[];
   requests: Request[];
   messages: Message[];
@@ -201,6 +206,11 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("enable-item"), itemId: z.string().min(1), enabled: z.boolean() }),
   z.object({ type: z.literal("reveal-item"), itemId: z.string().min(1), to: z.union([z.literal("room"), z.object({ players: z.array(z.string().min(1)).min(1).max(30) })]) }),
   z.object({ type: z.literal("conceal-item"), itemId: z.string().min(1) }),
+  z.object({ type: z.literal("timer-add"), label: text(30), intervalSec: z.number().int().min(5).max(86_400).optional() }),
+  z.object({ type: z.literal("timer-start"), timerId: z.string().min(1) }),
+  z.object({ type: z.literal("timer-pause"), timerId: z.string().min(1) }),
+  z.object({ type: z.literal("timer-reset"), timerId: z.string().min(1) }),
+  z.object({ type: z.literal("timer-remove"), timerId: z.string().min(1) }),
   z.object({ type: z.literal("show-map"), visible: z.boolean() }),
   z.object({ type: z.literal("public-reveal") }),
   z.object({ type: z.literal("end") }),
@@ -456,7 +466,9 @@ function resolve(s: StanzeState, requestId: number, approve: boolean, now: numbe
 
 function begin(s: StanzeState, now: number): StanzeState {
   if (s.phase !== "setup" || unplaced(s).length > 0) return s;
-  return addLog({ ...s, phase: "play" }, now, "Si comincia");
+  // Parte il tempo di gioco, il primo cronometro del GM.
+  const timers = s.timers.map((t) => (t.id === "t0" ? startTimer(t, now) : t));
+  return addLog({ ...s, phase: "play", timers }, now, "Si comincia");
 }
 
 function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeState {
@@ -597,20 +609,53 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       if (!it || it.revealedTo.length === 0) return s;
       return { ...s, items: s.items.map((x) => (x === it ? { ...x, revealedTo: [] } : x)) };
     }
+    case "timer-add": {
+      if (s.timers.length >= MAX_TIMERS) return s;
+      const t = newTimer(`t${s.nextTimerId}`, cmd.label, cmd.intervalSec ?? null);
+      return { ...s, nextTimerId: s.nextTimerId + 1, timers: [...s.timers, t] };
+    }
+    case "timer-start":
+    case "timer-pause":
+    case "timer-reset":
+    case "timer-remove": {
+      const t = s.timers.find((x) => x.id === cmd.timerId);
+      if (!t) return s;
+      if (cmd.type === "timer-remove") return { ...s, timers: s.timers.filter((x) => x !== t) };
+      const next = cmd.type === "timer-start" ? startTimer(t, now) : cmd.type === "timer-pause" ? pauseTimer(t, now) : resetTimer(t);
+      return next === t ? s : { ...s, timers: s.timers.map((x) => (x === t ? next : x)) };
+    }
     case "show-map":
       return s.mapShown === cmd.visible ? s : addLog({ ...s, mapShown: cmd.visible }, now, cmd.visible ? "Mappa mostrata ai giocatori" : "Mappa nascosta");
     case "public-reveal":
-      return s.phase === "play" ? { ...s, phase: "reveal", publicReveal: true, mapShown: true } : s;
+      return s.phase === "play" ? { ...freezeTimers(s, now), phase: "reveal", publicReveal: true, mapShown: true } : s;
     case "end":
-      return { ...s, phase: "done", publicReveal: true, mapShown: true };
+      return { ...freezeTimers(s, now), phase: "done", publicReveal: true, mapShown: true };
   }
+}
+
+/** Ferma tutti i cronometri (rivelazione o fine): il tempo trascorso resta quello della sessione. */
+function freezeTimers(s: StanzeState, now: number): StanzeState {
+  if (!s.timers.some((t) => t.running)) return s;
+  return { ...s, timers: s.timers.map((t) => pauseTimer(t, now)) };
+}
+
+/** A ogni intervallo fisso trascorso il GM riceve una riga nel diario e il contatore degli intervalli sale. */
+function tickTimers(s: StanzeState, now: number): StanzeState {
+  let next = s;
+  for (const t of s.timers) {
+    const laps = lapsAt(t, now);
+    if (!t.running || !t.intervalSec || laps <= t.laps) continue;
+    next = addLog({ ...next, timers: next.timers.map((x) => (x.id === t.id ? { ...x, laps } : x)) }, now, `⏱ ${t.label}: trascorsi ${formatDuration(laps * t.intervalSec * 1000)}`);
+  }
+  return next;
 }
 
 function onTick(s: StanzeState, now: number): StanzeState {
   const grantsLeft = s.grants.filter((g) => g.expiresAt === null || g.expiresAt > now);
   const sightsLeft = s.sightings.filter((x) => x.until > now);
-  if (grantsLeft.length === s.grants.length && sightsLeft.length === s.sightings.length) return s;
-  return { ...s, grants: grantsLeft, sightings: sightsLeft };
+  const ticked = tickTimers(s, now);
+  if (grantsLeft.length === s.grants.length && sightsLeft.length === s.sightings.length) return ticked;
+  return { ...ticked, grants: grantsLeft, sightings: sightsLeft };
 }
 
 // ---- Punteggi ----
@@ -696,6 +741,8 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       solved: {},
       grants: [],
       closedDoors: [],
+      timers: [newTimer("t0", "Tempo di gioco", config.clockIntervalSec > 0 ? config.clockIntervalSec : null)],
+      nextTimerId: 1,
       items: config.items.map((i) => ({ id: i.id, cell: i.cell, enabled: false, revealedTo: [] })),
       sightings: [],
       requests: [],
@@ -830,6 +877,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         mapShown: s.mapShown,
         grants: s.grants,
         closedDoors: s.closedDoors,
+        timers: s.timers,
         items: s.cfg.items.map((def, i) => ({ ...def, ...s.items[i]! })),
         sightings: s.sightings,
         requests: s.requests.map((r) => ({ ...r, nickname: nick(s, r.playerId), correct: r.kind === "guess" ? normWord(r.word ?? "") === normWord(s.cfg.solution) : null })),

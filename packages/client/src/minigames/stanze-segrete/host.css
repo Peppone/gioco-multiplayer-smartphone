@@ -69,3 +69,15 @@
 .sh-items { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
 .sh-item { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .35rem; }
 .sh-item.on { outline: 2px solid var(--accent); }
+
+/* Cronometri */
+.sh-timers { list-style: none; padding: 0; margin: 0 0 .4rem; display: grid; gap: .5rem; }
+.sh-timer { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .3rem; }
+.sh-timer.running { outline: 2px solid var(--opt-3); }
+.sh-timer.flash { outline: 3px solid var(--opt-2); animation: sh-flash .6s infinite alternate; }
+.sh-clock { margin-left: auto; font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; font-family: var(--font-display); }
+.sh-lap-bar { height: .5rem; border-radius: 1rem; background: var(--panel); overflow: hidden; }
+.sh-lap-bar div { height: 100%; background: var(--accent); }
+.sh-lap-alert { color: var(--opt-2); }
+@keyframes sh-flash { from { background: var(--panel-2); } to { background: var(--opt-2); color: var(--on-opt); } }
+@media (prefers-reduced-motion: reduce) { .sh-timer.flash { animation: none; } }

@@ -58,6 +58,7 @@ export const stanzeConfigSchema = z
     presetEvents: z.array(z.string().trim().min(1).max(280)).max(12).default([]).meta({ title: "Eventi pronti", itemLabel: "Evento", description: "Testi da inviare con un tocco" }),
     eventMaxLength: z.number().int().min(20).max(500).default(280).meta(sec("Lunghezza massima degli eventi")),
     items: z.array(itemSchema).max(20).default(SAMPLE_ITEMS).meta({ title: "Oggetti", itemLabel: "Oggetto", description: "Oggetti che il Master può mettere nelle stanze. I giocatori nella stanza sanno che c'è un oggetto, ma non quale, finché il Master non lo palesa" }),
+    clockIntervalSec: z.number().int().min(0).max(86_400).default(300).meta({ title: "Intervallo del tempo di gioco (s)", description: "Il Master ha un cronometro del tempo di gioco che lo avvisa a ogni intervallo (es. 300 = ogni 5 minuti). 0 = nessun avviso" }),
     escapePoints: z.number().int().min(0).max(10_000).default(300).meta(sec("Punti a chi fugge")),
     solvePoints: z.number().int().min(0).max(10_000).default(200).meta(sec("Punti a chi risolve", "A chi propone la soluzione giusta")),
   })
@@ -99,6 +100,7 @@ export const SAMPLE_CONFIG: StanzeConfig = {
   positionsPublic: true,
   customActions: [],
   items: SAMPLE_ITEMS,
+  clockIntervalSec: 300,
   defaultSightSec: 8,
   messageMaxLength: 280,
   messageCooldownSec: 3,

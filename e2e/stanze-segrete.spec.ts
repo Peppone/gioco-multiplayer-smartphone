@@ -9,6 +9,7 @@ const CONFIG = {
   words: ["MORTA", "USCITA"],
   solution: "USCITA",
   defaultSightSec: 2,
+  clockIntervalSec: 5,
   messageCooldownSec: 0,
 };
 
@@ -86,6 +87,29 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   const open = async (nick: string) => {
     if (!(await card(nick).evaluate((d) => (d as HTMLDetailsElement).open))) await card(nick).locator("summary").click();
   };
+
+  // ---- Tempo: il contatore del GM parte con «Inizia» e avvisa a ogni intervallo; cronometri a piacere ----
+  const gameClock = m.locator('.sh-timer[data-timer="t0"]');
+  await expect(gameClock.locator(".sh-clock")).toHaveText(/^[0-9][0-9]:[0-9][0-9]$/);
+  await expect(gameClock.locator("[data-laps]")).not.toHaveText("0", { timeout: 12_000 }); // ogni 5 s
+  await expect(gameClock).toContainText("intervallo scaduto");
+  await m.getByLabel("Nome del cronometro").fill("Gas nella Stanza 5");
+  await m.getByLabel(/Intervallo in minuti/).fill("0.1"); // 6 secondi
+  await m.getByRole("button", { name: "Aggiungi", exact: true }).click();
+  const gas = m.locator(".sh-timer", { hasText: "Gas nella Stanza 5" });
+  await expect(gas).toContainText("00:00");
+  await gas.getByRole("button", { name: "Avvia" }).click();
+  await expect(gas.locator("[data-laps]")).toHaveText("1", { timeout: 12_000 });
+  await gas.getByRole("button", { name: "Pausa" }).click();
+  const frozen = await gas.locator(".sh-clock").innerText();
+  await m.waitForTimeout(1500);
+  expect(await gas.locator(".sh-clock").innerText()).toBe(frozen); // in pausa il contatore non avanza
+  await gas.getByRole("button", { name: "Azzera" }).click();
+  await expect(gas.locator(".sh-clock")).toHaveText("00:00");
+  await gas.getByRole("button", { name: "Elimina" }).click();
+  await expect(gas).toHaveCount(0);
+  // Il tempo è roba del master: né i telefoni né lo schermo ne ricevono traccia.
+  for (const c of [...phones, screen]) expect(c.traffic.text()).not.toMatch(/Tempo di gioco|Gas nella|"timers"/);
 
   // ---- Oggetti: esistono (misteriosi) per i presenti, poi il GM li palesa a tutti o solo ad alcuni ----
   const scopa = m.locator('.sh-item[data-item="scopa"]');

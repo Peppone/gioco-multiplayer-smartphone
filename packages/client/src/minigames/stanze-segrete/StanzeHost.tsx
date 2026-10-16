@@ -50,6 +50,15 @@ interface HostItem {
   enabled: boolean;
   revealedTo: string[];
 }
+interface HostTimer {
+  id: string;
+  label: string;
+  intervalSec: number | null;
+  running: boolean;
+  startedAt: number;
+  accumulatedMs: number;
+  laps: number;
+}
 interface HostEvent {
   id: number;
   text: string;
@@ -79,6 +88,7 @@ interface HostInfo {
   grants: HostGrant[];
   closedDoors: { a: number; b: number }[];
   items: HostItem[];
+  timers: HostTimer[];
   sightings: { playerId: string; cellId: number; until: number }[];
   requests: HostRequest[];
   messages: HostMessage[];
@@ -369,6 +379,99 @@ function QuickGrant({ info, run, opts, setOpts }: { info: HostInfo; run: Run; op
   );
 }
 
+// ------------------------------------------------------------------ Tempo
+
+/** Ora server, aggiornata ogni 250 ms: serve ai contatori che scorrono. */
+function useServerNow(clock: HostProps["clock"]): number {
+  const [now, setNow] = useState(() => clock.toServerTime(Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => setNow(clock.toServerTime(Date.now())), 250);
+    return () => clearInterval(id);
+  }, [clock]);
+  return now;
+}
+
+const clockText = (ms: number) => {
+  const t = Math.floor(Math.max(0, ms) / 1000);
+  const h = Math.floor(t / 3600);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${h > 0 ? `${h}:` : ""}${pad(Math.floor((t % 3600) / 60))}:${pad(t % 60)}`;
+};
+
+function TimerRow({ t, now, run, sfx }: { t: HostTimer; now: number; run: Run; sfx: (n: "buzz") => void }) {
+  const elapsed = t.accumulatedMs + (t.running ? Math.max(0, now - t.startedAt) : 0);
+  const every = t.intervalSec ? t.intervalSec * 1000 : null;
+  const into = every ? elapsed % every : 0;
+  // Un avviso quando scatta un nuovo intervallo: suono, vibrazione e la riga si evidenzia per qualche secondo.
+  const [flash, setFlash] = useState(false);
+  const lastLaps = useRef(t.laps);
+  useEffect(() => {
+    if (t.laps > lastLaps.current) {
+      sfx("buzz");
+      navigator.vibrate?.([120, 60, 120]);
+      setFlash(true);
+      const id = setTimeout(() => setFlash(false), 6000);
+      lastLaps.current = t.laps;
+      return () => clearTimeout(id);
+    }
+    lastLaps.current = t.laps;
+  }, [t.laps, sfx]);
+
+  return (
+    <li className={`sh-timer ${t.running ? "running" : ""} ${flash ? "flash" : ""}`} data-timer={t.id}>
+      <div className="row">
+        <b>{t.label}</b>
+        <output className="sh-clock" aria-label={`Tempo trascorso: ${t.label}`}>{clockText(elapsed)}</output>
+      </div>
+      {every && (
+        <>
+          <div className="sh-lap-bar" aria-hidden="true"><div style={{ width: `${(into / every) * 100}%` }} /></div>
+          <small className="muted">
+            Ogni {t.intervalSec! % 60 === 0 ? `${t.intervalSec! / 60} min` : `${t.intervalSec} s`} · intervalli trascorsi: <b data-laps>{t.laps}</b>
+            {flash && <b className="sh-lap-alert"> · ⏱ intervallo scaduto!</b>}
+          </small>
+        </>
+      )}
+      <div className="row">
+        {t.running ? (
+          <button onClick={() => void run({ type: "timer-pause", timerId: t.id })}>Pausa</button>
+        ) : (
+          <button className="primary" onClick={() => void run({ type: "timer-start", timerId: t.id })}>{elapsed > 0 ? "Riprendi" : "Avvia"}</button>
+        )}
+        <button onClick={() => void run({ type: "timer-reset", timerId: t.id })}>Azzera</button>
+        <button className="danger" onClick={() => void run({ type: "timer-remove", timerId: t.id })}>Elimina</button>
+      </div>
+    </li>
+  );
+}
+
+/** Il tempo di gioco e i cronometri del Master (anche a intervalli fissi): solo per lui, non vanno a schermo né ai giocatori. */
+function Clocks({ info, run, clock, sfx }: { info: HostInfo; run: Run; clock: HostProps["clock"]; sfx: (n: "buzz") => void }) {
+  const now = useServerNow(clock);
+  const [label, setLabel] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const add = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) return;
+    const secs = Math.round(Number(minutes.replace(",", ".")) * 60);
+    void run({ type: "timer-add", label, ...(secs >= 5 && { intervalSec: secs }) });
+    setLabel("");
+    setMinutes("");
+  };
+  return (
+    <div className="sh-clocks">
+      <ul className="sh-timers">
+        {info.timers.map((t) => <TimerRow key={t.id} t={t} now={now} run={run} sfx={sfx} />)}
+      </ul>
+      <form className="row" onSubmit={add}>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nuovo cronometro (es. Gas nella Stanza 5)" maxLength={30} aria-label="Nome del cronometro" />
+        <input value={minutes} onChange={(e) => setMinutes(e.target.value)} className="sh-num-in" inputMode="decimal" placeholder="ogni… min" aria-label="Intervallo in minuti (facoltativo)" />
+        <button type="submit" disabled={info.timers.length >= 10}>Aggiungi</button>
+      </form>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ Oggetti
 
 /** Gli oggetti del complesso: li metti in una stanza, li rendi percepibili (misteriosi) e poi li palesi ai presenti o ad alcuni. */
@@ -576,6 +679,11 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
             ))}</> : "Tutti i giocatori sono piazzati."}
           </p>
         )}
+      </section>
+
+      <section className="sh-sec">
+        <h3>⏱ Tempo</h3>
+        <Clocks info={info} run={run} clock={clock} sfx={sfx} />
       </section>
 
       <section className="sh-sec">
