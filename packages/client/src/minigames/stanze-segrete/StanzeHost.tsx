@@ -119,8 +119,8 @@ function ActionName({ action, info }: { action: string; info: HostInfo }) {
 
 // ------------------------------------------------------------------ Mappa
 
-function MapView({ info, run, sel, setSel, selCell, setSelCell, index }: {
-  info: HostInfo; run: Run; sel: string | null; setSel: (id: string | null) => void; selCell: number | null; setSelCell: (c: number | null) => void; index: (id: string) => number;
+function MapView({ info, run, sel, setSel, onOpen, openId, selCell, setSelCell, index }: {
+  info: HostInfo; run: Run; sel: string | null; setSel: (id: string | null) => void; onOpen: (id: string) => void; openId: string | null; selCell: number | null; setSelCell: (c: number | null) => void; index: (id: string) => number;
 }) {
   const cells = Array.from({ length: info.rows * info.cols }, (_, i) => i);
   const tapRoom = (c: number) => {
@@ -145,7 +145,7 @@ function MapView({ info, run, sel, setSel, selCell, setSelCell, index }: {
             {info.rooms[c]?.note && <small className="sh-note">{info.rooms[c]!.note}</small>}
             <div className="sh-occupants">
               {here.map((p) => (
-                <button key={p.id} className={`sh-av ${sel === p.id ? "sel" : ""}`} style={{ background: playerColor(index(p.id)) }} onClick={() => setSel(sel === p.id ? null : p.id)} title={p.nickname} aria-label={p.nickname}>
+                <button key={p.id} className={`sh-av ${sel === p.id || openId === p.id ? "sel" : ""}`} style={{ background: playerColor(index(p.id)) }} onClick={() => onOpen(p.id)} title={`${p.nickname}: apri le azioni`} aria-label={p.nickname}>
                   {p.nickname.slice(0, 1).toUpperCase()}
                 </button>
               ))}
@@ -249,8 +249,12 @@ function grantCommand(target: unknown, action: string, o: GrantOpts): Record<str
   };
 }
 
-function PlayerCard({ info, p, i, run, opts, clock, nameOf }: {
+/** Le azioni che il master può fare con un giocatore: nella scheda a fisarmonica e nel menu laterale. */
+function PlayerBody({ info, p, i, run, opts, clock, nameOf, extended, onPickRoom }: {
   info: HostInfo; p: { id: string; nickname: string }; i: number; run: Run; opts: GrantOpts; clock: HostProps["clock"]; nameOf: Names;
+  /** Nel menu laterale: anche spostamento, evento e oggetti della sua stanza. */
+  extended?: boolean;
+  onPickRoom?: () => void;
 }) {
   const actions = ["move", "peek", "sight", "message", "guess", ...info.customActions.map((a) => `custom:${a.id}`)];
   const mine = info.grants.filter((g) => g.playerId === p.id);
@@ -259,8 +263,112 @@ function PlayerCard({ info, p, i, run, opts, clock, nameOf }: {
   const [letterSec, setLetterSec] = useState(String(info.defaultSightSec));
   const [msg, setMsg] = useState("");
   void nameOf;
+  const [moveTo, setMoveTo] = useState("0");
+  const [eventText, setEventText] = useState("");
+  const hereItems = info.items.filter((it) => cell !== null && cell !== undefined && it.cell === cell);
   const talk = info.messages.filter((m) => m.from === p.id || (m.from === "master" && m.recipients.includes(p.id)));
 
+  return (
+    <div className="sh-player-body">
+      <label>
+        Esito{" "}
+        <select value={info.outcome[p.id]} onChange={(e) => void run({ type: "set-outcome", playerId: p.id, outcome: e.target.value })}>
+          <option value="in-gioco">in gioco</option>
+          <option value="fuggito">fuggito</option>
+          <option value="eliminato">eliminato</option>
+        </select>
+      </label>
+      <ul className="sh-caps-list">
+        {actions.map((a) => {
+          const g = mine.find((x) => x.action === a);
+          return (
+            <li key={a}>
+              <button
+                className={`sh-toggle ${g ? "on" : ""}`}
+                aria-pressed={!!g}
+                data-action={a}
+                onClick={() => void run(g ? { type: "revoke", grantId: g.id } : grantCommand({ players: [p.id] }, a, opts))}
+              >
+                <ActionName action={a} info={info} /> {g ? "● acceso" : "○ spento"}
+              </button>
+              {g && <GrantTimer g={g} clock={clock} />}
+              {g && (a === "move" || a === "peek") && (
+                <div className="sh-dirs" aria-label="Direzioni aperte">
+                  {DIRS.map((d) => {
+                    const open = (g.directions ?? DIRS).includes(d);
+                    return (
+                      <button key={d} className={`sh-dir ${open ? "open" : "blocked"}`} data-dir={d} aria-pressed={open} aria-label={`${DIR_LABEL[d]}: ${open ? "aperta" : "bloccata"}`}
+                        onClick={() => void run({ type: "set-directions", grantId: g.id, directions: open ? (g.directions ?? [...DIRS]).filter((x) => x !== d) : [...(g.directions ?? []), d] })}>
+                        {open ? DIR_ARROW[d] : "🔒"}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="row">
+        <select value={letterCell} onChange={(e) => setLetterCell(e.target.value)} aria-label="Lettera della stanza">
+          {info.rooms.map((r, c) => <option key={c} value={c}>{roomName(c)} ({r.letter})</option>)}
+        </select>
+        <input type="number" min={1} max={300} value={letterSec} onChange={(e) => setLetterSec(e.target.value)} className="sh-num-in" aria-label="Secondi" />
+        <button onClick={() => void run({ type: "show-letter", target: { players: [p.id] }, cellId: Number(letterCell), seconds: Math.max(1, Number(letterSec) || 5) })}>Mostra una lettera</button>
+      </div>
+      <ul className="sh-talk">
+        {talk.slice(-4).map((m) => <li key={m.id} className={m.from === "master" ? "gm" : "pl"}>{m.from === "master" ? "Tu" : p.nickname}: {m.text}</li>)}
+      </ul>
+      <form className="row" onSubmit={(e) => { e.preventDefault(); if (msg.trim()) { void run({ type: "message", to: { player: p.id }, text: msg }); setMsg(""); } }}>
+        <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`Messaggio a ${p.nickname}`} maxLength={info.messageMaxLength} />
+        <button type="submit">Invia</button>
+      </form>
+    {extended && (
+      <>
+        <section className="sh-act" aria-label="Sposta">
+          <h4>Sposta</h4>
+          <div className="row">
+            <select value={moveTo} onChange={(e) => setMoveTo(e.target.value)} aria-label={`Stanza di destinazione di ${p.nickname}`}>
+              {info.rooms.map((_, c) => <option key={c} value={c}>{roomName(c)}</option>)}
+            </select>
+            <button onClick={() => void run({ type: "place", playerId: p.id, cellId: Number(moveTo) })}>Sposta</button>
+            <button onClick={onPickRoom}>Scegli sulla mappa</button>
+            {cell !== null && cell !== undefined && <button onClick={() => void run({ type: "place", playerId: p.id, cellId: null })}>Togli dalla mappa</button>}
+          </div>
+        </section>
+        <section className="sh-act" aria-label="Evento solo per lui">
+          <h4>⚡ Evento solo per {p.nickname}</h4>
+          <form className="row" onSubmit={(e) => { e.preventDefault(); if (eventText.trim()) { void run({ type: "event", to: [p.id], text: eventText }); setEventText(""); } }}>
+            <input value={eventText} onChange={(e) => setEventText(e.target.value)} placeholder="Es. Senti un freddo improvviso" maxLength={info.eventMaxLength} aria-label={`Evento per ${p.nickname}`} />
+            <button type="submit">Invia</button>
+          </form>
+        </section>
+        <section className="sh-act" aria-label="Oggetti nella sua stanza">
+          <h4>🎒 Oggetti nella sua stanza</h4>
+          {hereItems.length === 0 ? <small className="muted">Nessun oggetto in questa stanza.</small> : (
+            <ul className="sh-items">
+              {hereItems.map((it) => {
+                const knows = it.revealedTo.includes(p.id);
+                return (
+                  <li key={it.id} className="row">
+                    <span>{it.icon} {it.name}{!it.enabled && " (nascosto)"}</span>
+                    <button disabled={knows} onClick={() => void run({ type: "reveal-item", itemId: it.id, to: { players: [p.id] } })}>{knows ? "Lo conosce" : `Palesa a ${p.nickname}`}</button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </>
+    )}
+    </div>
+  );
+}
+
+function PlayerCard(props: Parameters<typeof PlayerBody>[0]) {
+  const { info, p, i } = props;
+  const mine = info.grants.filter((g) => g.playerId === p.id);
+  const cell = info.positions[p.id];
   return (
     <details className="sh-player" data-player={p.nickname}>
       <summary>
@@ -269,62 +377,32 @@ function PlayerCard({ info, p, i, run, opts, clock, nameOf }: {
         {mine.length > 0 && <span className="sh-caps">{mine.length} ✓</span>}
         {info.outcome[p.id] !== "in-gioco" && <span className="sh-out">{info.outcome[p.id]}</span>}
       </summary>
-      <div className="sh-player-body">
-        <label>
-          Esito{" "}
-          <select value={info.outcome[p.id]} onChange={(e) => void run({ type: "set-outcome", playerId: p.id, outcome: e.target.value })}>
-            <option value="in-gioco">in gioco</option>
-            <option value="fuggito">fuggito</option>
-            <option value="eliminato">eliminato</option>
-          </select>
-        </label>
-        <ul className="sh-caps-list">
-          {actions.map((a) => {
-            const g = mine.find((x) => x.action === a);
-            return (
-              <li key={a}>
-                <button
-                  className={`sh-toggle ${g ? "on" : ""}`}
-                  aria-pressed={!!g}
-                  data-action={a}
-                  onClick={() => void run(g ? { type: "revoke", grantId: g.id } : grantCommand({ players: [p.id] }, a, opts))}
-                >
-                  <ActionName action={a} info={info} /> {g ? "● acceso" : "○ spento"}
-                </button>
-                {g && <GrantTimer g={g} clock={clock} />}
-                {g && (a === "move" || a === "peek") && (
-                  <div className="sh-dirs" aria-label="Direzioni aperte">
-                    {DIRS.map((d) => {
-                      const open = (g.directions ?? DIRS).includes(d);
-                      return (
-                        <button key={d} className={`sh-dir ${open ? "open" : "blocked"}`} data-dir={d} aria-pressed={open} aria-label={`${DIR_LABEL[d]}: ${open ? "aperta" : "bloccata"}`}
-                          onClick={() => void run({ type: "set-directions", grantId: g.id, directions: open ? (g.directions ?? [...DIRS]).filter((x) => x !== d) : [...(g.directions ?? []), d] })}>
-                          {open ? DIR_ARROW[d] : "🔒"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-        <div className="row">
-          <select value={letterCell} onChange={(e) => setLetterCell(e.target.value)} aria-label="Lettera della stanza">
-            {info.rooms.map((r, c) => <option key={c} value={c}>{roomName(c)} ({r.letter})</option>)}
-          </select>
-          <input type="number" min={1} max={300} value={letterSec} onChange={(e) => setLetterSec(e.target.value)} className="sh-num-in" aria-label="Secondi" />
-          <button onClick={() => void run({ type: "show-letter", target: { players: [p.id] }, cellId: Number(letterCell), seconds: Math.max(1, Number(letterSec) || 5) })}>Mostra una lettera</button>
-        </div>
-        <ul className="sh-talk">
-          {talk.slice(-4).map((m) => <li key={m.id} className={m.from === "master" ? "gm" : "pl"}>{m.from === "master" ? "Tu" : p.nickname}: {m.text}</li>)}
-        </ul>
-        <form className="row" onSubmit={(e) => { e.preventDefault(); if (msg.trim()) { void run({ type: "message", to: { player: p.id }, text: msg }); setMsg(""); } }}>
-          <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`Messaggio a ${p.nickname}`} maxLength={info.messageMaxLength} />
-          <button type="submit">Invia</button>
-        </form>
-      </div>
+      <PlayerBody {...props} />
     </details>
+  );
+}
+
+/** Menu laterale (su PC) o foglio dal basso (su telefono) con le azioni per il giocatore toccato sulla mappa. */
+function PlayerDrawer({ player, onClose, ...rest }: Parameters<typeof PlayerBody>[0] & { player: { id: string; nickname: string }; onClose: () => void }) {
+  const { info, i } = rest;
+  const cell = info.positions[player.id];
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <aside className="sh-drawer" role="complementary" aria-label={`Azioni per ${player.nickname}`} data-player={player.nickname}>
+      <header>
+        <span className="sh-av static" style={{ background: playerColor(i) }}>{player.nickname.slice(0, 1).toUpperCase()}</span>
+        <div>
+          <b>{player.nickname}</b>
+          <div className="muted">{cell === null || cell === undefined ? "non piazzato" : roomName(cell)}</div>
+        </div>
+        <button className="sh-drawer-close" onClick={onClose} aria-label="Chiudi il menu">✕</button>
+      </header>
+      <PlayerBody {...rest} p={player} extended />
+    </aside>
   );
 }
 
@@ -692,6 +770,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   const sfx = useSfx(theme);
   const [sel, setSel] = useState<string | null>(null);
   const [selCell, setSelCell] = useState<number | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
   const [opts, setOpts] = useState<GrantOpts>({ duration: "", uses: "", scope: "own-room" });
   const index = (id: string) => Math.max(0, info.roster.findIndex((p) => p.id === id));
   const nameOf: Names = (id) => info.roster.find((p) => p.id === id)?.nickname ?? "?";
@@ -710,8 +789,9 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   const unplaced = info.roster.filter((p) => info.positions[p.id] === null || info.positions[p.id] === undefined);
   const editable = info.phase === "setup" || info.phase === "play";
 
+  const drawerPlayer = info.roster.find((p) => p.id === drawerId) ?? null;
   return (
-    <div className="sh" data-phase={info.phase}>
+    <div className={`sh ${drawerPlayer ? "has-drawer" : ""}`} data-phase={info.phase}>
       <section className="sh-sec">
         <h3 data-map={info.mapShown ? "shown" : "hidden"}>Fase: {info.phase === "setup" ? "preparazione" : info.phase === "play" ? "in gioco" : info.phase === "reveal" ? "rivelazione" : "conclusa"}</h3>
         <div className="row">
@@ -747,7 +827,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
 
       <section className="sh-sec">
         <h3>Mappa</h3>
-        <p className="muted">Tocca un giocatore e poi una stanza per spostarlo. Tocca il bordo tra due stanze per chiudere o aprire la porta.</p>
+        <p className="muted">Tocca un giocatore per aprire il menu con le sue azioni (anche per spostarlo). Tocca il bordo tra due stanze per chiudere o aprire la porta.</p>
         {editable && (
           <div className="row">
             <button disabled={selCell === null} onClick={() => selCell !== null && void run({ type: "place-all", cellId: selCell })}>
@@ -756,7 +836,10 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
             <button onClick={() => void run({ type: "place-spread" })}>Distribuisci</button>
           </div>
         )}
-        <MapView info={info} run={run} sel={sel} setSel={setSel} selCell={selCell} setSelCell={setSelCell} index={index} />
+        {sel && info.phase !== "setup" && (
+          <p className="sh-pick" role="status">Tocca la stanza di destinazione per {nameOf(sel)} <button onClick={() => setSel(null)}>Annulla</button></p>
+        )}
+        <MapView info={info} run={run} sel={sel} setSel={setSel} onOpen={(id) => { setSel(null); setDrawerId(drawerId === id ? null : id); }} openId={drawerId} selCell={selCell} setSelCell={setSelCell} index={index} />
       </section>
 
       <section className="sh-sec">
@@ -790,6 +873,20 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
           {[...info.log].reverse().slice(0, 40).map((l, i) => <li key={`${l.at}-${i}`}><small className="muted">{hhmm(l.at)}</small> {l.text}</li>)}
         </ul>
       </section>
+      {drawerPlayer && (
+        <PlayerDrawer
+          player={drawerPlayer}
+          onClose={() => setDrawerId(null)}
+          info={info}
+          p={drawerPlayer}
+          i={index(drawerPlayer.id)}
+          run={run}
+          opts={opts}
+          clock={clock}
+          nameOf={nameOf}
+          onPickRoom={() => setSel(drawerPlayer.id)}
+        />
+      )}
     </div>
   );
 }

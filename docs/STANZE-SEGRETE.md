@@ -40,6 +40,7 @@ L'interfaccia è una colonna unica, pensata per il telefono.
   (più affidabile del trascinamento). Tocca il bordo tra due stanze per **chiudere o riaprire la porta** (🔒) per tutti.
 - **Abilitazione rapida**: scegli giocatori (o «Tutti», o gli occupanti di una stanza), la capacità, durata e usi
   facoltativi, poi *Abilita* / *Disabilita*. *Spegni tutto* le toglie a tutti.
+- **Menu del giocatore**: **tocca un giocatore sulla mappa** e si apre un menu con tutte le azioni per lui. Da PC è un pannello laterale a destra (la pagina si sposta per non coprire la mappa), da telefono un foglio dal basso; si chiude con ✕ o Esc. Dentro: spostamento (scelta della stanza o «Scegli sulla mappa»; «Togli dalla mappa»), esito, interruttori delle capacità con durata/usi e frecce da bloccare, «Mostra una lettera», un **evento solo per lui**, i **suoi oggetti** (palesa quelli della sua stanza solo a lui) e la conversazione privata.
 - **Giocatori**: una scheda per ognuno con l'esito (in gioco / fuggito / eliminato), gli interruttori delle
   capacità, le **frecce da bloccare** per muoversi e sbirciare, «Mostra una lettera» e la conversazione privata.
 - **🎒 Oggetti**: il catalogo dell'istanza (di esempio: una scopa, una lettera con un messaggio, un libro, degli occhiali futuristici, una cassetta degli attrezzi; ne puoi creare altri nell'editor, con icona, testo leggibile e nota per te). Per ogni oggetto scegli la **stanza** e, se vuoi, lo rendi **percepibile**; poi lo **palesi** ai presenti o a singoli giocatori.

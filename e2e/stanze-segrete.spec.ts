@@ -71,6 +71,16 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await expect(p1.page.getByRole("heading", { name: "Sei nella Stanza 5" })).toBeVisible();
   await expect(p2.page.getByRole("heading", { name: "Sei nella Stanza 9" })).toBeVisible();
   await m.getByRole("button", { name: "Inizia", exact: true }).click();
+  // Sul telefono toccare un giocatore sulla mappa apre un foglio dal basso con le sue azioni.
+  await m.locator(".sh-av").first().click();
+  const sheet = m.getByRole("complementary");
+  await expect(sheet).toBeVisible();
+  const vp = m.viewportSize()!;
+  const sb = (await sheet.boundingBox())!;
+  expect(sb.width).toBeGreaterThanOrEqual(vp.width - 2);
+  expect(sb.y + sb.height).toBeGreaterThanOrEqual(vp.height - 2); // ancorato in basso
+  await sheet.getByRole("button", { name: "Chiudi il menu" }).click();
+  await expect(sheet).toHaveCount(0);
   await expect(screen.page.getByText(/avvolto nel buio/)).toBeVisible();
   await expect(p0.page.locator(".ss-mini")).toHaveCount(0);
   expect(screen.traffic.text()).not.toMatch(/"positions"/);
@@ -143,7 +153,7 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await expect(m.locator(".sh-item", { hasText: "Una chiave arrugginita" })).toBeVisible();
   await expect(p1.page.locator('.ss-item[data-known="false"]')).toHaveCount(1); // la chiave è misteriosa (la scopa è già stata palesata)
   for (const p of phones) expect(p.traffic.text()).not.toContain("chiave arrugginita");
-  await m.locator(".sh-item", { hasText: "Una chiave arrugginita" }).getByRole("button", { name: /Palesa a /, exact: false }).first().click();
+  await m.locator(".sh-item", { hasText: "Una chiave arrugginita" }).getByRole("button", { name: `Palesa a ${n1}` }).click();
   await expect(p1.page.locator(".ss-item[data-known=true]")).toHaveCount(2);
   await expect(p1.page.locator(".ss-item[data-known=true]", { hasText: "chiave" })).toContainText("inciso un 7");
   m.once("dialog", (d) => void d.accept());
@@ -340,5 +350,31 @@ test("stanze segrete: la regia può fare il Game Master da sola, senza link", as
   for (const c of [a, b]) await c.page.getByRole("button", { name: "Accetta" }).click();
   await expect(sh.locator(".sh-event-list li").first()).toContainText("Accettato da 2 di 2");
   expect(nb).not.toBe(na);
-  await expect(screen.page.getByText(/avvolto nel buio/)).toBeVisible();
+
+  // Da PC toccare il giocatore sulla mappa apre un menu laterale a destra con le azioni per lui.
+  await sh.locator(".sh-av", { hasText: "" }).first().waitFor();
+  await admin.page.getByRole("button", { name: "Mostra la mappa a schermo e telefoni" }).click();
+  await sh.locator(`.sh-av[aria-label="${na}"]`).click();
+  const menu = admin.page.getByRole("complementary", { name: `Azioni per ${na}` });
+  await expect(menu).toBeVisible();
+  const mb = (await menu.boundingBox())!;
+  const win = admin.page.viewportSize()!;
+  expect(mb.x + mb.width).toBeGreaterThanOrEqual(win.width - 2); // a destra
+  expect(mb.x).toBeGreaterThan(win.width / 2);
+  expect(mb.height).toBeGreaterThanOrEqual(win.height - 2); // a tutta altezza
+  expect(await sh.locator(".sh-map").evaluate((el) => el.getBoundingClientRect().right)).toBeLessThanOrEqual(mb.x + 1); // non copre la mappa
+  // evento solo per lui
+  await menu.getByLabel(`Evento per ${na}`).fill("Un brivido ti scende lungo la schiena");
+  await menu.getByRole("button", { name: "Invia", exact: true }).last().click();
+  await expect(a.page.getByTestId("event-card")).toContainText("Un brivido");
+  await expect(b.page.getByTestId("event-card")).toHaveCount(0);
+  await a.page.getByRole("button", { name: "Accetta" }).click();
+  // spostamento dal menu
+  await menu.getByLabel(`Stanza di destinazione di ${na}`).selectOption("8");
+  await menu.getByRole("button", { name: "Sposta", exact: true }).click();
+  await expect(a.page.getByRole("heading", { name: "Sei nella Stanza 9" })).toBeVisible();
+  // Escape chiude il menu
+  await admin.page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(screen.page.locator(".ss-room")).toHaveCount(9); // la mappa è stata mostrata dalla regia
 });

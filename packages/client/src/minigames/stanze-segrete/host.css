@@ -87,3 +87,21 @@
 .sh-item-del { margin-left: auto; padding: .2rem .5rem; }
 
 .sh-wall { color: var(--opt-2); font-weight: 700; }
+
+/* Menu laterale del giocatore: a destra su PC, foglio dal basso su telefono */
+.sh-drawer { position: fixed; z-index: 50; background: var(--panel); color: var(--fg); box-shadow: 0 0 1.5rem #000a; overflow-y: auto; box-sizing: border-box; padding: .7rem; display: grid; gap: .6rem; align-content: start; }
+.sh-drawer > header { display: flex; gap: .6rem; align-items: center; }
+.sh-drawer > header > div { flex: 1; }
+.sh-drawer-close { padding: .4rem .7rem; font-size: 1.1rem; }
+.sh-act { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .4rem; }
+.sh-act h4 { margin: 0; }
+.sh-pick { margin: 0; padding: .5rem .7rem; border-radius: var(--radius); background: var(--opt-2); color: var(--on-opt); font-weight: 700; }
+@media (min-width: 900px) {
+  .sh-drawer { top: 0; right: 0; bottom: 0; width: min(26rem, 90vw); }
+  /* La pagina si sposta a sinistra, così il menu non copre la mappa. */
+  main:has(.sh.has-drawer) { margin-right: 26rem; }
+}
+@media (max-width: 899px) {
+  .sh-drawer { left: 0; right: 0; bottom: 0; max-height: 75vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .sh.has-drawer { padding-bottom: 76vh; }
+}
