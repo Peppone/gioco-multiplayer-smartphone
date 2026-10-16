@@ -3,6 +3,7 @@ import type { AdminStatus, AdminSession } from "@gioco/shared";
 import { EventsPanel } from "./EventsPanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { LivePanel } from "./LivePanel";
+import { MessagesPanel } from "./MessagesPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { TeamsPanel } from "./TeamsPanel";
 import { api, errorMessage, getAdminToken, setAdminToken } from "./api";
@@ -44,7 +45,7 @@ function AuthForm({ configured, onDone }: { configured: boolean; onDone: () => v
   );
 }
 
-type Tab = "live" | "events" | "library" | "teams" | "players";
+type Tab = "live" | "events" | "library" | "teams" | "players" | "messages";
 
 export function Admin() {
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -84,6 +85,7 @@ export function Admin() {
           <button className={tab === "library" ? "primary" : ""} onClick={() => setTab("library")}>Libreria</button>
           <button className={tab === "teams" ? "primary" : ""} onClick={() => setTab("teams")}>Squadre</button>
           <button className={tab === "players" ? "primary" : ""} onClick={() => setTab("players")}>Giocatori</button>
+          <button className={tab === "messages" ? "primary" : ""} onClick={() => setTab("messages")}>Messaggi</button>
           <button className="link" onClick={() => { setAdminToken(null); refreshAuth(); }}>Esci</button>
         </nav>
       </header>
@@ -91,6 +93,7 @@ export function Admin() {
       {tab === "events" && <EventsPanel onAuthLost={refreshAuth} />}
       {tab === "library" && <LibraryPanel onAuthLost={refreshAuth} />}
       {tab === "teams" && <TeamsPanel onAuthLost={refreshAuth} />}
+      {tab === "messages" && <MessagesPanel onAuthLost={refreshAuth} />}
       {tab === "players" && <PlayersPanel onAuthLost={refreshAuth} />}
     </main>
   );

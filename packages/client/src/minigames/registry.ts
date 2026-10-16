@@ -1,4 +1,4 @@
-import { type ComponentType, createElement } from "react";
+import { type ComponentType, createElement, lazy } from "react";
 import { BuzzerController, BuzzerScreen } from "./buzzer/BuzzerViews";
 import { GhostHuntController, GhostHuntScreen } from "./caccia-fantasmi/GhostHuntViews";
 import { IndovinaCanzoneController, IndovinaCanzoneScreen } from "./indovina-canzone/IndovinaCanzoneViews";
@@ -6,13 +6,16 @@ import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews"
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
 import { SondaggioController, SondaggioScreen } from "./sondaggio/SondaggioViews";
 import { StimaController, StimaScreen } from "./stima/StimaViews";
-import type { ControllerProps, ViewProps } from "./types";
+import { StanzeScreen, StanzeController } from "./stanze-segrete/StanzeViews";
+import type { ControllerProps, HostProps, ViewProps } from "./types";
 import { VeroFalsoController, VeroFalsoScreen } from "./vero-falso/VeroFalsoViews";
 import { ZombieHuntController, ZombieHuntScreen } from "./zombie-hunt/ZombieHuntViews";
 
 export interface MinigameViews {
   Screen: ComponentType<ViewProps>;
   Controller: ComponentType<ControllerProps>;
+  /** Interfaccia ricca per regia e Game Master, caricata solo dove serve (non finisce nel bundle del telefono). */
+  Host?: ComponentType<HostProps>;
 }
 
 /** Viste dei minigiochi che si giocano come round (e che il duello può contenere). */
@@ -37,6 +40,11 @@ const DuelController = createDuelController(roundViews);
  */
 export const minigameViews: Record<string, MinigameViews> = {
   ...roundViews,
+  "stanze-segrete": {
+    Screen: StanzeScreen,
+    Controller: StanzeController,
+    Host: lazy(() => import("./stanze-segrete/StanzeHost").then((m) => ({ default: m.StanzeHost }))),
+  },
   "knight-duel": {
     Screen: (p: ViewProps) => createElement(DuelScreen, p),
     Controller: (p: ControllerProps) => createElement(DuelController, p),

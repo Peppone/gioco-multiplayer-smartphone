@@ -1,0 +1,85 @@
+/* Stanze Segrete: schermo condiviso e telefono. Solo variabili del tema, niente colori fissi (tranne i bianchi di contrasto). */
+
+/* ---- Schermo ---- */
+.ss-screen { display: grid; gap: .8rem; justify-items: center; }
+.ss-screen h1 { margin: 0; }
+.ss-status { margin: 0; font-size: 1.6rem; }
+.ss-grid { display: grid; gap: .8rem; width: min(70vh, 90vw); }
+.ss-room {
+  position: relative; aspect-ratio: 1; display: grid; place-items: center; background: var(--panel);
+  border: var(--border-w) solid var(--border-c); border-radius: var(--radius); box-shadow: var(--shadow);
+  transition: background .6s, box-shadow .6s;
+}
+.ss-num { position: absolute; top: .4rem; left: .6rem; opacity: .6; font-size: 1.3rem; font-weight: 700; }
+.ss-letter { font-size: clamp(3rem, 9vh, 6rem); font-weight: 800; font-family: var(--font-display); color: var(--accent); }
+.ss-room.lit { box-shadow: 0 0 1.2rem var(--accent); }
+.ss-room.path-0 { background: var(--opt-0); color: var(--on-opt); }
+.ss-room.path-1 { background: var(--opt-1); color: var(--on-opt); }
+.ss-room.path-0.path-1 { background: var(--opt-4); }
+.ss-room.path-0 .ss-letter, .ss-room.path-1 .ss-letter { color: var(--on-opt); }
+.ss-people { position: absolute; bottom: .4rem; left: .4rem; right: .4rem; display: flex; flex-wrap: wrap; gap: .25rem; justify-content: center; }
+.ss-avatar { display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; font-weight: 800; color: var(--on-opt); border: 2px solid var(--fg); }
+.ss-avatar.small { width: 1.6rem; height: 1.6rem; font-size: .8rem; border-width: 1px; }
+.ss-legend, .ss-words, .ss-outcomes { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; justify-content: center; font-size: 1.3rem; }
+.ss-words { font-size: 1.8rem; }
+.ss-outcomes li.fuggito { color: var(--accent); font-weight: 800; }
+.ss-outcomes li.eliminato { opacity: .6; }
+
+/* ---- Telefono ---- */
+.ss-phone { display: grid; gap: .6rem; align-content: start; text-align: left; position: relative; }
+.ss-body { display: grid; gap: .7rem; min-width: 0; }
+.ss-where { margin: 0; text-align: center; }
+.ss-wait { text-align: center; margin: .3rem 0; }
+.ss-banner { margin: 0; padding: .5rem; border-radius: var(--radius); text-align: center; font-weight: 800; background: var(--panel); }
+.ss-banner.good { background: var(--opt-3); color: var(--on-opt); } .ss-banner.bad { background: var(--opt-0); color: var(--on-opt); }
+.ss-mini { display: grid; gap: .3rem; max-width: 13rem; margin: 0 auto; width: 100%; }
+.ss-mini-room { aspect-ratio: 1; display: grid; place-items: center; background: var(--panel); border-radius: calc(var(--radius) / 2); position: relative; font-size: .9rem; }
+.ss-mini-room small { position: absolute; top: .1rem; left: .25rem; opacity: .55; font-size: .65rem; }
+.ss-mini-room.me { outline: 3px solid var(--accent); }
+.ss-dot { color: var(--accent); font-size: 1.1rem; }
+.ss-other { font-size: .7rem; font-weight: 800; opacity: .8; }
+
+.ss-compass { display: grid; justify-items: center; gap: .2rem; }
+.ss-compass h3 { margin: 0; font-size: 1rem; opacity: .8; }
+.ss-cross { display: grid; grid-template-columns: repeat(3, 4.2rem); grid-template-rows: repeat(3, 4.2rem); gap: .3rem; }
+.ss-cross > * { display: grid; place-items: center; }
+.ss-center { opacity: .35; }
+.ss-arrow { font-size: 1.9rem; font-weight: 800; border-radius: var(--radius); border: var(--border-w) solid var(--border-c); background: var(--opt-1); color: var(--on-opt); touch-action: manipulation; padding: 0; }
+.ss-arrow.blocked { background: var(--panel-2); opacity: .55; }
+.ss-arrow.wall { visibility: hidden; }
+.ss-arrow:disabled:not(.blocked) { opacity: .5; }
+
+.ss-letter-box { display: grid; gap: .3rem; }
+.ss-hold { min-height: 7rem; font-size: 1.2rem; font-weight: 800; border-radius: var(--radius); border: var(--border-w) dashed var(--accent); background: var(--panel); color: inherit; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
+.ss-letter-big { font-size: 5rem; font-family: var(--font-display); color: var(--accent); }
+
+.ss-actions { display: grid; gap: .5rem; }
+.ss-action { padding: .9rem; font-weight: 800; }
+.ss-badge { font-weight: 600; font-size: .8em; opacity: .85; margin-left: .4rem; }
+.ss-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .4rem; }
+.ss-form input { min-width: 0; box-sizing: border-box; }
+.ss-pending, .ss-feedback { margin: 0; padding: .6rem .8rem; border-radius: var(--radius); background: var(--panel); font-weight: 700; }
+.ss-pending { outline: 3px solid var(--accent); }
+.ss-feedback.approved, .ss-feedback.solved, .ss-feedback.letter { background: var(--opt-3); color: var(--on-opt); }
+.ss-feedback.refused, .ss-feedback.cancelled { background: var(--opt-0); color: var(--on-opt); }
+
+.ss-thread, .ss-history { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.ss-thread li, .ss-history li { background: var(--panel); border-radius: var(--radius); padding: .5rem .7rem; display: grid; gap: .2rem; }
+.ss-thread li.mine { background: var(--panel-2); margin-left: 1.5rem; }
+.ss-thread li.theirs { margin-right: 1.5rem; }
+.ss-thread p, .ss-history p { margin: 0; overflow-wrap: anywhere; }
+.ss-history li.cancelled { opacity: .55; text-decoration: line-through; }
+.ss-rules section { background: var(--panel); border-radius: var(--radius); padding: .6rem .8rem; margin-bottom: .6rem; }
+.ss-rules h3 { margin: 0 0 .3rem; }
+.ss-rules p { margin: .3rem 0; line-height: 1.35; }
+
+.ss-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: .3rem; }
+.ss-tabs button { padding: .6rem .2rem; font-size: .85rem; font-weight: 700; position: relative; }
+.ss-tabs button.on { outline: 3px solid var(--accent); }
+.ss-count { background: var(--opt-0); color: var(--on-opt); border-radius: 1rem; padding: 0 .4rem; margin-left: .3rem; font-size: .75rem; }
+.ss-mail-alert { position: fixed; left: .5rem; right: .5rem; bottom: 4.2rem; z-index: 40; padding: .9rem; font-weight: 800; background: var(--opt-3); color: var(--on-opt); border-radius: var(--radius); }
+
+/* L'evento copre tutto finché non viene accettato. */
+.ss-event { position: fixed; inset: 0; z-index: 70; background: var(--bg); color: var(--fg); display: grid; align-content: center; gap: 1.2rem; padding: 1.5rem; text-align: center; }
+.ss-event-text { font-size: 1.7rem; margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); }
+.ss-accept { padding: 1.2rem; font-size: 1.4rem; font-weight: 800; }

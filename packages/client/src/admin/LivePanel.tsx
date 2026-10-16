@@ -1,5 +1,9 @@
-import { useEffect, useState } from "react";
-import type { EventDetail, EventSummary, HostCommand } from "@gioco/shared";
+import { Suspense, useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import type { EventDetail, EventSummary, HostCommand, MasterLink } from "@gioco/shared";
+import { minigameViews } from "../minigames/registry";
+import { useClockSync } from "../net/useClockSync";
+import { useServerInfo } from "../screen/useServerInfo";
 import { Leaderboard } from "../ui/Leaderboard";
 import { api, errorMessage } from "./api";
 import { useAdminGame } from "./useAdminGame";
@@ -81,8 +85,61 @@ function StartPicker({ onStart }: { onStart: (matchId: string) => void }) {
   );
 }
 
+/** Link e QR per il telefono del Game Master: valido per la partita in corso, revocabile e rigenerabile. */
+function MasterLinkBox() {
+  const info = useServerInfo(5000);
+  const [link, setLink] = useState<MasterLink | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // Il GM entra da un telefono: serve l'indirizzo pubblico (tunnel) o della rete locale, non localhost.
+  const base = (info?.tunnel.status === "ready" ? info.tunnel.url : info?.lanUrl) ?? window.location.origin;
+  const url = link ? `${base}/master#t=${link.token}` : null;
+
+  const generate = async () => {
+    setError(null);
+    try {
+      setLink(await api<MasterLink>("POST", "/master-link"));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+  const revoke = async () => {
+    setError(null);
+    try {
+      await api("DELETE", "/master-link");
+      setLink(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
+  return (
+    <section className="panel master-link">
+      <h3>Link del Game Master</h3>
+      <p className="muted">Il Game Master conduce la sessione dal suo telefono. Il link vale solo per questa partita e si può revocare.</p>
+      {error && <p className="error">{error}</p>}
+      {url ? (
+        <>
+          <div className="qr-box"><QRCodeSVG value={url} size={200} /></div>
+          <code className="master-url">{url}</code>
+          <div className="row">
+            <button onClick={() => void navigator.clipboard?.writeText(url)}>Copia il link</button>
+            <button onClick={() => void generate()}>Rigenera</button>
+            <button className="danger" onClick={() => void revoke()}>Revoca</button>
+          </div>
+        </>
+      ) : (
+        <div className="row">
+          <button className="primary" onClick={() => void generate()}>Genera il link</button>
+          <button className="danger" onClick={() => void revoke()}>Revoca l'accesso</button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function LivePanel() {
-  const { state, connected, command } = useAdminGame();
+  const { state, connected, command, socket } = useAdminGame();
+  const clock = useClockSync(socket, true);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   const [points, setPoints] = useState("100");
@@ -111,6 +168,7 @@ export function LivePanel() {
 
   const active = state.phase !== "idle";
   // I minigiochi con punti fisici (QR) lo dichiarano nella vista della regia.
+  const HostUi = state.frame ? minigameViews[state.frame.typeId]?.Host : undefined;
   const hostInfo = state.host?.info as { qrCodes?: QrCode[] } | undefined;
   const qrCodes = hostInfo?.qrCodes && hostInfo.qrCodes.length > 0 ? hostInfo.qrCodes : null;
 
@@ -128,7 +186,16 @@ export function LivePanel() {
           <h2>{state.matchName} <small className="muted">· {PHASE_LABEL[state.phase]}</small></h2>
           <p className="muted">Round {state.roundNumber} di {state.roundCount}{state.frame ? ` · ${state.frame.title}` : ""}</p>
 
-          {state.host && (
+          {state.host && HostUi ? (
+            <Suspense fallback={<p>Caricamento…</p>}>
+              <HostUi
+                info={state.host.info}
+                run={(c) => command({ type: "plugin", command: c })}
+                clock={clock.current}
+                theme={state.frame!.theme}
+              />
+            </Suspense>
+          ) : state.host && (
             <>
               <InfoView info={state.host.info} />
               <div className="row">
@@ -163,6 +230,8 @@ export function LivePanel() {
           </div>
         </section>
       )}
+
+      {state.master && state.phase === "round" && <MasterLinkBox />}
 
       {qrCodes && state.phase === "round" && <ZoneQrSheet codes={qrCodes} />}
 

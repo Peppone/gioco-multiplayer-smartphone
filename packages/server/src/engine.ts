@@ -496,6 +496,7 @@ export class Engine {
       matchId: l.matchId,
       rounds: l.rounds.map((r) => ({ id: r.roundId, title: r.title, typeId: r.typeId })),
       host,
+      master: this.masterAvailable,
       engineActions,
     };
   }

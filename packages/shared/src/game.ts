@@ -57,6 +57,8 @@ export interface GameAdminState extends GameScreenState {
   matchId?: string;
   rounds: { id: string; title: string; typeId: string }[];
   host?: HostView;
+  /** Il round in corso ha un Game Master: la regia può generare il link per il suo telefono. */
+  master?: boolean;
   engineActions: { id: string; label: string; enabled: boolean; danger?: boolean }[];
 }
 
