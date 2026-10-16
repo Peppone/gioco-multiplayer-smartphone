@@ -13,6 +13,7 @@ import {
   DIR_LABEL,
   type Dir,
   type PendingRequest,
+  type PhoneItem,
   type PhoneEvent,
   type PhoneView,
   type ScreenView,
@@ -249,6 +250,28 @@ function Feedback({ f, clock }: { f: NonNullable<PhoneView["feedback"]>; clock: 
   return <p className={`ss-feedback ${f.kind}`} role="status">{feedbackText(f)}</p>;
 }
 
+/** Gli oggetti della stanza: si sa che c'è qualcosa, ma non cosa, finché il Master non lo palesa. */
+function Items({ items }: { items: PhoneItem[] }) {
+  if (items.length === 0) return null;
+  return (
+    <ul className="ss-items" aria-label="Oggetti nella stanza">
+      {items.map((it) =>
+        it.known ? (
+          <li key={it.ref} className="ss-item known" data-known="true">
+            <b><span aria-hidden="true">{it.icon}</span> {it.name}</b>
+            {it.text && <p className="ss-item-text">{it.text}</p>}
+          </li>
+        ) : (
+          <li key={it.ref} className="ss-item" data-known="false">
+            <b><span aria-hidden="true">❔</span> Un oggetto</b>
+            <small className="muted">C'è qualcosa qui, ma non sai cosa.</small>
+          </li>
+        ),
+      )}
+    </ul>
+  );
+}
+
 function GuessForm({ onSend }: { onSend: (word: string) => void }) {
   const [word, setWord] = useState("");
   return (
@@ -284,6 +307,7 @@ function GameTab({ v, send, clock }: { v: PhoneView; send: ControllerProps["send
       {v.solved && <p className="ss-banner good">Soluzione convalidata 🔑</p>}
       <MiniMap v={v} />
       {v.feedback && <Feedback f={v.feedback} clock={clock} />}
+      <Items items={v.items ?? []} />
       {v.sighting && <LetterBox s={v.sighting} clock={clock} sightSec={v.rules?.sightSec ?? 8} />}
       {pending.map((r) => <PendingLine key={r.id} r={r} v={v} onCancel={() => send({ type: "cancel", requestId: r.id })} />)}
 

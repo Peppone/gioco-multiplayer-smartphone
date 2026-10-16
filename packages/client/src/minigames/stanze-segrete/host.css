@@ -64,3 +64,8 @@
 .sh-log { font-size: .9rem; max-height: 14rem; overflow-y: auto; }
 .sh-unplaced { margin: 0; display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
 .master-link .master-url { word-break: break-all; font-size: .8rem; }
+
+/* Oggetti */
+.sh-items { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.sh-item { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .35rem; }
+.sh-item.on { outline: 2px solid var(--accent); }

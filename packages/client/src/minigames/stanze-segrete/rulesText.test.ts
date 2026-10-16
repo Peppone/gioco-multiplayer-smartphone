@@ -26,6 +26,6 @@ describe("regole di Stanze Segrete", () => {
   });
 
   it("spiegano tutte le parti del gioco", () => {
-    expect(rulesSections(rules).map((s) => s.title)).toEqual(["L'idea", "Cosa puoi fare", "Muoversi e sbirciare", "Le lettere", "Messaggi", "Eventi", "Posizioni e punti"]);
+    expect(rulesSections(rules).map((s) => s.title)).toEqual(["L'idea", "Cosa puoi fare", "Muoversi e sbirciare", "Le lettere", "Oggetti", "Messaggi", "Eventi", "Posizioni e punti"]);
   });
 });

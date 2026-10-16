@@ -40,6 +40,7 @@ L'interfaccia è una colonna unica, pensata per il telefono.
   facoltativi, poi *Abilita* / *Disabilita*. *Spegni tutto* le toglie a tutti.
 - **Giocatori**: una scheda per ognuno con l'esito (in gioco / fuggito / eliminato), gli interruttori delle
   capacità, le **frecce da bloccare** per muoversi e sbirciare, «Mostra una lettera» e la conversazione privata.
+- **🎒 Oggetti**: il catalogo dell'istanza (di esempio: una scopa, una lettera con un messaggio, un libro, degli occhiali futuristici, una cassetta degli attrezzi; ne puoi creare altri nell'editor, con icona, testo leggibile e nota per te). Per ogni oggetto scegli la **stanza** e, se vuoi, lo rendi **percepibile**; poi lo **palesi** ai presenti o a singoli giocatori.
 - **Posta**: i messaggi dei giocatori (non letti in evidenza) e il modulo per scrivere a un giocatore, a una stanza
   o a tutti, con «Consenti risposta».
 - **⚡ Eventi**: testo (o evento pronto), destinatari (Tutti / scelta / occupanti di una stanza / tutti tranne…),
@@ -72,6 +73,8 @@ per tutti. Il giocatore non sa perché una freccia è bloccata né dove porta.
 lettera per `defaultSightSec` secondi, **tenendo premuto** il riquadro; poi sparisce dal telefono, che non la
 ricorda. Il GM può anche mostrarne una direttamente. Limite accettato: chi la vede può fotografarla.
 
+**Oggetti.** Un oggetto assegnato a una stanza è invisibile finché non lo abiliti («I presenti sanno che c'è qualcosa»): da quel momento chi è nella stanza vede una scheda «❔ Un oggetto – c'è qualcosa qui, ma non sai cosa», senza nome, icona né testo (il server non li invia). Con **Palesa ai presenti** tutti quelli che sono nella stanza scoprono nome, icona e, se c'è, il testo (il messaggio di una lettera, le parole di un libro); con **Palesa a [nome]** solo quel giocatore, e gli altri continuano a vedere un oggetto misterioso. Chi esce dalla stanza non lo vede più; se sposti l'oggetto torna misterioso per tutti, e «Rendi di nuovo misterioso» cancella chi lo conosce. Gli oggetti non compaiono mai sullo schermo. Cosa l'oggetto *faccia* lo decidi tu: combinalo con capacità, porte e messaggi.
+
 **Messaggi.** Il giocatore legge sempre. Può rispondere solo se il GM lascia «Consenti risposta» (una volta; il GM può chiudere le risposte quando vuole con «Chiudi le risposte»). Un messaggio nuovo vibra e compare a tutto schermo finché non viene letto.
 
 **Eventi.** Una comunicazione ufficiale («Crolla il soffitto»). Compare a tutto schermo con scritto **«Evento:»** e
@@ -94,6 +97,7 @@ di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi 
 | Griglia e numeri delle stanze | solo se il GM mostra la mappa | solo se il GM mostra la mappa (il numero della propria stanza sempre) | ✅ |
 | Lettere | solo alla rivelazione | solo durante un'occhiata concessa | ✅ |
 | Note sulle stanze, porte chiuse, diario | ❌ | ❌ | ✅ |
+| Oggetti | ❌ | solo quelli della propria stanza, misteriosi finché il GM non li palesa a lui | ✅ con note e chi li conosce |
 | Posizioni | se pubbliche | la propria (e le altre se pubbliche) | ✅ |
 | Capacità e richieste | ❌ | solo le proprie | ✅ |
 | Messaggi | ❌ | solo la propria conversazione e quelli per tutti/la propria stanza | ✅ |

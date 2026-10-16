@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80"] as const;
-const SCENES = ["stanze-dark", "stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
+const SCENES = ["stanze-dark", "stanze-items", "stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
 
 // Le scene dell'anteprima mostrano schermo e telefono senza giocare una partita: qui si controllano layout e privacy.
 for (const theme of THEMES) {
@@ -82,4 +82,16 @@ test("a mappa nascosta né lo schermo né il telefono mostrano griglia, stanze o
   await page.locator(".phone-frame").getByRole("button", { name: /Regole/ }).click();
   await expect(page.locator(".phone-frame .ss-rules")).not.toContainText("stanze (");
   await expect(page.locator(".phone-frame .ss-rules")).toContainText("La mappa la mostra il Game Master");
+});
+
+test("gli oggetti ignoti mostrano solo «Un oggetto»; quelli palesati nome e testo", async ({ page }) => {
+  await page.goto("/preview?theme=manga&scene=stanze-items&still=1");
+  const items = page.locator(".phone-frame .ss-item");
+  await expect(items).toHaveCount(2);
+  await expect(page.locator(".phone-frame .ss-item[data-known=true]")).toContainText("Una lettera");
+  await expect(page.locator(".phone-frame .ss-item[data-known=true]")).toContainText("non è il primo");
+  const unknown = page.locator(".phone-frame .ss-item[data-known=false]");
+  await expect(unknown).toContainText("Un oggetto");
+  await expect(unknown).toContainText("non sai cosa");
+  expect(await unknown.innerText()).not.toMatch(/scopa|libro|attrezzi|occhiali/i);
 });

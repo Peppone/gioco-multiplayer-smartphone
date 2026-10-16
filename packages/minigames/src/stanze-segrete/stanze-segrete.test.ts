@@ -350,6 +350,96 @@ describe("la mappa è nascosta finché il GM non la mostra", () => {
   });
 });
 
+describe("oggetti", () => {
+  // a è nella stanza 0, b nella 4, c nella 8; la scopa e la lettera sono nella stanza 4
+  const withItems = () => {
+    let s = started();
+    s = cmd(s, { type: "place", playerId: "c", cellId: 4 });
+    s = cmd(s, { type: "place-item", itemId: "scopa", cellId: 4 });
+    return cmd(s, { type: "place-item", itemId: "lettera", cellId: 4 });
+  };
+
+  it("sono cinque, tutti inizialmente in nessuna stanza e invisibili ai giocatori", () => {
+    const s = started();
+    expect(s.cfg.items.map((i) => i.name)).toEqual(["Una scopa", "Una lettera", "Un libro", "Occhiali futuristici", "Una cassetta degli attrezzi"]);
+    expect(s.items.every((i) => i.cell === null && !i.enabled)).toBe(true);
+    expect(view(s, "a").items).toEqual([]);
+  });
+
+  it("assegnato a una stanza ma non abilitato, nessuno sa che esiste", () => {
+    const s = withItems();
+    expect(view(s, "b").items).toEqual([]);
+  });
+
+  it("abilitato: chi è nella stanza sa che c'è un oggetto ma non quale", () => {
+    let s = cmd(withItems(), { type: "enable-item", itemId: "scopa", enabled: true });
+    expect(view(s, "b").items).toEqual([{ ref: 0, known: false }]);
+    expect(view(s, "c").items).toEqual([{ ref: 0, known: false }]);
+    expect(view(s, "a").items).toEqual([]); // un altro giocatore, in un'altra stanza
+    const raw = JSON.stringify(view(s, "b"));
+    for (const word of ["scopa", "Scopa", "🧹", "Una scopa"]) expect(raw).not.toContain(word);
+    expect(JSON.stringify(game.screenView(s))).not.toContain("scopa");
+    // nemmeno l'oggetto abilitato in una stanza altrui compare
+    s = cmd(s, { type: "enable-item", itemId: "lettera", enabled: true });
+    expect(view(s, "b").items).toHaveLength(2);
+  });
+
+  it("palesare ai presenti: tutti quelli nella stanza vedono nome, icona e testo", () => {
+    let s = cmd(withItems(), { type: "enable-item", itemId: "lettera", enabled: true });
+    s = cmd(s, { type: "reveal-item", itemId: "lettera", to: "room" });
+    for (const id of ["b", "c"]) {
+      expect(view(s, id).items[0]).toMatchObject({ known: true, name: "Una lettera", icon: "✉️" });
+      expect(view(s, id).items[0].text).toContain("uscita");
+    }
+    expect(JSON.stringify(view(s, "a"))).not.toContain("lettera");
+  });
+
+  it("palesare solo ad alcuni: gli altri presenti continuano a vedere un oggetto misterioso", () => {
+    let s = cmd(withItems(), { type: "reveal-item", itemId: "scopa", to: { players: ["b"] } });
+    expect(view(s, "b").items[0]).toMatchObject({ known: true, name: "Una scopa" });
+    expect(view(s, "c").items[0]).toEqual({ ref: 0, known: false });
+    expect(JSON.stringify(view(s, "c"))).not.toContain("Una scopa");
+    // chi non è nella stanza non può scoprirlo, anche se indicato
+    expect(cmd(s, { type: "reveal-item", itemId: "scopa", to: { players: ["a"] } })).toBe(s);
+    // ripetere non cambia nulla
+    expect(cmd(s, { type: "reveal-item", itemId: "scopa", to: { players: ["b"] } })).toBe(s);
+    s = cmd(s, { type: "reveal-item", itemId: "scopa", to: "room" });
+    expect(view(s, "c").items[0].known).toBe(true);
+  });
+
+  it("chi esce dalla stanza non vede più l'oggetto; spostare l'oggetto lo rende di nuovo misterioso", () => {
+    let s = cmd(withItems(), { type: "reveal-item", itemId: "scopa", to: "room" });
+    s = cmd(s, { type: "place", playerId: "b", cellId: 8 });
+    expect(view(s, "b").items).toEqual([]);
+    s = cmd(s, { type: "place-item", itemId: "scopa", cellId: 8 });
+    expect(view(s, "b").items[0]).toEqual({ ref: 0, known: false });
+    s = cmd(s, { type: "reveal-item", itemId: "scopa", to: "room" });
+    s = cmd(s, { type: "conceal-item", itemId: "scopa" });
+    expect(view(s, "b").items[0].known).toBe(false);
+  });
+
+  it("disabilitare lo nasconde del tutto; comandi non validi sono ignorati", () => {
+    let s = cmd(withItems(), { type: "enable-item", itemId: "scopa", enabled: true });
+    s = cmd(s, { type: "enable-item", itemId: "scopa", enabled: false });
+    expect(view(s, "b").items).toEqual([]);
+    expect(cmd(s, { type: "place-item", itemId: "inesistente", cellId: 1 })).toBe(s);
+    expect(cmd(s, { type: "place-item", itemId: "scopa", cellId: 99 })).toBe(s);
+    expect(cmd(s, { type: "reveal-item", itemId: "libro", to: "room" })).toBe(s); // in nessuna stanza
+  });
+
+  it("la regia vede tutto, compresi note e destinatari; la configurazione valida gli oggetti", () => {
+    const s = cmd(withItems(), { type: "reveal-item", itemId: "scopa", to: { players: ["b"] } });
+    const items = (game.hostView(s).info as any).items;
+    expect(items[0]).toMatchObject({ id: "scopa", name: "Una scopa", cell: 4, revealedTo: ["b"] });
+    expect(items[0].note).toContain("spostare");
+    const dup = { ...game.sampleConfig, items: [{ id: "x", name: "A" }, { id: "x", name: "B" }] };
+    expect(game.configSchema.safeParse(dup).success).toBe(false);
+    expect(game.configSchema.safeParse({ ...game.sampleConfig, items: [{ id: "x", name: "A", cell: 40 }] }).success).toBe(false);
+    const placed = game.configSchema.parse({ ...game.sampleConfig, items: [{ id: "x", name: "A", cell: 3 }] });
+    expect(game.init(placed, ctx, 0).items[0]).toMatchObject({ cell: 3, enabled: false });
+  });
+});
+
 describe("anti-leak", () => {
   const letters = ["A", "C", "S", "T", "I", "U", "R", "O", "M"];
   const hasLetterField = (v: unknown) => /"letters?":/.test(JSON.stringify(v));

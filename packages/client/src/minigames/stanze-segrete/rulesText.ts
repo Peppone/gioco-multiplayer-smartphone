@@ -39,6 +39,13 @@ export function rulesSections(r: Rules): RulesSection[] {
       ],
     },
     {
+      title: "Oggetti",
+      paragraphs: [
+        "Nelle stanze possono esserci degli oggetti. Se il Game Master ti dice che c'è qualcosa, lo vedi come «Un oggetto», senza sapere cos'è.",
+        "Solo quando il Game Master lo palesa a te (o a tutti i presenti) ne scopri il nome e, se c'è, il testo da leggere. Se esci dalla stanza non lo vedi più.",
+      ],
+    },
+    {
       title: "Messaggi",
       paragraphs: [
         "Leggi sempre i messaggi del Game Master. Se te lo consente puoi rispondere sotto il messaggio.",

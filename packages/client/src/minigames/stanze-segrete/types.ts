@@ -68,6 +68,9 @@ export interface Rules {
   positionsPublic: boolean;
 }
 
+/** Un oggetto nella propria stanza: sconosciuto finché il Master non lo palesa. */
+export type PhoneItem = { ref: number; known: false } | { ref: number; known: true; name: string; icon: string; text: string };
+
 export interface PhoneView {
   phase: "setup" | "play" | "reveal" | "done";
   member: boolean;
@@ -81,6 +84,7 @@ export interface PhoneView {
   abilities?: Ability[];
   compass?: Partial<Record<"move" | "peek", Record<Dir, ArrowState>>>;
   pending?: PendingRequest[];
+  items?: PhoneItem[];
   sighting?: { cell: number; letter: string; until: number } | null;
   feedback?: { kind: "approved" | "refused" | "cancelled" | "letter" | "solved"; cell: number | null; at: number } | null;
   messages?: PhoneMessage[];

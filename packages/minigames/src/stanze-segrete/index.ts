@@ -90,6 +90,17 @@ export interface Feedback {
   at: number;
 }
 
+/** Un oggetto nel complesso: i giocatori della stanza sanno che esiste solo se `enabled`, e cos'è solo i `revealedTo`. */
+export interface ItemState {
+  id: string;
+  cell: CellId | null;
+  enabled: boolean;
+  revealedTo: PlayerId[];
+}
+
+/** Oggetto come lo vede un giocatore: sconosciuto, oppure con nome, icona e testo se il Master glielo ha palesato. */
+export type PhoneItem = { ref: number; known: false } | { ref: number; known: true; name: string; icon: string; text: string };
+
 export interface LogEntry {
   at: number;
   text: string;
@@ -105,6 +116,7 @@ export interface StanzeState {
   solved: Record<PlayerId, boolean>;
   grants: Grant[];
   closedDoors: { a: CellId; b: CellId }[];
+  items: ItemState[];
   sightings: Sighting[];
   requests: Request[];
   messages: Message[];
@@ -185,6 +197,10 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancel-event"), eventId: z.number().int() }),
   z.object({ type: z.literal("set-outcome"), playerId: z.string().min(1), outcome: z.enum(["in-gioco", "fuggito", "eliminato"]) }),
   z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("place-item"), itemId: z.string().min(1), cellId: cellSchema.nullable() }),
+  z.object({ type: z.literal("enable-item"), itemId: z.string().min(1), enabled: z.boolean() }),
+  z.object({ type: z.literal("reveal-item"), itemId: z.string().min(1), to: z.union([z.literal("room"), z.object({ players: z.array(z.string().min(1)).min(1).max(30) })]) }),
+  z.object({ type: z.literal("conceal-item"), itemId: z.string().min(1) }),
   z.object({ type: z.literal("show-map"), visible: z.boolean() }),
   z.object({ type: z.literal("public-reveal") }),
   z.object({ type: z.literal("end") }),
@@ -549,6 +565,38 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       return addLog({ ...s, outcome: { ...s.outcome, [cmd.playerId]: cmd.outcome } }, now, `${nick(s, cmd.playerId)}: ${cmd.outcome}`);
     case "start":
       return begin(s, now);
+    case "place-item": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it || it.cell === cmd.cellId || (cmd.cellId !== null && !isCell(grid(s), cmd.cellId))) return s;
+      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      // Spostato in un'altra stanza, l'oggetto torna misterioso per tutti.
+      const items = s.items.map((x) => (x === it ? { ...x, cell: cmd.cellId, revealedTo: [] } : x));
+      return addLog({ ...s, items }, now, cmd.cellId === null ? `${name}: tolto dalla mappa` : `${name} → ${roomName(cmd.cellId)}`);
+    }
+    case "enable-item": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it || it.enabled === cmd.enabled) return s;
+      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      return addLog({ ...s, items: s.items.map((x) => (x === it ? { ...x, enabled: cmd.enabled } : x)) }, now, `${name}: ${cmd.enabled ? "chi è nella stanza sa che esiste" : "nascosto ai giocatori"}`);
+    }
+    case "reveal-item": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it || it.cell === null) return s;
+      // Solo chi è nella stanza dell'oggetto può scoprirlo; "room" = tutti i presenti.
+      const present = s.roster.map((p) => p.id).filter((id) => s.positions[id] === it.cell);
+      const to = cmd.to;
+      const targets = to === "room" ? present : present.filter((id) => to.players.includes(id));
+      const fresh = targets.filter((id) => !it.revealedTo.includes(id));
+      if (fresh.length === 0) return s;
+      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      const items = s.items.map((x) => (x === it ? { ...x, enabled: true, revealedTo: [...x.revealedTo, ...fresh] } : x));
+      return addLog({ ...s, items }, now, `${name} palesato a ${fresh.map((i) => nick(s, i)).join(", ")}`);
+    }
+    case "conceal-item": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it || it.revealedTo.length === 0) return s;
+      return { ...s, items: s.items.map((x) => (x === it ? { ...x, revealedTo: [] } : x)) };
+    }
     case "show-map":
       return s.mapShown === cmd.visible ? s : addLog({ ...s, mapShown: cmd.visible }, now, cmd.visible ? "Mappa mostrata ai giocatori" : "Mappa nascosta");
     case "public-reveal":
@@ -648,6 +696,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       solved: {},
       grants: [],
       closedDoors: [],
+      items: config.items.map((i) => ({ id: i.id, cell: i.cell, enabled: false, revealedTo: [] })),
       sightings: [],
       requests: [],
       messages: [],
@@ -736,6 +785,18 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       })),
       compass,
       pending: s.requests.filter((r) => r.playerId === playerId).map((r) => ({ id: r.id, kind: r.kind, direction: r.direction ?? null, actionId: r.actionId ?? null, word: r.word ?? null })),
+      // Gli oggetti della stanza: si sa solo che c'è qualcosa; nome, icona e testo solo se il Master li ha palesati a questo giocatore.
+      // Il riferimento è un numero (mai l'id): un id come «scopa» direbbe già di che oggetto si tratta.
+      items:
+        pos === null
+          ? []
+          : s.items.flatMap((it): PhoneItem[] => {
+              if (it.cell !== pos || !it.enabled) return [];
+              const ref = s.cfg.items.findIndex((x) => x.id === it.id);
+              if (!it.revealedTo.includes(playerId)) return [{ ref, known: false }];
+              const def = s.cfg.items[ref]!;
+              return [{ ref, known: true, name: def.name, icon: def.icon, text: def.text }];
+            }),
       sighting: sighting ? { cell: sighting.cellId, letter: letterOf(s, sighting.cellId), until: sighting.until } : null,
       feedback: s.feedback[playerId] ?? null,
       messages: msgs,
@@ -769,6 +830,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         mapShown: s.mapShown,
         grants: s.grants,
         closedDoors: s.closedDoors,
+        items: s.cfg.items.map((def, i) => ({ ...def, ...s.items[i]! })),
         sightings: s.sightings,
         requests: s.requests.map((r) => ({ ...r, nickname: nick(s, r.playerId), correct: r.kind === "guess" ? normWord(r.word ?? "") === normWord(s.cfg.solution) : null })),
         // La vista del GM resta leggera anche con molta posta: gli ultimi messaggi e le ultime righe del diario.

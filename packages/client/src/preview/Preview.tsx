@@ -51,6 +51,7 @@ type Scene =
   | "duel-replay"
   | "duel-ended"
   | "stanze-dark"
+  | "stanze-items"
   | "stanze-setup"
   | "stanze-compass"
   | "stanze-pending"
@@ -77,6 +78,7 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "duel-replay", label: "Duello: scontro" },
   { id: "duel-ended", label: "Duello: fine" },
   { id: "stanze-dark", label: "Stanze: mappa nascosta" },
+  { id: "stanze-items", label: "Stanze: oggetti" },
   { id: "stanze-setup", label: "Stanze: preparazione" },
   { id: "stanze-compass", label: "Stanze: croce" },
   { id: "stanze-pending", label: "Stanze: in attesa" },
@@ -193,6 +195,7 @@ function sceneViews(scene: Scene, now: number) {
     case "duel-ended":
       return { typeId: "knight-duel", ...duelScene(scene, now) };
     case "stanze-dark":
+    case "stanze-items":
     case "stanze-setup":
     case "stanze-compass":
     case "stanze-pending":
@@ -262,6 +265,12 @@ function stanzeScene(scene: Scene, now: number) {
     phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }];
     phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "open" } };
     phone.pending = [{ id: 1, kind: "move", direction: "left", actionId: null, word: null }];
+  }
+  if (scene === "stanze-items") {
+    phone.items = [
+      { ref: 1, known: true, name: "Una lettera", icon: "✉️", text: "Chi legge questo foglio non è il primo a cercare l'uscita." },
+      { ref: 0, known: false },
+    ];
   }
   if (scene === "stanze-sight") phone.sighting = { cell: 4, letter: "I", until: now + 8_000 };
   if (scene === "stanze-mail") phone.messages = [{ id: 1, mine: false, text: "Senti un rumore sopra la tua testa.", at: now, readAt: null, replyTo: null, canReply: true }];

@@ -83,3 +83,9 @@
 .ss-event { position: fixed; inset: 0; z-index: 70; background: var(--bg); color: var(--fg); display: grid; align-content: center; gap: 1.2rem; padding: 1.5rem; text-align: center; }
 .ss-event-text { font-size: 1.7rem; margin: 0; overflow-wrap: anywhere; font-family: var(--font-display); }
 .ss-accept { padding: 1.2rem; font-size: 1.4rem; font-weight: 800; }
+
+/* Oggetti nella stanza (telefono) */
+.ss-items { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.ss-item { background: var(--panel); border-radius: var(--radius); padding: .5rem .7rem; display: grid; gap: .2rem; border: var(--border-w) dashed var(--border-c); }
+.ss-item.known { border-style: solid; outline: 2px solid var(--accent); }
+.ss-item-text { margin: 0; overflow-wrap: anywhere; font-style: italic; }

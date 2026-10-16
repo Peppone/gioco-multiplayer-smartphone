@@ -40,6 +40,16 @@ interface HostMessage {
   allowReply: boolean;
   maxReplies: number;
 }
+interface HostItem {
+  id: string;
+  name: string;
+  icon: string;
+  text: string;
+  note: string;
+  cell: number | null;
+  enabled: boolean;
+  revealedTo: string[];
+}
 interface HostEvent {
   id: number;
   text: string;
@@ -68,6 +78,7 @@ interface HostInfo {
   mapShown: boolean;
   grants: HostGrant[];
   closedDoors: { a: number; b: number }[];
+  items: HostItem[];
   sightings: { playerId: string; cellId: number; until: number }[];
   requests: HostRequest[];
   messages: HostMessage[];
@@ -358,6 +369,48 @@ function QuickGrant({ info, run, opts, setOpts }: { info: HostInfo; run: Run; op
   );
 }
 
+// ------------------------------------------------------------------ Oggetti
+
+/** Gli oggetti del complesso: li metti in una stanza, li rendi percepibili (misteriosi) e poi li palesi ai presenti o ad alcuni. */
+function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
+  return (
+    <ul className="sh-items">
+      {info.items.map((it) => {
+        const here = info.roster.filter((p) => it.cell !== null && info.positions[p.id] === it.cell);
+        return (
+          <li key={it.id} className={`sh-item ${it.enabled ? "on" : ""}`} data-item={it.id}>
+            <div className="row">
+              <b>{it.icon} {it.name}</b>
+              <select value={it.cell ?? ""} onChange={(e) => void run({ type: "place-item", itemId: it.id, cellId: e.target.value === "" ? null : Number(e.target.value) })} aria-label={`Stanza di ${it.name}`}>
+                <option value="">In nessuna stanza</option>
+                {info.rooms.map((_, c) => <option key={c} value={c}>{roomName(c)}</option>)}
+              </select>
+            </div>
+            {(it.note || it.text) && <small className="muted">{it.note}{it.note && it.text ? " · " : ""}{it.text && `Testo: «${it.text}»`}</small>}
+            {it.cell !== null && (
+              <>
+                <button className={`sh-toggle ${it.enabled ? "on" : ""}`} aria-pressed={it.enabled} onClick={() => void run({ type: "enable-item", itemId: it.id, enabled: !it.enabled })}>
+                  {it.enabled ? "● I presenti sanno che c'è qualcosa" : "○ Nascosto ai giocatori"}
+                </button>
+                <div className="row">
+                  <button disabled={here.length === 0} onClick={() => void run({ type: "reveal-item", itemId: it.id, to: "room" })}>Palesa ai presenti ({here.length})</button>
+                  {here.map((p) => (
+                    <button key={p.id} className={`chip ${it.revealedTo.includes(p.id) ? "on" : ""}`} disabled={it.revealedTo.includes(p.id)} onClick={() => void run({ type: "reveal-item", itemId: it.id, to: { players: [p.id] } })}>
+                      Palesa a {p.nickname}
+                    </button>
+                  ))}
+                  {it.revealedTo.length > 0 && <button onClick={() => void run({ type: "conceal-item", itemId: it.id })}>Rendi di nuovo misterioso</button>}
+                </div>
+                {it.revealedTo.length > 0 && <small className="muted">Lo conoscono: {it.revealedTo.map(nameOf).join(", ")}</small>}
+              </>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 // ------------------------------------------------------------------ Posta
 
 function Mail({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
@@ -552,6 +605,11 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
       <section className="sh-sec">
         <h3>Giocatori</h3>
         {info.roster.map((p, i) => <PlayerCard key={p.id} info={info} p={p} i={i} run={run} opts={opts} clock={clock} nameOf={nameOf} />)}
+      </section>
+
+      <section className="sh-sec">
+        <h3>🎒 Oggetti</h3>
+        <Items info={info} run={run} nameOf={nameOf} />
       </section>
 
       <section className="sh-sec">

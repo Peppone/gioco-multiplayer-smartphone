@@ -87,6 +87,28 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
     if (!(await card(nick).evaluate((d) => (d as HTMLDetailsElement).open))) await card(nick).locator("summary").click();
   };
 
+  // ---- Oggetti: esistono (misteriosi) per i presenti, poi il GM li palesa a tutti o solo ad alcuni ----
+  const scopa = m.locator('.sh-item[data-item="scopa"]');
+  await scopa.getByLabel(/Stanza di/).selectOption("4"); // Stanza 5: ci sono n1 e n3
+  const item = (c: Client, known: string) => c.page.locator(`.ss-item[data-known="${known}"]`);
+  await expect(item(p1, "false")).toHaveCount(0); // assegnato ma non ancora abilitato: nessuno lo sa
+  await scopa.getByRole("button", { name: /Nascosto ai giocatori/ }).click();
+  for (const p of [p1, p3]) {
+    await expect(item(p, "false")).toContainText("Un oggetto");
+    await expect(item(p, "false")).toContainText("non sai cosa");
+  }
+  await expect(p0.page.locator(".ss-item")).toHaveCount(0); // chi è in un'altra stanza non lo sa
+  await expect(p2.page.locator(".ss-item")).toHaveCount(0);
+  for (const p of phones) expect(p.traffic.text()).not.toContain("Una scopa");
+  await scopa.getByRole("button", { name: `Palesa a ${n1}` }).click(); // solo a n1
+  await expect(item(p1, "true")).toContainText("Una scopa");
+  await expect(item(p3, "false")).toBeVisible();
+  expect(p3.traffic.text()).not.toContain("Una scopa");
+  await scopa.getByRole("button", { name: /Palesa ai presenti/ }).click();
+  await expect(item(p3, "true")).toContainText("Una scopa");
+  expect(screen.traffic.text()).not.toContain("Una scopa");
+  expect(p0.traffic.text()).not.toContain("Una scopa");
+
   // ---- Lettere: solo a chi il GM abilita, a tempo ----
   await open(n0);
   await card(n0).locator('.sh-toggle[data-action="sight"]').click();
