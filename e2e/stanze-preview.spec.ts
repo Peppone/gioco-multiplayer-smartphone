@@ -45,10 +45,11 @@ for (const theme of THEMES) {
       expect(top).toBe(true);
     });
 
-    test("la croce mostra frecce aperte, bloccate con lucchetto e nasconde il muro", async ({ page }) => {
+    test("la croce mostra sempre le quattro frecce: aperte o bloccate con lucchetto, mai nascoste", async ({ page }) => {
       await page.goto(`/preview?theme=${theme}&scene=stanze-compass&still=1`);
       const arrows = page.locator(".phone-frame .ss-arrow:not(.wall)");
-      await expect(arrows).toHaveCount(3);
+      await expect(arrows).toHaveCount(4);
+      await expect(page.locator(".phone-frame .ss-arrow.wall")).toHaveCount(0);
       await expect(page.locator('.phone-frame .ss-arrow[data-dir="down"]')).toBeDisabled();
       await expect(page.locator('.phone-frame .ss-arrow[data-dir="down"]')).toContainText("🔒");
       await expect(page.locator('.phone-frame .ss-arrow[data-dir="up"]')).toBeEnabled();

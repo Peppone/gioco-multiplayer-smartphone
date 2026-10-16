@@ -24,6 +24,8 @@ interface HostRequest {
   at: number;
   nickname: string;
   correct: boolean | null;
+  /** La direzione chiesta porta contro un muro: nessuna stanza. */
+  wall?: boolean;
 }
 interface HostMessage {
   id: number;
@@ -190,6 +192,7 @@ function Requests({ info, run }: { info: HostInfo; run: Run }) {
           return (
             <li key={r.id} className={`sh-req ${r.kind}`} data-kind={r.kind}>
               <b>{r.nickname}</b>{" "}
+              {r.wall && <span className="sh-wall" role="note">⚠ muro: in quella direzione non c'è nessuna stanza. </span>}
               {r.kind === "move" && <>chiede di andare {DIR_LABEL[r.direction!]} {DIR_ARROW[r.direction!]}{to !== null && <> (verso la {roomName(to)})</>}</>}
               {r.kind === "peek" && <>vuole sbirciare {DIR_LABEL[r.direction!]} {DIR_ARROW[r.direction!]}{to !== null && <> (la {roomName(to)})</>}</>}
               {r.kind === "guess" && <>propone «{r.word}» <span className={r.correct ? "ok" : "ko"}>({r.correct ? "giusta" : "sbagliata"})</span></>}
@@ -475,8 +478,57 @@ function Clocks({ info, run, clock, sfx }: { info: HostInfo; run: Run; clock: Ho
 // ------------------------------------------------------------------ Oggetti
 
 /** Gli oggetti del complesso: li metti in una stanza, li rendi percepibili (misteriosi) e poi li palesi ai presenti o ad alcuni. */
+function NewItem({ info, run }: { info: HostInfo; run: Run }) {
+  const [name, setName] = useState("");
+  const [icon, setIcon] = useState("");
+  const [text, setText] = useState("");
+  const [note, setNote] = useState("");
+  const [cell, setCell] = useState("");
+  const [enabled, setEnabled] = useState(true);
+  const add = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    void run({
+      type: "item-add",
+      name,
+      ...(icon.trim() && { icon }),
+      ...(text.trim() && { text }),
+      ...(note.trim() && { note }),
+      cellId: cell === "" ? null : Number(cell),
+      enabled: cell !== "" && enabled,
+    });
+    setName("");
+    setIcon("");
+    setText("");
+    setNote("");
+  };
+  return (
+    <details className="sh-new-item">
+      <summary>➕ Nuovo oggetto</summary>
+      <form className="sh-compose" onSubmit={add}>
+        <div className="row">
+          <input value={icon} onChange={(e) => setIcon(e.target.value)} className="sh-num-in" placeholder="📦" maxLength={8} aria-label="Icona del nuovo oggetto" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome (es. Una chiave arrugginita)" maxLength={30} aria-label="Nome del nuovo oggetto" />
+        </div>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} maxLength={600} placeholder="Testo leggibile (facoltativo: il messaggio di una lettera, di un libro…)" aria-label="Testo leggibile del nuovo oggetto" />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} placeholder="Nota solo per te (facoltativa)" aria-label="Nota del nuovo oggetto" />
+        <div className="row">
+          <select value={cell} onChange={(e) => setCell(e.target.value)} aria-label="Stanza del nuovo oggetto">
+            <option value="">In nessuna stanza</option>
+            {info.rooms.map((_, c) => <option key={c} value={c}>{roomName(c)}</option>)}
+          </select>
+          <label className="check"><input type="checkbox" checked={enabled} disabled={cell === ""} onChange={(e) => setEnabled(e.target.checked)} /> I presenti sanno che c'è qualcosa</label>
+        </div>
+        <button type="submit" className="primary" disabled={info.items.length >= 30}>Aggiungi l'oggetto</button>
+      </form>
+    </details>
+  );
+}
+
 function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
   return (
+    <>
+    <NewItem info={info} run={run} />
     <ul className="sh-items">
       {info.items.map((it) => {
         const here = info.roster.filter((p) => it.cell !== null && info.positions[p.id] === it.cell);
@@ -484,6 +536,7 @@ function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names 
           <li key={it.id} className={`sh-item ${it.enabled ? "on" : ""}`} data-item={it.id}>
             <div className="row">
               <b>{it.icon} {it.name}</b>
+              <button className="danger sh-item-del" aria-label={`Elimina ${it.name}`} onClick={() => { if (confirm(`Eliminare «${it.name}»?`)) void run({ type: "item-remove", itemId: it.id }); }}>🗑</button>
               <select value={it.cell ?? ""} onChange={(e) => void run({ type: "place-item", itemId: it.id, cellId: e.target.value === "" ? null : Number(e.target.value) })} aria-label={`Stanza di ${it.name}`}>
                 <option value="">In nessuna stanza</option>
                 {info.rooms.map((_, c) => <option key={c} value={c}>{roomName(c)}</option>)}
@@ -511,6 +564,7 @@ function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names 
         );
       })}
     </ul>
+    </>
   );
 }
 

@@ -33,6 +33,7 @@ L'interfaccia è una colonna unica, pensata per il telefono.
 
 - **Fase** e comandi: *Mostra la mappa a schermo e telefoni* / *Nascondi la mappa*, *Distribuisci*, *Inizia* (solo con tutti piazzati), *Rivela la mappa sullo schermo*, *Concludi*.
 - **⏱ Tempo**: il **tempo di gioco** parte da solo con *Inizia* e si ferma alla rivelazione. Se l'istanza ha un intervallo (default 5 minuti) a ogni intervallo trascorso il contatore segna +1, la riga lampeggia, suona e vibra, e nel diario compare «⏱ Tempo di gioco: trascorsi 10 min». Puoi aggiungere altri **cronometri** (fino a 10, es. «Gas nella Stanza 5» ogni 2 minuti, oppure senza intervallo per un semplice conteggio), con *Avvia / Pausa / Riprendi / Azzera / Elimina*. Sono solo per il GM: schermo e telefoni non ne ricevono nulla.
+- **Oggetti nuovi in partita**: «➕ Nuovo oggetto» (nome, icona, testo leggibile, nota, stanza) crea un oggetto quando vuoi, anche già nella stanza e percepibile; il cestino 🗑 lo elimina.
 - **Richieste**: la coda di spostamenti, sbirciate, azioni libere e soluzioni, con *Approva / Rifiuta*,
   *Approva tutti gli spostamenti* e *Mostra la lettera per N s*. Suona e vibra quando ne arriva una.
 - **Mappa** con le lettere e le note. Per piazzare o spostare un giocatore: **tocca il giocatore, poi la stanza**
@@ -66,7 +67,7 @@ con una breve vibrazione). Durata e numero di usi sono facoltativi.
 Spegnere una capacità annulla le richieste in attesa di quel tipo («Il Master ha annullato la richiesta»).
 Ogni uso si consuma al momento della richiesta, non dell'approvazione. Al massimo uno spostamento in attesa per giocatore.
 
-**Croce direzionale.** Ogni freccia è *aperta*, *bloccata* (🔒) o assente (muro). Il GM blocca in due modi:
+**Croce direzionale.** Le frecce sono sempre quattro, anche in una stanza d'angolo: ognuna è *aperta* o *bloccata* (🔒), e un muro appare come una freccia aperta, così i giocatori non deducono la forma della mappa. Se ne premono una che porta contro un muro, la richiesta ti arriva con l'avviso «⚠ muro: in quella direzione non c'è nessuna stanza» e approvarla non sposta nessuno (il giocatore vede «Il Master ha rifiutato»). Il GM blocca in due modi:
 togliendo direzioni al permesso del singolo giocatore (modificabile anche dopo) o chiudendo una porta tra due stanze
 per tutti. Il giocatore non sa perché una freccia è bloccata né dove porta.
 

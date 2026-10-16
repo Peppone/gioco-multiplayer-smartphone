@@ -93,6 +93,16 @@ export interface Feedback {
 }
 
 /** Un oggetto nel complesso: i giocatori della stanza sanno che esiste solo se `enabled`, e cos'è solo i `revealedTo`. */
+/** Definizione di un oggetto: dalla configurazione, oppure aggiunto dal Master durante la partita. `ref` è il riferimento numerico che vedono i telefoni (mai l'id). */
+export interface ItemDef {
+  id: string;
+  ref: number;
+  name: string;
+  icon: string;
+  text: string;
+  note: string;
+}
+
 export interface ItemState {
   id: string;
   cell: CellId | null;
@@ -118,7 +128,9 @@ export interface StanzeState {
   solved: Record<PlayerId, boolean>;
   grants: Grant[];
   closedDoors: { a: CellId; b: CellId }[];
+  itemDefs: ItemDef[];
   items: ItemState[];
+  nextItemRef: number;
   /** Cronometri del GM (il primo è il tempo di gioco, che parte con «Inizia»). Mai visibili a schermo e telefoni. */
   timers: TimerState[];
   nextTimerId: number;
@@ -202,6 +214,8 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancel-event"), eventId: z.number().int() }),
   z.object({ type: z.literal("set-outcome"), playerId: z.string().min(1), outcome: z.enum(["in-gioco", "fuggito", "eliminato"]) }),
   z.object({ type: z.literal("start") }),
+  z.object({ type: z.literal("item-add"), name: text(30), icon: z.string().trim().min(1).max(8).optional(), text: z.string().trim().max(600).optional(), note: z.string().trim().max(400).optional(), cellId: cellSchema.nullable().optional(), enabled: z.boolean().optional() }),
+  z.object({ type: z.literal("item-remove"), itemId: z.string().min(1) }),
   z.object({ type: z.literal("place-item"), itemId: z.string().min(1), cellId: cellSchema.nullable() }),
   z.object({ type: z.literal("enable-item"), itemId: z.string().min(1), enabled: z.boolean() }),
   z.object({ type: z.literal("reveal-item"), itemId: z.string().min(1), to: z.union([z.literal("room"), z.object({ players: z.array(z.string().min(1)).min(1).max(30) })]) }),
@@ -230,6 +244,8 @@ const unplaced = (s: StanzeState) => s.roster.filter((p) => s.positions[p.id] ==
 const roomName = (c: CellId) => `Stanza ${c + 1}`;
 const doorKey = (a: CellId, b: CellId) => (a < b ? { a, b } : { a: b, b: a });
 const isClosed = (s: StanzeState, a: CellId, b: CellId) => s.closedDoors.some((d) => d.a === Math.min(a, b) && d.b === Math.max(a, b));
+const defOf = (s: StanzeState, id: string): ItemDef => s.itemDefs.find((d) => d.id === id)!;
+export const MAX_ITEMS = 30;
 const normWord = (w: string) => w.trim().toUpperCase().replace(/\s+/g, "");
 const live = (s: StanzeState) => s.phase === "setup" || s.phase === "play";
 
@@ -263,7 +279,8 @@ function arrows(s: StanzeState, from: CellId, grant: Grant): Record<Dir, ArrowSt
   const out = {} as Record<Dir, ArrowState>;
   for (const d of DIRS) {
     const n = neighbor(grid(s), from, d);
-    out[d] = n === null ? "wall" : grant.directions && !grant.directions.includes(d) ? "blocked" : isClosed(s, from, n) ? "blocked" : "open";
+    // Il blocco del permesso vale anche verso un muro, così un lucchetto non rivela dove finisce la mappa.
+    out[d] = grant.directions && !grant.directions.includes(d) ? "blocked" : n === null ? "wall" : isClosed(s, from, n) ? "blocked" : "open";
   }
   return out;
 }
@@ -324,7 +341,8 @@ function onInput(state: StanzeState, playerId: PlayerId, input: Input, meta: { r
       const from = s.positions[playerId];
       if (!grant || from === null || from === undefined) return s;
       if (s.requests.some((r) => r.playerId === playerId && r.kind === input.type)) return s;
-      if (arrows(s, from, grant)[input.direction] !== "open") return s;
+      // Verso un muro la richiesta parte lo stesso (il telefono non distingue): sarà il GM a vederla segnalata e a rifiutarla.
+      if (arrows(s, from, grant)[input.direction] === "blocked") return s;
       return request(useGrant(s, grant), playerId, input.type, { direction: input.direction }, now);
     }
 
@@ -577,10 +595,24 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       return addLog({ ...s, outcome: { ...s.outcome, [cmd.playerId]: cmd.outcome } }, now, `${nick(s, cmd.playerId)}: ${cmd.outcome}`);
     case "start":
       return begin(s, now);
+    case "item-add": {
+      if (s.itemDefs.length >= MAX_ITEMS || (cmd.cellId != null && !isCell(grid(s), cmd.cellId))) return s;
+      const ref = s.nextItemRef;
+      const id = `x${ref}`;
+      const def: ItemDef = { id, ref, name: cmd.name, icon: cmd.icon ?? "📦", text: cmd.text ?? "", note: cmd.note ?? "" };
+      const cell = cmd.cellId ?? null;
+      const item: ItemState = { id, cell, enabled: cmd.enabled ?? false, revealedTo: [] };
+      return addLog({ ...s, nextItemRef: ref + 1, itemDefs: [...s.itemDefs, def], items: [...s.items, item] }, now, `Nuovo oggetto: ${def.name}${cell === null ? "" : ` in ${roomName(cell)}`}`);
+    }
+    case "item-remove": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it) return s;
+      return addLog({ ...s, items: s.items.filter((x) => x !== it), itemDefs: s.itemDefs.filter((d) => d.id !== it.id) }, now, `Oggetto eliminato: ${defOf(s, it.id).name}`);
+    }
     case "place-item": {
       const it = s.items.find((x) => x.id === cmd.itemId);
       if (!it || it.cell === cmd.cellId || (cmd.cellId !== null && !isCell(grid(s), cmd.cellId))) return s;
-      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      const name = defOf(s, it.id).name;
       // Spostato in un'altra stanza, l'oggetto torna misterioso per tutti.
       const items = s.items.map((x) => (x === it ? { ...x, cell: cmd.cellId, revealedTo: [] } : x));
       return addLog({ ...s, items }, now, cmd.cellId === null ? `${name}: tolto dalla mappa` : `${name} → ${roomName(cmd.cellId)}`);
@@ -588,7 +620,7 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
     case "enable-item": {
       const it = s.items.find((x) => x.id === cmd.itemId);
       if (!it || it.enabled === cmd.enabled) return s;
-      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      const name = defOf(s, it.id).name;
       return addLog({ ...s, items: s.items.map((x) => (x === it ? { ...x, enabled: cmd.enabled } : x)) }, now, `${name}: ${cmd.enabled ? "chi è nella stanza sa che esiste" : "nascosto ai giocatori"}`);
     }
     case "reveal-item": {
@@ -600,7 +632,7 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       const targets = to === "room" ? present : present.filter((id) => to.players.includes(id));
       const fresh = targets.filter((id) => !it.revealedTo.includes(id));
       if (fresh.length === 0) return s;
-      const name = s.cfg.items.find((x) => x.id === it.id)!.name;
+      const name = defOf(s, it.id).name;
       const items = s.items.map((x) => (x === it ? { ...x, enabled: true, revealedTo: [...x.revealedTo, ...fresh] } : x));
       return addLog({ ...s, items }, now, `${name} palesato a ${fresh.map((i) => nick(s, i)).join(", ")}`);
     }
@@ -743,7 +775,9 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       closedDoors: [],
       timers: [newTimer("t0", "Tempo di gioco", config.clockIntervalSec > 0 ? config.clockIntervalSec : null)],
       nextTimerId: 1,
+      itemDefs: config.items.map((i, n) => ({ id: i.id, ref: n, name: i.name, icon: i.icon, text: i.text, note: i.note })),
       items: config.items.map((i) => ({ id: i.id, cell: i.cell, enabled: false, revealedTo: [] })),
+      nextItemRef: config.items.length,
       sightings: [],
       requests: [],
       messages: [],
@@ -797,7 +831,11 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
     const compass: Partial<Record<"move" | "peek", Record<Dir, ArrowState>>> = {};
     for (const kind of ["move", "peek"] as const) {
       const g = mine.find((x) => x.action === kind && (x.usesLeft === null || x.usesLeft > 0));
-      if (g && pos !== null) compass[kind] = arrows(s, pos, g);
+      // Le quattro frecce ci sono sempre, anche all'angolo: un muro compare come una freccia aperta, così la forma della mappa non si deduce.
+      if (g && pos !== null) {
+        const a = arrows(s, pos, g);
+        compass[kind] = Object.fromEntries(DIRS.map((d) => [d, a[d] === "wall" ? "open" : a[d]])) as Record<Dir, ArrowState>;
+      }
     }
     const sighting = s.sightings.find((x) => x.playerId === playerId);
     const msgs = s.messages
@@ -839,10 +877,9 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
           ? []
           : s.items.flatMap((it): PhoneItem[] => {
               if (it.cell !== pos || !it.enabled) return [];
-              const ref = s.cfg.items.findIndex((x) => x.id === it.id);
-              if (!it.revealedTo.includes(playerId)) return [{ ref, known: false }];
-              const def = s.cfg.items[ref]!;
-              return [{ ref, known: true, name: def.name, icon: def.icon, text: def.text }];
+              const def = defOf(s, it.id);
+              if (!it.revealedTo.includes(playerId)) return [{ ref: def.ref, known: false }];
+              return [{ ref: def.ref, known: true, name: def.name, icon: def.icon, text: def.text }];
             }),
       sighting: sighting ? { cell: sighting.cellId, letter: letterOf(s, sighting.cellId), until: sighting.until } : null,
       feedback: s.feedback[playerId] ?? null,
@@ -878,9 +915,9 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         grants: s.grants,
         closedDoors: s.closedDoors,
         timers: s.timers,
-        items: s.cfg.items.map((def, i) => ({ ...def, ...s.items[i]! })),
+        items: s.items.map((it) => ({ ...defOf(s, it.id), ...it })),
         sightings: s.sightings,
-        requests: s.requests.map((r) => ({ ...r, nickname: nick(s, r.playerId), correct: r.kind === "guess" ? normWord(r.word ?? "") === normWord(s.cfg.solution) : null })),
+        requests: s.requests.map((r) => ({ ...r, wall: (r.kind === "move" || r.kind === "peek") && r.direction !== undefined && (s.positions[r.playerId] ?? null) !== null && neighbor(grid(s), s.positions[r.playerId]!, r.direction) === null, nickname: nick(s, r.playerId), correct: r.kind === "guess" ? normWord(r.word ?? "") === normWord(s.cfg.solution) : null })),
         // La vista del GM resta leggera anche con molta posta: gli ultimi messaggi e le ultime righe del diario.
         messages: s.messages.slice(-HOST_MESSAGES),
         events: s.events,

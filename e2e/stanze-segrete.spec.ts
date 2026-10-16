@@ -133,6 +133,24 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   expect(screen.traffic.text()).not.toContain("Una scopa");
   expect(p0.traffic.text()).not.toContain("Una scopa");
 
+  // Un oggetto nuovo, creato a partita in corso, già nella Stanza 5 e percepibile.
+  await m.locator(".sh-new-item summary").click();
+  await m.getByLabel("Nome del nuovo oggetto").fill("Una chiave arrugginita");
+  await m.getByLabel("Icona del nuovo oggetto").fill("🗝️");
+  await m.getByLabel("Testo leggibile del nuovo oggetto").fill("Sul manico è inciso un 7");
+  await m.getByLabel("Stanza del nuovo oggetto").selectOption("4");
+  await m.getByRole("button", { name: "Aggiungi l'oggetto" }).click();
+  await expect(m.locator(".sh-item", { hasText: "Una chiave arrugginita" })).toBeVisible();
+  await expect(p1.page.locator('.ss-item[data-known="false"]')).toHaveCount(1); // la chiave è misteriosa (la scopa è già stata palesata)
+  for (const p of phones) expect(p.traffic.text()).not.toContain("chiave arrugginita");
+  await m.locator(".sh-item", { hasText: "Una chiave arrugginita" }).getByRole("button", { name: /Palesa a /, exact: false }).first().click();
+  await expect(p1.page.locator(".ss-item[data-known=true]")).toHaveCount(2);
+  await expect(p1.page.locator(".ss-item[data-known=true]", { hasText: "chiave" })).toContainText("inciso un 7");
+  m.once("dialog", (d) => void d.accept());
+  await m.getByRole("button", { name: "Elimina Una chiave arrugginita" }).click();
+  await expect(m.locator(".sh-item", { hasText: "Una chiave arrugginita" })).toHaveCount(0);
+  await expect(p1.page.locator(".ss-item")).toHaveCount(1); // resta solo la scopa (palesata)
+
   // ---- Lettere: solo a chi il GM abilita, a tempo ----
   await open(n0);
   await card(n0).locator('.sh-toggle[data-action="sight"]').click();

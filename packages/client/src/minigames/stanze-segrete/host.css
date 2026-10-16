@@ -81,3 +81,9 @@
 .sh-lap-alert { color: var(--opt-2); }
 @keyframes sh-flash { from { background: var(--panel-2); } to { background: var(--opt-2); color: var(--on-opt); } }
 @media (prefers-reduced-motion: reduce) { .sh-timer.flash { animation: none; } }
+
+.sh-new-item { background: var(--panel-2); border-radius: var(--radius); padding: .4rem .6rem; }
+.sh-new-item summary { cursor: pointer; min-height: 2.2rem; display: flex; align-items: center; font-weight: 700; }
+.sh-item-del { margin-left: auto; padding: .2rem .5rem; }
+
+.sh-wall { color: var(--opt-2); font-weight: 700; }

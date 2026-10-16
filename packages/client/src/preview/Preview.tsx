@@ -259,7 +259,7 @@ function stanzeScene(scene: Scene, now: number) {
   };
   if (scene === "stanze-compass") {
     phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }, { id: "g2", action: "sight", label: null, usesLeft: 1, expiresAt: now + 30_000 }];
-    phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "wall" } };
+    phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "open" } };
   }
   if (scene === "stanze-pending") {
     phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }];

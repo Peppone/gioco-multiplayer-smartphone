@@ -86,8 +86,9 @@ describe("capacità e croce", () => {
 
   it("frecce: muro, bloccata dal permesso, bloccata da una porta chiusa", () => {
     let s = grant(started(), { action: "move", directions: ["down", "up"] });
-    expect(view(s, "a").compass.move).toEqual({ up: "wall", down: "open", left: "wall", right: "blocked" });
-    expect(input(s, "a", { type: "move", direction: "up" })).toBe(s); // muro
+    // a è nell'angolo in alto a sinistra: «su» è un muro ma il telefono lo mostra aperto; sinistra e destra le toglie il permesso
+    expect(view(s, "a").compass.move).toEqual({ up: "open", down: "open", left: "blocked", right: "blocked" });
+    expect(JSON.stringify(view(s, "a").compass)).not.toContain("wall");
     expect(input(s, "a", { type: "move", direction: "right" })).toBe(s); // bloccata
     s = cmd(s, { type: "door", a: 3, b: 0, open: false });
     expect(view(s, "a").compass.move.down).toBe("blocked");
@@ -95,6 +96,21 @@ describe("capacità e croce", () => {
     s = cmd(s, { type: "door", a: 0, b: 3, open: true });
     expect(view(s, "a").compass.move.down).toBe("open");
     expect(cmd(s, { type: "door", a: 0, b: 4, open: false })).toBe(s); // non adiacenti
+  });
+
+  it("verso un muro la richiesta arriva al GM, segnalata, e l'approvazione non sposta nessuno", () => {
+    let s = grant(started(), { action: "move" });
+    s = input(s, "a", { type: "move", direction: "up" }); // a è nell'angolo: sopra c'è un muro
+    expect(s.requests).toHaveLength(1);
+    expect((game.hostView(s).info as any).requests[0].wall).toBe(true);
+    s = cmd(s, { type: "resolve", requestId: s.requests[0]!.id, approve: true });
+    expect(s.positions.a).toBe(0);
+    expect(view(s, "a").feedback.kind).toBe("refused");
+  });
+
+  it("un lucchetto verso un muro si vede come qualsiasi altro: non rivela dove finisce la mappa", () => {
+    const s = grant(started(), { action: "move", directions: ["down", "right"] });
+    expect(view(s, "a").compass.move).toEqual({ up: "blocked", down: "open", left: "blocked", right: "open" });
   });
 
   it("set-directions cambia le frecce con il permesso già attivo", () => {
@@ -425,6 +441,37 @@ describe("oggetti", () => {
     expect(cmd(s, { type: "place-item", itemId: "inesistente", cellId: 1 })).toBe(s);
     expect(cmd(s, { type: "place-item", itemId: "scopa", cellId: 99 })).toBe(s);
     expect(cmd(s, { type: "reveal-item", itemId: "libro", to: "room" })).toBe(s); // in nessuna stanza
+  });
+
+  it("il master aggiunge oggetti durante la partita, anche già in una stanza e già percepibili", () => {
+    let s = cmd(withItems(), { type: "item-add", name: "Una chiave arrugginita", icon: "🗝️", text: "Sul manico: 7", note: "Apre la porta tra 5 e 6", cellId: 4, enabled: true });
+    expect(s.itemDefs).toHaveLength(6);
+    expect(s.items.at(-1)).toMatchObject({ id: "x5", cell: 4, enabled: true, revealedTo: [] });
+    // chi è nella stanza sa che c'è qualcosa, non cosa; nessun id o nome nel suo telefono
+    const v = view(s, "b").items.find((i: any) => i.ref === 5);
+    expect(v).toEqual({ ref: 5, known: false });
+    expect(JSON.stringify(view(s, "b"))).not.toMatch(/chiave|x5|7/);
+    s = cmd(s, { type: "reveal-item", itemId: "x5", to: { players: ["b"] } });
+    expect(view(s, "b").items.find((i: any) => i.ref === 5)).toMatchObject({ known: true, name: "Una chiave arrugginita", icon: "🗝️", text: "Sul manico: 7" });
+    expect(view(s, "c").items.find((i: any) => i.ref === 5)).toEqual({ ref: 5, known: false });
+    // un oggetto senza stanza resta fuori dal gioco finché non lo si assegna
+    s = cmd(s, { type: "item-add", name: "Una torcia" });
+    expect(s.items.at(-1)).toMatchObject({ id: "x6", cell: null, enabled: false });
+    s = cmd(s, { type: "place-item", itemId: "x6", cellId: 0 });
+    expect(game.hostView(s).info).toMatchObject({ items: expect.arrayContaining([expect.objectContaining({ id: "x6", cell: 0, name: "Una torcia" })]) });
+  });
+
+  it("il master elimina un oggetto; i riferimenti degli altri non cambiano; limite e stanza non valida", () => {
+    let s = cmd(withItems(), { type: "enable-item", itemId: "libro", enabled: true });
+    s = cmd(s, { type: "place-item", itemId: "libro", cellId: 4 });
+    s = cmd(s, { type: "item-remove", itemId: "scopa" });
+    expect(s.items.find((i) => i.id === "scopa")).toBeUndefined();
+    expect(s.itemDefs.find((d) => d.id === "scopa")).toBeUndefined();
+    expect(view(s, "b").items.map((i: any) => i.ref)).toEqual([2]); // solo il libro: la lettera è in stanza ma non abilitata
+    expect(cmd(s, { type: "item-remove", itemId: "scopa" })).toBe(s);
+    expect(cmd(s, { type: "item-add", name: "Fuori mappa", cellId: 99 })).toBe(s);
+    for (let i = 0; i < 40; i++) s = cmd(s, { type: "item-add", name: `O${i}` });
+    expect(s.itemDefs).toHaveLength(30);
   });
 
   it("la regia vede tutto, compresi note e destinatari; la configurazione valida gli oggetti", () => {
