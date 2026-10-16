@@ -48,14 +48,15 @@ export class AutoHost {
     this.socket?.disconnect();
   }
 
-  private waitState(timeoutMs: number): Promise<void> {
+  waitState(timeoutMs: number): Promise<void> {
     return new Promise((resolve) => {
       const t = setTimeout(resolve, timeoutMs);
       this.waiters.push(() => (clearTimeout(t), resolve()));
     });
   }
 
-  private async send(cmd: HostCommand): Promise<HostAck> {
+  /** Invia un comando della regia e, se serve, misura quanto ci mette lo stato nuovo ad arrivare a tutti i telefoni. */
+  async send(cmd: HostCommand): Promise<HostAck> {
     const t0 = Date.now();
     const ack = await new Promise<HostAck>((resolve) => this.socket.timeout(10_000).emit(ClientEvent.HostCommand, cmd, (err: unknown, a: HostAck) => resolve(err ? { ok: false, error: "nessuna risposta" } : a)));
     if (ack.ok && this.bots.length > 0 && (cmd.type === "engine" || cmd.type === "plugin")) {

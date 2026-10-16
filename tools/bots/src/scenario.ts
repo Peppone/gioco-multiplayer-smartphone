@@ -64,3 +64,24 @@ export async function duelMatch(api: AdminApi, setup: EventSetup): Promise<{ mat
   await api.post(`/matches/${match.id}/rounds`, { instanceId: duel.id });
   return { matchId: match.id };
 }
+
+/** Partita con il solo round «Stanze Segrete» (sessione con Game Master): pause dei messaggi azzerate per la raffica. */
+export async function stanzeMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Stanze Segrete" });
+  const inst = await api.post("/instances", {
+    typeId: "stanze-segrete",
+    title: "Complesso di prova",
+    config: {
+      rows: 3,
+      cols: 3,
+      rooms: ["A", "C", "S", "T", "I", "U", "R", "O", "M"].map((letter) => ({ letter, note: "" })),
+      anchor: 0,
+      words: ["MORTA", "USCITA"],
+      solution: "USCITA",
+      defaultSightSec: 3,
+      messageCooldownSec: 0,
+    },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}

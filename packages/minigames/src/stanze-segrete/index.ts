@@ -19,6 +19,8 @@ export const MAX_PLAYERS = 10;
 /** Messaggi tenuti nello stato (viste e snapshot leggeri); il database li tiene tutti. */
 const KEEP_MESSAGES = 300;
 const KEEP_LOG = 200;
+const HOST_MESSAGES = 120;
+const HOST_LOG = 60;
 
 export type PlayerId = string;
 export type Action = "move" | "peek" | "sight" | "message" | "guess" | `custom:${string}`;
@@ -758,9 +760,10 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         closedDoors: s.closedDoors,
         sightings: s.sightings,
         requests: s.requests.map((r) => ({ ...r, nickname: nick(s, r.playerId), correct: r.kind === "guess" ? normWord(r.word ?? "") === normWord(s.cfg.solution) : null })),
-        messages: s.messages,
+        // La vista del GM resta leggera anche con molta posta: gli ultimi messaggi e le ultime righe del diario.
+        messages: s.messages.slice(-HOST_MESSAGES),
         events: s.events,
-        log: s.log,
+        log: s.log.slice(-HOST_LOG),
       },
       actions: [
         { id: "place-spread", label: "Distribuisci i giocatori", enabled: s.phase === "setup" && left > 0 },
