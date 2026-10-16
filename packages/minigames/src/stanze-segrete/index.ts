@@ -715,7 +715,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       outcome: s.outcome[playerId] ?? "in-gioco",
       solved: s.solved[playerId] === true,
       others: s.cfg.positionsPublic ? s.roster.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, nickname: p.nickname, cell: s.positions[p.id] ?? null })) : [],
-      abilities: mine.map((g) => ({
+      abilities: mine.filter((g) => g.usesLeft === null || g.usesLeft > 0).map((g) => ({
         id: g.id,
         action: g.action,
         label: g.action.startsWith("custom:") ? (s.cfg.customActions.find((a) => `custom:${a.id}` === g.action)?.label ?? g.action) : null,

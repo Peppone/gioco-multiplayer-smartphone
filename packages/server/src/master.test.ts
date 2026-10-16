@@ -213,13 +213,13 @@ describe("Realtime del Game Master", () => {
       s.on(ServerEvent.GameMaster, h);
     });
 
-  it("un token sbagliato non riceve nulla e non può comandare", async () => {
+  it("un token sbagliato viene chiuso subito e non riceve nulla", async () => {
     startRound();
     const bad = open({ role: "master", token: "sbagliato" });
     let got = 0;
     bad.on(ServerEvent.GameMaster, () => got++);
-    await new Promise<void>((r) => bad.on("connect", () => r()));
-    expect(await emit<HostAck>(bad, ClientEvent.MasterCommand, { type: "plugin", command: { type: "place-spread" } })).toEqual({ ok: false, error: "unauthorized" });
+    const reason = await new Promise((r) => bad.on("disconnect", r));
+    expect(reason).toBe("io server disconnect");
     expect(got).toBe(0);
   });
 
@@ -254,7 +254,7 @@ describe("Realtime del Game Master", () => {
     const again = open({ role: "master", token });
     let got = 0;
     again.on(ServerEvent.GameMaster, () => got++);
-    await new Promise<void>((r) => again.on("connect", () => r()));
+    expect(await new Promise((r) => again.on("disconnect", r))).toBe("io server disconnect");
     expect(got).toBe(0);
   });
 

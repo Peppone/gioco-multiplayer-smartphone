@@ -219,7 +219,8 @@ function grantCommand(target: unknown, action: string, o: GrantOpts): Record<str
     action,
     ...(action === "sight" && { sightScope: o.scope === "own-room" ? "own-room" : Number(o.scope) }),
     ...(Number(o.duration) > 0 && { durationSec: Math.floor(Number(o.duration)) }),
-    ...(Number(o.uses) > 0 && { uses: Math.floor(Number(o.uses)) }),
+    // Le lettere si guardano per poco: senza limiti indicati vale una sola occhiata (§5.3 del piano).
+    ...(Number(o.uses) > 0 ? { uses: Math.floor(Number(o.uses)) } : action === "sight" && !(Number(o.duration) > 0) ? { uses: 1 } : {}),
   };
 }
 
@@ -480,7 +481,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   const sfx = useSfx(theme);
   const [sel, setSel] = useState<string | null>(null);
   const [selCell, setSelCell] = useState<number | null>(null);
-  const [opts, setOpts] = useState<GrantOpts>({ duration: "", uses: "1", scope: "own-room" });
+  const [opts, setOpts] = useState<GrantOpts>({ duration: "", uses: "", scope: "own-room" });
   const index = (id: string) => Math.max(0, info.roster.findIndex((p) => p.id === id));
   const nameOf: Names = (id) => info.roster.find((p) => p.id === id)?.nickname ?? "?";
 

@@ -50,6 +50,14 @@ type Scene =
   | "duel-battle"
   | "duel-replay"
   | "duel-ended"
+  | "stanze-setup"
+  | "stanze-compass"
+  | "stanze-pending"
+  | "stanze-sight"
+  | "stanze-mail"
+  | "stanze-event"
+  | "stanze-history"
+  | "stanze-reveal"
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -67,6 +75,14 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "duel-battle", label: "Duello: battaglia" },
   { id: "duel-replay", label: "Duello: scontro" },
   { id: "duel-ended", label: "Duello: fine" },
+  { id: "stanze-setup", label: "Stanze: preparazione" },
+  { id: "stanze-compass", label: "Stanze: croce" },
+  { id: "stanze-pending", label: "Stanze: in attesa" },
+  { id: "stanze-sight", label: "Stanze: lettera" },
+  { id: "stanze-mail", label: "Stanze: messaggio" },
+  { id: "stanze-event", label: "Stanze: evento" },
+  { id: "stanze-history", label: "Stanze: cronologia" },
+  { id: "stanze-reveal", label: "Stanze: rivelazione" },
   { id: "results", label: "Classifica" },
 ];
 
@@ -174,9 +190,88 @@ function sceneViews(scene: Scene, now: number) {
     case "duel-replay":
     case "duel-ended":
       return { typeId: "knight-duel", ...duelScene(scene, now) };
+    case "stanze-setup":
+    case "stanze-compass":
+    case "stanze-pending":
+    case "stanze-sight":
+    case "stanze-mail":
+    case "stanze-event":
+    case "stanze-history":
+    case "stanze-reveal":
+      return { typeId: "stanze-segrete", ...stanzeScene(scene, now) };
     case "results":
       return { typeId: null, screen: null, phone: null };
   }
+}
+
+// ---- Stanze Segrete: dati d'esempio ----
+const SS_PLAYERS = [
+  { id: "p1", nickname: "Gina" },
+  { id: "p2", nickname: "Marco" },
+  { id: "p3", nickname: "Sofia" },
+];
+function stanzeScene(scene: Scene, now: number) {
+  const reveal = scene === "stanze-reveal";
+  const screen = {
+    phase: reveal ? "reveal" : scene === "stanze-setup" ? "setup" : "play",
+    rows: 3,
+    cols: 3,
+    players: SS_PLAYERS,
+    positions: scene === "stanze-setup" ? { p1: 0, p2: null, p3: null } : { p1: 4, p2: 4, p3: 8 },
+    ...(reveal && {
+      letters: ["A", "C", "S", "T", "I", "U", "R", "O", "M"],
+      paths: [
+        { word: "MORTA", cells: [8, 7, 6, 3, 0] },
+        { word: "USCITA", cells: [5, 2, 1, 4, 3, 0] },
+      ],
+      outcomes: [
+        { id: "p1", nickname: "Gina", outcome: "fuggito", solved: true },
+        { id: "p2", nickname: "Marco", outcome: "eliminato", solved: false },
+        { id: "p3", nickname: "Sofia", outcome: "in-gioco", solved: false },
+      ],
+    }),
+  };
+  const phone: Record<string, unknown> = {
+    phase: "play",
+    member: true,
+    rows: 3,
+    cols: 3,
+    cell: scene === "stanze-setup" ? 0 : 4,
+    outcome: "in-gioco",
+    solved: false,
+    others: [{ id: "p2", nickname: "Marco", cell: 4 }],
+    abilities: [],
+    compass: {},
+    pending: [],
+    sighting: null,
+    feedback: null,
+    messages: [],
+    pendingEvents: [],
+    history: [],
+    rules: { rows: 3, cols: 3, sightSec: 8, messageMaxLength: 280, positionsPublic: true },
+  };
+  if (scene === "stanze-compass") {
+    phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }, { id: "g2", action: "sight", label: null, usesLeft: 1, expiresAt: now + 30_000 }];
+    phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "wall" } };
+  }
+  if (scene === "stanze-pending") {
+    phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }];
+    phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "open" } };
+    phone.pending = [{ id: 1, kind: "move", direction: "left", actionId: null, word: null }];
+  }
+  if (scene === "stanze-sight") phone.sighting = { cell: 4, letter: "I", until: now + 8_000 };
+  if (scene === "stanze-mail") phone.messages = [{ id: 1, mine: false, text: "Senti un rumore sopra la tua testa.", at: now, readAt: null, replyTo: null, canReply: true }];
+  if (scene === "stanze-event") {
+    phone.messages = [];
+    phone.pendingEvents = [{ id: 2, text: "Crolla il soffitto della Stanza 5.", at: now, acceptedAt: null, cancelled: false }];
+  }
+  if (scene === "stanze-history") {
+    phone.history = [
+      { id: 4, text: "Si spengono le luci.", at: now - 60_000, acceptedAt: now - 55_000, cancelled: false },
+      { id: 2, text: "Crolla il soffitto della Stanza 5.", at: now - 600_000, acceptedAt: now - 590_000, cancelled: false },
+    ];
+  }
+  return { screen, phone };
 }
 
 // ---- Duello dei Cavalieri: dati d'esempio ----

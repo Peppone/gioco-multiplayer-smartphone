@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { LayoutGroup, motion } from "framer-motion";
 import { useSfx } from "../../audio/useAudio";
 import { Countdown, useRemaining } from "../Countdown";
@@ -387,6 +388,15 @@ function RulesTab({ v }: { v: PhoneView }) {
   );
 }
 
+/**
+ * Le schede a tutto schermo escono dallo Stage (che nei temi con filtri o trasformazioni diventerebbe il loro
+ * riquadro di riferimento) e si agganciano al contenitore del telefono, così coprono davvero tutto.
+ */
+function Overlay({ anchor, children }: { anchor: HTMLElement | null; children: ReactNode }) {
+  const host = anchor?.closest("main") ?? null;
+  return host ? createPortal(children, host) : null;
+}
+
 /** Evento da accettare: copre tutto il telefono finché non si preme «Accetta»; più eventi si mostrano in ordine. */
 function EventCard({ events, send, vibrateKey }: { events: PhoneEvent[]; send: ControllerProps["send"]; vibrateKey: string }) {
   useEffect(() => {
@@ -402,14 +412,22 @@ function EventCard({ events, send, vibrateKey }: { events: PhoneEvent[]; send: C
   );
 }
 
+/** Nell'anteprima (/preview?tab=events) si può aprire direttamente una scheda. */
+function initialTab(): Tab {
+  if (!window.location.pathname.startsWith("/preview")) return "game";
+  const t = new URLSearchParams(window.location.search).get("tab");
+  return t === "master" || t === "events" || t === "rules" ? t : "game";
+}
+
 export function StanzeController({ view, send, clock, theme }: ControllerProps) {
   const v = view as PhoneView;
   const sfx = useSfx(theme);
-  const [tab, setTab] = useState<Tab>("game");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const events = v.pendingEvents ?? [];
   const eventKey = events.map((e) => e.id).join();
   const unread = (v.messages ?? []).filter((m) => !m.mine && m.readAt === null).length;
   const prevUnread = useRef(0);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     if (events.length > 0) sfx("buzz");
@@ -424,7 +442,7 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
   const showMail = unread > 0 && tab !== "master";
 
   return (
-    <div className="ss-phone">
+    <div className="ss-phone" ref={setAnchor}>
       <div className="ss-body">
         {tab === "game" && <GameTab v={v} send={send} clock={clock} />}
         {tab === "master" && <MasterTab v={v} send={send} clock={clock} />}
@@ -432,7 +450,9 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
         {tab === "rules" && <RulesTab v={v} />}
       </div>
       {showMail && events.length === 0 && (
-        <button className="ss-mail-alert" onClick={() => setTab("master")}>✉️ Nuovo messaggio dal Master: leggi</button>
+        <Overlay anchor={anchor}>
+          <button className="ss-mail-alert" onClick={() => setTab("master")}>✉️ Nuovo messaggio dal Master: leggi</button>
+        </Overlay>
       )}
       <nav className="ss-tabs" aria-label="Sezioni">
         <button className={tab === "game" ? "on" : ""} onClick={() => setTab("game")}>Gioco</button>
@@ -440,7 +460,11 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
         <button className={tab === "events" ? "on" : ""} onClick={() => setTab("events")}>📜 Eventi</button>
         <button className={tab === "rules" ? "on" : ""} onClick={() => setTab("rules")}>ℹ️ Regole</button>
       </nav>
-      {events.length > 0 && <EventCard events={events} send={send} vibrateKey={eventKey} />}
+      {events.length > 0 && (
+        <Overlay anchor={anchor}>
+          <EventCard events={events} send={send} vibrateKey={eventKey} />
+        </Overlay>
+      )}
     </div>
   );
 }

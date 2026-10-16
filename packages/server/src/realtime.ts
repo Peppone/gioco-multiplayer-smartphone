@@ -120,6 +120,11 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
       socket.emit(ServerEvent.GameAdmin, engine.adminState());
     }
 
+    // Un link del GM non valido (sbagliato, scaduto, revocato) viene chiuso subito: il telefono lo mostra all'utente.
+    if (auth?.role === "master" && !isMaster) {
+      socket.disconnect(true);
+      return;
+    }
     if (isMaster) {
       void socket.join(MASTER_ROOM);
       socket.emit(ServerEvent.GameMaster, masterState());
