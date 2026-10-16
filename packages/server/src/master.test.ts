@@ -218,7 +218,7 @@ describe("Realtime del Game Master", () => {
     const bad = open({ role: "master", token: "sbagliato" });
     let got = 0;
     bad.on(ServerEvent.GameMaster, () => got++);
-    await new Promise((r) => bad.on("connect", r));
+    await new Promise<void>((r) => bad.on("connect", () => r()));
     expect(await emit<HostAck>(bad, ClientEvent.MasterCommand, { type: "plugin", command: { type: "place-spread" } })).toEqual({ ok: false, error: "unauthorized" });
     expect(got).toBe(0);
   });
@@ -254,7 +254,7 @@ describe("Realtime del Game Master", () => {
     const again = open({ role: "master", token });
     let got = 0;
     again.on(ServerEvent.GameMaster, () => got++);
-    await new Promise((r) => again.on("connect", r));
+    await new Promise<void>((r) => again.on("connect", () => r()));
     expect(got).toBe(0);
   });
 
