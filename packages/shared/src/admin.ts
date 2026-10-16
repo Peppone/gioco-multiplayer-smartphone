@@ -142,3 +142,30 @@ export type AdminError =
   | "too_many_attempts"
   | "not_found"
   | "conflict";
+
+/** Messaggio o evento di un round con Game Master, come lo vede l'archivio della regia. */
+export interface ArchivedMessage {
+  roundId: string;
+  roundTitle: string;
+  matchId: string;
+  matchName: string;
+  messageId: number;
+  kind: "message" | "event";
+  fromKind: "master" | "player";
+  fromNickname: string | null;
+  toKind: "master" | "player" | "room" | "all" | "players";
+  toNickname: string | null;
+  toCell: number | null;
+  /** Solo per gli eventi: destinatari e istante di accettazione. */
+  recipients: { playerId: string; nickname: string; acceptedAt: number | null }[];
+  text: string;
+  ts: number;
+  readAt: number | null;
+  cancelled: boolean;
+}
+
+/** Risposta di `POST /api/admin/master-link`: il token compare solo qui, il database ne tiene l'hash. */
+export interface MasterLink {
+  token: string;
+  expiresAt: number;
+}

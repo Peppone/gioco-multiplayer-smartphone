@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const players = sqliteTable("players", {
   id: text("id").primaryKey(),
@@ -102,6 +102,45 @@ export const matchStateSnapshots = sqliteTable("match_state_snapshots", {
   ts: integer("ts").notNull(),
 });
 
+/**
+ * Messaggi ed eventi dei round con Game Master. `event_id` è la serata; l'evento di gioco si riconosce da `kind`.
+ * Chiave unica (round, messaggio): il salvataggio è idempotente anche dopo un riavvio.
+ */
+export const roundMessages = sqliteTable(
+  "round_messages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventId: text("event_id").notNull(),
+    matchId: text("match_id").notNull(),
+    roundId: text("round_id").notNull(),
+    messageId: integer("message_id").notNull(),
+    kind: text("kind").notNull(),
+    fromKind: text("from_kind").notNull(),
+    fromPlayerId: text("from_player_id"),
+    toKind: text("to_kind").notNull(),
+    toPlayerId: text("to_player_id"),
+    toCell: integer("to_cell"),
+    recipientsJson: text("recipients_json"),
+    text: text("text").notNull(),
+    ts: integer("ts").notNull(),
+    readAt: integer("read_at"),
+    cancelled: integer("cancelled").notNull().default(0),
+  },
+  (t) => [uniqueIndex("round_messages_unique").on(t.roundId, t.messageId)],
+);
+
+/** Una riga per destinatario di un evento; `accepted_at` è vuoto finché non accetta. */
+export const roundEventReceipts = sqliteTable(
+  "round_event_receipts",
+  {
+    roundId: text("round_id").notNull(),
+    messageId: integer("message_id").notNull(),
+    playerId: text("player_id").notNull(),
+    acceptedAt: integer("accepted_at"),
+  },
+  (t) => [primaryKey({ columns: [t.roundId, t.messageId, t.playerId] })],
+);
+
 export type PlayerRow = typeof players.$inferSelect;
 export type InstanceRow = typeof minigameInstances.$inferSelect;
 export type MatchRoundRow = typeof matchRounds.$inferSelect;
@@ -189,6 +228,33 @@ export function openDb(file: string) {
       match_id TEXT PRIMARY KEY,
       state_json TEXT NOT NULL,
       ts INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS round_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id TEXT NOT NULL,
+      match_id TEXT NOT NULL,
+      round_id TEXT NOT NULL,
+      message_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      from_kind TEXT NOT NULL,
+      from_player_id TEXT,
+      to_kind TEXT NOT NULL,
+      to_player_id TEXT,
+      to_cell INTEGER,
+      recipients_json TEXT,
+      text TEXT NOT NULL,
+      ts INTEGER NOT NULL,
+      read_at INTEGER,
+      cancelled INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS round_messages_unique ON round_messages (round_id, message_id);
+    CREATE INDEX IF NOT EXISTS round_messages_event ON round_messages (event_id);
+    CREATE TABLE IF NOT EXISTS round_event_receipts (
+      round_id TEXT NOT NULL,
+      message_id INTEGER NOT NULL,
+      player_id TEXT NOT NULL,
+      accepted_at INTEGER,
+      PRIMARY KEY (round_id, message_id, player_id)
     );
   `);
 
