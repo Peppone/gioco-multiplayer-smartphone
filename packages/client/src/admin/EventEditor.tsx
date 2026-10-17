@@ -179,7 +179,7 @@ export function EventEditor({
                 onChange={(e) => e.target.value && void run(() => api("POST", `/matches/${m.id}/rounds`, { instanceId: e.target.value }))}
               >
                 <option value="">+ Aggiungi round dalla libreria…</option>
-                {instances.filter((i) => i.typeId !== "deck").map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+                {instances.filter((i) => i.typeId !== "deck" && i.typeId !== "word-list").map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
               </select>
             )}
           </li>

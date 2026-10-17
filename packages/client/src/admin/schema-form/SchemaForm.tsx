@@ -174,8 +174,8 @@ function PickField({ schema, value, onChange, labelText, required, siblings }: P
   if (schema.widget === "contestant") {
     options = siblings.kind === "players" ? ctx.players.map((p) => ({ id: p.id, label: p.nickname })) : ctx.teams.map((t) => ({ id: t.id, label: t.name }));
   } else {
-    const wanted = schema.instanceKind === "deck" ? "content" : "minigame";
-    options = ctx.instances.filter((i) => i.kind === wanted && (wanted === "minigame" || i.typeId === "deck")).map((i) => ({ id: i.id, label: i.title }));
+    const wanted = schema.instanceKind === "deck" || schema.instanceKind === "word-list" ? "content" : "minigame";
+    options = ctx.instances.filter((i) => i.kind === wanted && (wanted === "minigame" || i.typeId === schema.instanceKind)).map((i) => ({ id: i.id, label: i.title }));
   }
   return (
     <label className="field">

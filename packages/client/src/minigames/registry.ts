@@ -4,6 +4,7 @@ import { GhostHuntController, GhostHuntScreen } from "./caccia-fantasmi/GhostHun
 import { IndovinaCanzoneController, IndovinaCanzoneScreen } from "./indovina-canzone/IndovinaCanzoneViews";
 import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews";
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
+import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/ReazioneViews";
 import { SondaggioController, SondaggioScreen } from "./sondaggio/SondaggioViews";
 import { StimaController, StimaScreen } from "./stima/StimaViews";
 import { StanzeScreen, StanzeController } from "./stanze-segrete/StanzeViews";
@@ -44,6 +45,11 @@ export const minigameViews: Record<string, MinigameViews> = {
     Screen: StanzeScreen,
     Controller: StanzeController,
     Host: lazy(() => import("./stanze-segrete/StanzeHost").then((m) => ({ default: m.StanzeHost }))),
+  },
+  "reazione-a-catena": {
+    Screen: ReazioneScreen,
+    Controller: ReazioneController,
+    Host: lazy(() => import("./reazione-a-catena/ReazioneHost").then((m) => ({ default: m.ReazioneHost }))),
   },
   "knight-duel": {
     Screen: (p: ViewProps) => createElement(DuelScreen, p),

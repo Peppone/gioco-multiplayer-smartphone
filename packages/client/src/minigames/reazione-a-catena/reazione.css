@@ -1,0 +1,39 @@
+/* Reazione a catena: schermo condiviso e telefoni. Solo variabili del tema. */
+.rc-screen, .rc-ctrl { display: grid; gap: 1rem; justify-items: center; text-align: center; width: 100%; }
+.rc-trio { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+.rc-person { background: var(--panel); border: var(--border-w) solid var(--border-c); border-radius: var(--radius); padding: .5rem 1rem; font-weight: 800; }
+.rc-person small { display: block; font-weight: 400; opacity: .7; }
+.rc-person.guesser { background: var(--opt-1); color: var(--on-opt); }
+.rc-timer { font-size: 5rem; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1; }
+.rc-timer.low { color: var(--opt-0); }
+.rc-timer.frozen { opacity: .55; }
+.rc-bar { width: min(34rem, 90%); height: .7rem; background: var(--panel-2); border-radius: 1rem; overflow: hidden; }
+.rc-bar > div { height: 100%; background: var(--accent); }
+.rc-word { font-size: clamp(2.6rem, 9vw, 6rem); font-weight: 900; letter-spacing: .02em; margin: 0; overflow-wrap: anywhere; }
+.rc-status { background: var(--panel); border-radius: var(--radius); padding: .6rem 1.2rem; font-size: 1.4rem; font-weight: 700; }
+.rc-status.answer { background: var(--opt-2); color: var(--on-opt); }
+.rc-stats { display: flex; gap: 1.4rem; font-size: 1.6rem; font-weight: 800; }
+.rc-stats .ok { color: var(--accent); }
+.rc-stats .ko { color: var(--opt-0); }
+.rc-flash { font-size: 1.6rem; font-weight: 800; }
+.rc-table { border-collapse: collapse; }
+.rc-table td, .rc-table th { padding: .3rem .8rem; }
+
+.rc-ctrl .rc-timer { font-size: 3.4rem; }
+.rc-ctrl .rc-word { font-size: clamp(2.2rem, 12vw, 3.6rem); }
+.rc-big-btn { width: 100%; min-height: 40vh; font-size: 2.4rem; font-weight: 900; border-radius: var(--radius); border: var(--border-w) solid var(--border-c); box-shadow: var(--shadow); background: var(--opt-1); color: var(--on-opt); touch-action: manipulation; }
+.rc-big-btn:disabled { opacity: .35; }
+.rc-pass-btn { width: 100%; padding: 1.4rem 1rem; font-size: 1.6rem; font-weight: 800; background: var(--opt-3); color: var(--on-opt); border-radius: var(--radius); touch-action: manipulation; }
+.rc-pass-btn:disabled { opacity: .35; }
+
+/* Regia */
+.rc-host-word { font-size: 2rem; font-weight: 900; text-align: center; margin: 0; overflow-wrap: anywhere; }
+.rc-host-word.hidden { opacity: .6; font-size: 1.3rem; }
+.rc-host-timer { font-size: 2.6rem; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums; }
+.rc-host-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.rc-host-grid button { padding: 1rem .5rem; font-size: 1.1rem; font-weight: 700; touch-action: manipulation; }
+.rc-host-grid .wide { grid-column: 1 / -1; }
+.rc-host-ok { background: var(--accent); color: #000; }
+.rc-host-ko { background: var(--opt-0); color: var(--on-opt); }
+.rc-pick { display: grid; gap: .4rem; }
+.rc-pick label { display: grid; gap: .15rem; }
