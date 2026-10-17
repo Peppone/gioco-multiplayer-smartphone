@@ -5,6 +5,7 @@ import { IndovinaCanzoneController, IndovinaCanzoneScreen } from "./indovina-can
 import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews";
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
 import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/ReazioneViews";
+import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
 import { SondaggioController, SondaggioScreen } from "./sondaggio/SondaggioViews";
 import { StimaController, StimaScreen } from "./stima/StimaViews";
 import { StanzeScreen, StanzeController } from "./stanze-segrete/StanzeViews";
@@ -46,6 +47,7 @@ export const minigameViews: Record<string, MinigameViews> = {
     Controller: StanzeController,
     Host: lazy(() => import("./stanze-segrete/StanzeHost").then((m) => ({ default: m.StanzeHost }))),
   },
+  scalata: { Screen: ScalataScreen, Controller: ScalataController },
   "reazione-a-catena": {
     Screen: ReazioneScreen,
     Controller: ReazioneController,
