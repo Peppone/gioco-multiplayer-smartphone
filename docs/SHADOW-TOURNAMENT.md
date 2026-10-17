@@ -16,7 +16,7 @@ Torneo a eliminazione, tutti contro tutti, a scontri di sasso-carta-forbice con 
 
 - Ogni **scontro** è una serie di **scambi**: tutti e due scelgono in segreto Attacco, Difesa o Raggiro (Attacco > Raggiro > Difesa > Attacco). Chi perde uno scambio perde 1 vita; stessa carta = si rigioca.
 - Si parte da **3 vite** a scontro. Chi perde lo scontro passa da **W a L**; alla seconda sconfitta è **eliminato**. Vince l'ultimo rimasto.
-- **Token** (1 all'inizio, al massimo 5): vita extra prima dello scontro (2 token), **Scommessa**, **Scudo**, **Trappola**, **Cambia carta** (e la contromossa). Una sola azione per scambio.
+- **Token** (2 all'inizio, al massimo 6): vita extra prima dello scontro (2 token), **Scommessa** (2), **Scudo** (1), **Trappola** (1), **Cambia carta** (2) e la contromossa (2). Una sola azione per scambio.
 - Chi vince uno scontro **pesca una carta ricompensa** dal mazzo **Normale** (sicuro) o **Leggendario** (rende di più, rischia di più).
 - In numero dispari uno resta solo e sceglie **Bye** (salta il turno) o **NPC** (affronta un avversario interpretato da un eliminato a sorte, o dal computer; perdere conta come una sconfitta).
 - Gli **eliminati** fanno l'NPC quando vengono estratti e **pronosticano** il vincitore dello scontro in evidenza.
@@ -46,12 +46,12 @@ Esito dell'ultima misura (carte scelte a caso, quindi niente psicologia):
 
 | Giocatori | Turni | Durata |
 |---|---|---|
-| 4 | ~4 | ~5 min |
-| 8 | ~6 | ~8 min |
-| 16 | ~7 | ~11 min |
-| 30 | ~8 | ~14 min |
+| 4 | ~4 | ~7 min |
+| 8 | ~6 | ~10 min |
+| 16 | ~7 | ~13 min |
+| 30 | ~8 | ~16 min |
 
-Persone vere ci mettono di più a decidere: conta il doppio. Con la vita extra a 2 token nessuno stile domina: sempre Leggendario 47%, sempre Normale 47%, mai Scommessa 52%, vita extra sempre 47%, mai vita extra 52%, Trappola sempre 43%, nessuna azione 40%. Unica nota: chi scommette sempre vince il 63% dei tornei (con ±6 punti di errore): da tenere d'occhio.
+Persone vere ci mettono di più a decidere: conta il doppio. I costi sono scelti perché tutte le azioni vengano usate: in un torneo da 16 giocatori si contano in media circa 12 vite extra, 7 Scommesse, 9 Scudi, 10 Trappole e 3 Cambia carta (la contromossa resta rara). Nessuno stile domina: sempre Scommessa 47%, mai Scommessa 49%, vita extra sempre 54%, mai vita extra 47%, Trappola sempre 46%; chi non spende mai token vince solo il 37%, quindi spendere conviene ma non c'è un'azione obbligata.
 
 ## Privacy
 

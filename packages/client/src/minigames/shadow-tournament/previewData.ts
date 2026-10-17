@@ -12,7 +12,7 @@ export const SHADOW_SCENES: { id: ShadowSceneId; label: string }[] = [
 ];
 
 const NAMES = ["Gina", "Marco", "Sofia", "Luca", "Anna", "Paolo", "Giulia", "Enrico", "Chiara", "Matteo", "Elisa", "Davide", "Sara", "Andrea", "Marta"];
-const costs = { bet: 1, shield: 2, trap: 2, swap: 5, counter: 5 };
+const costs = { bet: 2, shield: 1, trap: 1, swap: 2, counter: 2, extraLife: 2 };
 
 const fighters = (n: number) =>
   Array.from({ length: n }, (_, i) => ({

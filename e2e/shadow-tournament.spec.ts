@@ -30,15 +30,15 @@ base("anteprima: con 30 giocatori il tabellone li mostra tutti e le carte della 
   await expect(hand).toHaveCount(3);
   const box = await hand.first().boundingBox();
   expect(Math.min(box!.width, box!.height)).toBeGreaterThanOrEqual(44);
-  await expect(page.locator(".phone-frame").getByText("Scommessa (1 token)")).toBeVisible();
+  await expect(page.locator(".phone-frame").getByText("Scommessa (2 token)")).toBeVisible();
 });
 
 base("anteprima: le reazioni mostrano solo ciò che si può fare, con il costo", async ({ page }) => {
   await page.goto("/preview?theme=manga&scene=shadow-react&still=1");
   const phone = page.locator(".phone-frame");
-  await expect(phone.getByRole("button", { name: /Scudo \(2 token\)/ })).toBeVisible();
-  await expect(phone.getByRole("button", { name: /Trappola \(2 token\)/ })).toBeVisible();
-  await expect(phone.getByRole("button", { name: /Cambia carta \(5 token\)/ })).toBeVisible();
+  await expect(phone.getByRole("button", { name: /Scudo \(1 token\)/ })).toBeVisible();
+  await expect(phone.getByRole("button", { name: /Trappola \(1 token\)/ })).toBeVisible();
+  await expect(phone.getByRole("button", { name: /Cambia carta \(2 token\)/ })).toBeVisible();
   await expect(phone.getByRole("button", { name: "Niente" })).toBeVisible();
 });
 
@@ -105,7 +105,7 @@ test("un torneo da 4 telefoni: W/L, numero dispari con NPC, fino alla classifica
   await expect(screen.page.getByLabel("Scontro in evidenza")).toBeVisible();
   // le regole sono sempre a un tocco, con i costi del gioco
   await phones[0]!.page.getByRole("button", { name: "Regole" }).click();
-  await expect(phones[0]!.page.getByText("Scudo (2 token")).toBeVisible();
+  await expect(phones[0]!.page.getByText("Scudo (1 token")).toBeVisible();
   await phones[0]!.page.getByRole("button", { name: "Ho capito" }).click();
 
   // I quattro giocano finché lo schermo mostra la classifica del round (turni, Bye/NPC e pronostici compresi).

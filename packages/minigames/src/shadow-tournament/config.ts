@@ -20,16 +20,16 @@ const sec = (title: string, min: number, max: number, def: number, description?:
 export const shadowConfigSchema = z.object({
   startLives: z.number().int().min(1).max(5).default(3).meta({ title: "Vite a inizio scontro", description: "Con 2 il torneo è più corto" }),
   maxLives: z.number().int().min(1).max(8).default(5).meta({ title: "Vite massime" }),
-  startTokens: z.number().int().min(0).max(10).default(1).meta({ title: "Token iniziali" }),
-  maxTokens: z.number().int().min(1).max(20).default(5).meta({ title: "Token massimi", description: "L'eccedenza si perde" }),
+  startTokens: z.number().int().min(0).max(10).default(2).meta({ title: "Token iniziali" }),
+  maxTokens: z.number().int().min(1).max(20).default(6).meta({ title: "Token massimi", description: "L'eccedenza si perde" }),
   allStartLoser: z.boolean().default(false).meta({ title: "Tutti partono da L", description: "Eliminazione diretta: una sola sconfitta" }),
 
   extraLifeCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo vita extra (token)" }),
-  betCost: z.number().int().min(0).max(10).default(1).meta({ title: "Costo Scommessa (token)" }),
-  shieldCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo Scudo (token)" }),
-  trapCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo Trappola (token)" }),
-  swapCost: z.number().int().min(0).max(20).default(5).meta({ title: "Costo Cambia carta (token)" }),
-  counterCost: z.number().int().min(0).max(20).default(5).meta({ title: "Costo contromossa (token)" }),
+  betCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo Scommessa (token)" }),
+  shieldCost: z.number().int().min(0).max(10).default(1).meta({ title: "Costo Scudo (token)" }),
+  trapCost: z.number().int().min(0).max(10).default(1).meta({ title: "Costo Trappola (token)" }),
+  swapCost: z.number().int().min(0).max(20).default(2).meta({ title: "Costo Cambia carta (token)" }),
+  counterCost: z.number().int().min(0).max(20).default(2).meta({ title: "Costo contromossa (token)" }),
 
   extraLifeSec: sec("Tempo vita extra (s)", 3, 60, 10),
   chooseSec: sec("Tempo di scelta della carta (s)", 3, 60, 15),

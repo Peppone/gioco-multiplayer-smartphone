@@ -6,7 +6,9 @@ import { simulateTournament } from "./simulate.js";
 
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, nickname: `Nome${i}`, teamId: null }));
 const ctx = (n: number, seed = 5): MinigameContext => ({ players: players(n), teams: [], seed });
-const cfgWith = (o: Partial<ShadowConfig> = {}): ShadowConfig => ({ ...sampleShadowConfig, ...o });
+// i test sulle singole azioni fissano i costi del regolamento originale (Scommessa 1, Scudo e Trappola 2, Cambia carta 5)
+const legacy = { startTokens: 1, maxTokens: 5, betCost: 1, shieldCost: 2, trapCost: 2, swapCost: 5, counterCost: 5 };
+const cfgWith = (o: Partial<ShadowConfig> = {}): ShadowConfig => ({ ...sampleShadowConfig, ...legacy, ...o });
 // i test della vita extra usano il costo di 1 token: così basta il token iniziale
 const cheapExtra = { extraLifeCost: 1 };
 
@@ -30,6 +32,12 @@ function until(s: ShadowState, id: string, phase: string): ShadowState {
   expect(view(s, id).bout?.phase).toBe(phase);
   return s;
 }
+
+describe("valori predefiniti", () => {
+  it("token e costi pensati perché tutte le azioni vengano usate", () => {
+    expect(sampleShadowConfig).toMatchObject({ startTokens: 2, maxTokens: 6, extraLifeCost: 2, betCost: 2, shieldCost: 1, trapCost: 1, swapCost: 2, counterCost: 2 });
+  });
+});
 
 describe("un turno", () => {
   it("con 2 giocatori parte subito uno scontro: 3 vite, 1 token, W per tutti", () => {
