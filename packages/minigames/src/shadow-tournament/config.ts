@@ -24,7 +24,7 @@ export const shadowConfigSchema = z.object({
   maxTokens: z.number().int().min(1).max(20).default(5).meta({ title: "Token massimi", description: "L'eccedenza si perde" }),
   allStartLoser: z.boolean().default(false).meta({ title: "Tutti partono da L", description: "Eliminazione diretta: una sola sconfitta" }),
 
-  extraLifeCost: z.number().int().min(0).max(10).default(1).meta({ title: "Costo vita extra (token)" }),
+  extraLifeCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo vita extra (token)" }),
   betCost: z.number().int().min(0).max(10).default(1).meta({ title: "Costo Scommessa (token)" }),
   shieldCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo Scudo (token)" }),
   trapCost: z.number().int().min(0).max(10).default(2).meta({ title: "Costo Trappola (token)" }),

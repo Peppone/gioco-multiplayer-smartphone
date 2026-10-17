@@ -375,8 +375,8 @@ function BoutController({ v, send, clock, theme }: { v: Extract<PhoneData, { rol
       {b.phase === "extraLife" &&
         (my.canExtraLife ? (
           <div className="sh-actions">
-            <p>Spendi 1 token per partire con una vita in più?</p>
-            <button className="primary" onClick={() => send({ type: "extraLife", spend: true })}>Sì, 1 token → {mine.lives + 1} vite</button>
+            <p>Spendi {v.costs.extraLife ?? 2} token per partire con una vita in più?</p>
+            <button className="primary" onClick={() => send({ type: "extraLife", spend: true })}>Sì, {v.costs.extraLife ?? 2} token → {mine.lives + 1} vite</button>
             <button onClick={() => send({ type: "extraLife", spend: false })}>No, grazie</button>
           </div>
         ) : my.extraDecided !== null ? (

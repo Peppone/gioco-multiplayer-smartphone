@@ -6,6 +6,7 @@ export interface Costs {
   trap: number;
   swap: number;
   counter: number;
+  extraLife?: number;
 }
 
 export interface Section {
@@ -36,7 +37,7 @@ export function rulesSections(costs: Costs, maxTokens: number): Section[] {
       title: "I token",
       lines: [
         `Il token è la moneta del gioco (al massimo ${maxTokens}; quelli in più si perdono). Si spende per le azioni, una sola per scambio.`,
-        `Vita extra (prima dello scontro): paghi 1 token e parti con una vita in più.`,
+        `Vita extra (${tokens(costs.extraLife ?? 2)}, prima dello scontro): parti con una vita in più.`,
         `Scommessa (${tokens(costs.bet)}, prima, con la carta): se vinci lo scambio, l'avversario perde 1 vita in più.`,
         `Scudo (${tokens(costs.shield)}, dopo la rivelazione, se hai perso): non perdi la vita.`,
         `Trappola (${tokens(costs.trap)}, dopo la rivelazione, chiunque): nello scambio dopo l'avversario non può giocare la carta che ha appena giocato.`,

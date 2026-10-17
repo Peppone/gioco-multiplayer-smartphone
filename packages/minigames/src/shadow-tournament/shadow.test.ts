@@ -7,6 +7,8 @@ import { simulateTournament } from "./simulate.js";
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, nickname: `Nome${i}`, teamId: null }));
 const ctx = (n: number, seed = 5): MinigameContext => ({ players: players(n), teams: [], seed });
 const cfgWith = (o: Partial<ShadowConfig> = {}): ShadowConfig => ({ ...sampleShadowConfig, ...o });
+// i test della vita extra usano il costo di 1 token: così basta il token iniziale
+const cheapExtra = { extraLifeCost: 1 };
 
 let now = 1_000_000;
 const meta = () => ({ receivedAt: now, claimedTime: now, rtt: 0 });
@@ -41,7 +43,7 @@ describe("un turno", () => {
   });
 
   it("con i token si apre la fase «vita extra»: spenderne uno dà una vita in più", () => {
-    let s = start(2);
+    let s = start(2, cheapExtra);
     expect(view(s, "p0").bout.phase).toBe("extraLife");
     s = input(s, "p0", { type: "extraLife", spend: true });
     expect(view(s, "p0").bout.phase).toBe("extraLife"); // aspetta l'altro
@@ -301,7 +303,7 @@ describe("informazioni segrete (anti-leak)", () => {
   });
 
   it("la vita extra scelta resta segreta finché la fase non finisce", () => {
-    const mk = (spend: boolean) => input(start(2), "p0", { type: "extraLife", spend });
+    const mk = (spend: boolean) => input(start(2, cheapExtra), "p0", { type: "extraLife", spend });
     const a = mk(true), b = mk(false);
     expect(JSON.stringify(plugin.screenView(a))).toBe(JSON.stringify(plugin.screenView(b)));
     expect(JSON.stringify(view(a, "p1"))).toBe(JSON.stringify(view(b, "p1")));

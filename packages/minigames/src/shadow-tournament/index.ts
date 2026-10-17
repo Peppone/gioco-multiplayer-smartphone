@@ -558,7 +558,7 @@ export const shadowTournament: MinigameType<ShadowConfig, ShadowState, Input, Co
       deadline: state.deadline,
       alive: aliveIds(state).length,
       total: state.order.length,
-      costs: costsOf(state.cfg),
+      costs: { ...costsOf(state.cfg), extraLife: state.cfg.extraLifeCost },
       maxTokens: state.cfg.maxTokens,
     };
     if (!f) return { ...common, role: "spectator" as const };
