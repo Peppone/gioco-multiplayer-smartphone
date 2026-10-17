@@ -3,6 +3,7 @@
 //   pnpm stress                         → avvia un server di prova isolato e gioca con 30 bot (partita classica + duello)
 //   pnpm stress --players 20 --scenario duel
 //   pnpm stress --players 10 --scenario stanze         → Stanze Segrete con un Game Master simulato (massimo 10 giocatori)
+//   pnpm stress --players 30 --scenario shadow         → Shadow Tournament: torneo intero con tempi brevi
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
 import { pathToFileURL } from "node:url";
@@ -10,7 +11,7 @@ import type { GameAdminState } from "@gioco/shared";
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { classicMatch, duelMatch, setupEvent, stanzeMatch } from "./scenario.js";
+import { classicMatch, duelMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
@@ -19,7 +20,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -93,11 +94,12 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
     if (opts.scenario === "classic" || opts.scenario === "all") jobs.push({ name: "Partita classica (5 minigiochi)", matchId: (await classicMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "duel" || opts.scenario === "all") jobs.push({ name: "Duello dei Cavalieri", matchId: (await duelMatch(api, setup)).matchId });
 
+    if (opts.scenario === "shadow") jobs.push({ name: "Shadow Tournament", matchId: (await shadowMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "stanze") jobs.push({ name: "Stanze Segrete (con Game Master)", matchId: (await stanzeMatch(api, setup.eventId)).matchId });
 
     for (const job of jobs) {
       log(`Parte: ${job.name}`);
-      const run = opts.scenario === "stanze" ? await playStanze(host, api, url, job.matchId, opts.stanzeSeconds ?? 20) : await host.runMatch(job.matchId);
+      const run = opts.scenario === "stanze" ? await playStanze(host, api, url, job.matchId, opts.stanzeSeconds ?? 20) : await host.runMatch(job.matchId, opts.scenario === "shadow" ? (Number(process.env.SHADOW_TIMEOUT) || 600_000) : undefined);
       report.matches.push({ name: job.name, run });
       log(`  ${run.reachedEnd ? "conclusa" : "NON conclusa"} in ${(run.durationMs / 1000).toFixed(1)}s, ${run.commands.length} comandi`);
       if (run.finalState) checkMatch(job.name, run.finalState, bots.length, check);
@@ -191,8 +193,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze o all");
+  if (!["classic", "duel", "stanze", "shadow", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow o all");
     process.exit(2);
   }
   const url = arg("url");

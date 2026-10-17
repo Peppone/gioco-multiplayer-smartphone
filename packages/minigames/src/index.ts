@@ -7,12 +7,13 @@ import { quizMultipla } from "./quiz-multipla/index.js";
 import { reazioneACatena, wordListSchema } from "./reazione-a-catena/index.js";
 import { stanzeSegrete } from "./stanze-segrete/index.js";
 import { scalata } from "./scalata/index.js";
+import { shadowTournament } from "./shadow-tournament/index.js";
 import { sondaggio } from "./sondaggio/index.js";
 import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
 
-export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, reazioneACatena, scalata, sondaggio, stanzeSegrete, stima, veroFalso, zombieHunt };
+export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -40,6 +41,7 @@ export const minigames: Record<string, AnyMinigame> = {
   [stanzeSegrete.id]: stanzeSegrete,
   [reazioneACatena.id]: reazioneACatena,
   [scalata.id]: scalata,
+  [shadowTournament.id]: shadowTournament,
 };
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */

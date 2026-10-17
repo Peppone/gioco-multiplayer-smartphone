@@ -1,3 +1,4 @@
+import { sampleShadowConfig } from "../../../packages/minigames/src/shadow-tournament/config.js";
 import type { AdminApi } from "./api.js";
 
 /** Contenuti di prova con tempi brevi: servono a far girare molti minigiochi in poco tempo. */
@@ -81,6 +82,18 @@ export async function stanzeMatch(api: AdminApi, eventId: string): Promise<{ mat
       defaultSightSec: 3,
       messageCooldownSec: 0,
     },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}
+
+/** Partita con il solo round «Shadow Tournament», con tempi brevi e 2 vite per scontro (un torneo da 30 dura pochi minuti). */
+export async function shadowMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Shadow Tournament" });
+  const inst = await api.post("/instances", {
+    typeId: "shadow-tournament",
+    title: "Torneo di prova",
+    config: { normalDeck: sampleShadowConfig.normalDeck, legendaryDeck: sampleShadowConfig.legendaryDeck, introSec: 2, startLives: 2, extraLifeSec: 6, chooseSec: 6, reactSec: 4, showSec: 1, rewardSec: 6, byeSec: 6, turnPauseSec: 2 },
   });
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };

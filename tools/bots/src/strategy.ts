@@ -70,9 +70,40 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "stanze-segrete":
       return decideStanze(v, rnd);
 
+    case "shadow-tournament":
+      return decideShadow(v, rnd);
+
     default:
       return null;
   }
+}
+
+/**
+ * Shadow Tournament: carte a caso, azioni con probabilità moderata, mazzo a caso. La `key` include l'apertura della fase
+ * dello scontro, così anche gli scambi rigiocati (pareggio, contromossa) ricevono una nuova risposta.
+ */
+function decideShadow(v: View, rnd: Rnd): Decision | null {
+  if (v.role === "bye") return { key: `sh-bye-${v.turn}`, inputs: [{ type: "byeChoice", choice: rnd() < 0.5 ? "bye" : "npc" }] };
+  if (v.role === "out") {
+    const sides = (v.spotlight?.sides ?? []) as { id: string }[];
+    return v.canPredict && !v.prediction && sides.length === 2 ? { key: `sh-pr-${v.turn}`, inputs: [{ type: "predict", winnerId: pick(sides, rnd).id }] } : null;
+  }
+  if (v.role !== "bout") return null;
+  const b = v.bout, my = v.my;
+  const key = `sh-${b.id}-${b.phase}-${b.openedAt}`;
+  if (b.phase === "extraLife" && my.canExtraLife) return { key, inputs: [{ type: "extraLife", spend: rnd() < 0.5 }] };
+  if (b.phase === "choose" && !my.pick) {
+    const cards = (["attack", "defense", "trick"] as string[]).filter((c) => c !== my.blockedCard);
+    return { key, inputs: [{ type: "play", card: pick(cards, rnd), bet: my.canBet && rnd() < 0.3 }] };
+  }
+  if (b.phase === "react" && !my.reacted && my.reactions.length > 0) {
+    const action = pick(["pass", ...(my.reactions as string[])], rnd);
+    return { key, inputs: [action === "swap" ? { type: "react", action, card: pick(my.swapCards as string[], rnd) } : { type: "react", action }] };
+  }
+  if (b.phase === "counter" && my.canCounter) return { key, inputs: [{ type: "react", action: rnd() < 0.5 ? "counter" : "pass" }] };
+  if (b.phase === "reward" && my.canChooseDeck) return { key, inputs: [{ type: "deck", deck: rnd() < 0.5 ? "legendary" : "normal" }] };
+  if (b.phase === "risk" && my.riskChoice) return { key, inputs: [{ type: "riskChoice", pay: my.riskChoice.canPayTokens ? "tokens" : "life" }] };
+  return null;
 }
 
 /**
