@@ -1,7 +1,7 @@
 # Piano: «Shadow Tournament» (torneo a eliminazione con carte segrete)
 
-> Stato: **implementato T1-T7 e guida (T9 in parte)** sul branch `feat/shadow-tournament`. Mancano: lo scenario `--scenario shadow`
-> dello stress test con 30 bot (T8) e la verifica nel pacchetto Windows (`pnpm package:win`). Guida per la regia: [SHADOW-TOURNAMENT.md](SHADOW-TOURNAMENT.md).
+> Stato: **implementato T1-T9** sul branch `feat/shadow-tournament`: test, e2e, stress con 30 bot (`pnpm stress --players 30 --scenario shadow`)
+> e pacchetto Windows verificati. Guida per la regia: [SHADOW-TOURNAMENT.md](SHADOW-TOURNAMENT.md).
 > Fonte: il documento «🎲 Party Game.docx» (regole originali). Da leggere insieme a [PIANO.md](../PIANO.md)
 > e [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md).
 
