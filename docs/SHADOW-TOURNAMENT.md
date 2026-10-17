@@ -21,7 +21,10 @@ Torneo a eliminazione, tutti contro tutti, a scontri di sasso-carta-forbice con 
 - In numero dispari uno resta solo e sceglie **Bye** (salta il turno) o **NPC** (affronta un avversario interpretato da un eliminato a sorte, o dal computer; perdere conta come una sconfitta).
 - Gli **eliminati** fanno l'NPC quando vengono estratti e **pronosticano** il vincitore dello scontro in evidenza.
 
-Le regole sono sempre sul telefono (pulsante «?») con i costi della configurazione.
+Le regole sono scritte nell'app e usano i numeri dell'istanza (vite, token, costi, mazzi, punti):
+
+- **Introduzione**: prima del primo turno compaiono per 25 secondi sullo schermo condiviso (a colonne) e sui telefoni. Si regola con «Durata delle regole a inizio torneo» (0 = nessuna introduzione) e «Salta timer» la chiude subito.
+- **Sempre a portata di mano**: sul telefono c'è il pulsante «?» per tutti, anche per chi guarda o è eliminato. Il testo sta in `packages/client/src/minigames/shadow-tournament/rulesText.ts` e va aggiornato quando cambiano le regole.
 
 ## Punti in classifica
 

@@ -93,7 +93,7 @@ export async function shadowMatch(api: AdminApi, eventId: string): Promise<{ mat
   const inst = await api.post("/instances", {
     typeId: "shadow-tournament",
     title: "Torneo di prova",
-    config: { normalDeck: sampleShadowConfig.normalDeck, legendaryDeck: sampleShadowConfig.legendaryDeck, startLives: 2, extraLifeSec: 6, chooseSec: 6, reactSec: 4, showSec: 1, rewardSec: 6, byeSec: 6, turnPauseSec: 2 },
+    config: { normalDeck: sampleShadowConfig.normalDeck, legendaryDeck: sampleShadowConfig.legendaryDeck, introSec: 2, startLives: 2, extraLifeSec: 6, chooseSec: 6, reactSec: 4, showSec: 1, rewardSec: 6, byeSec: 6, turnPauseSec: 2 },
   });
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };

@@ -39,7 +39,7 @@ export interface SimResult {
 
 /** Fa giocare un torneo intero a giocatori simulati che rispondono dopo un tempo casuale. */
 export function simulateTournament(opts: SimOptions): SimResult {
-  const cfg = { ...sampleShadowConfig, ...opts.cfg } as ShadowConfig;
+  const cfg = { ...sampleShadowConfig, introSec: 0, ...opts.cfg } as ShadowConfig;
   const ids = Array.from({ length: opts.players }, (_, i) => `p${i}`);
   const ctx: MinigameContext = { players: ids.map((id) => ({ id, nickname: id, teamId: null })), teams: [], seed: opts.seed };
   const rng = makeRng(opts.seed * 7919 + 13);

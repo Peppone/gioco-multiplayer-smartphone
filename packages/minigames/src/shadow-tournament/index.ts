@@ -74,7 +74,7 @@ export interface ShadowState {
   rngN: number;
   order: string[];
   fighters: Record<string, Fighter>;
-  phase: "bye" | "bouts" | "pause" | "done";
+  phase: "intro" | "bye" | "bouts" | "pause" | "done";
   turn: number;
   openedAt: number;
   deadline: number;
@@ -93,6 +93,21 @@ export interface ShadowState {
 }
 
 // --- utilità di stato ---
+
+/** I numeri del regolamento di questa partita: le regole spiegate nell'app li leggono da qui. */
+function rulesOf(cfg: ShadowConfig) {
+  const deck = (cards: ShadowConfig["normalDeck"]) => cards.map((c) => ({ label: c.label, qty: c.qty, tokens: c.tokens, nextLives: c.nextLives, either: c.either }));
+  return {
+    startLives: cfg.startLives,
+    maxLives: cfg.maxLives,
+    startTokens: cfg.startTokens,
+    maxTokens: cfg.maxTokens,
+    allStartLoser: cfg.allStartLoser,
+    costs: { ...costsOf(cfg), extraLife: cfg.extraLifeCost },
+    decks: { normal: deck(cfg.normalDeck), legendary: deck(cfg.legendaryDeck) },
+    points: { placement: cfg.placementPoints, placementMin: cfg.placementMin, boutWin: cfg.boutWinPoints, prediction: cfg.predictionPoints },
+  };
+}
 
 const clone = (s: ShadowState): ShadowState => structuredClone(s);
 const nick = (s: ShadowState, id: string): string => (id === NPC ? "NPC" : (s.fighters[id]?.nickname ?? "?"));
@@ -262,7 +277,7 @@ function decideBye(s: ShadowState, choice: "bye" | "npc", now: number): void {
 /** Fa avanzare tutto ciò che è scaduto. */
 function step(s: ShadowState, now: number): void {
   if (s.phase === "bye" && now >= s.deadline + GRACE_MS) decideBye(s, "bye", now);
-  else if (s.phase === "pause" && now >= s.deadline) {
+  else if ((s.phase === "pause" || s.phase === "intro") && now >= s.deadline) {
     startTurn(s, now);
     settle(s, now);
   }
@@ -277,7 +292,7 @@ function step(s: ShadowState, now: number): void {
 const isDue = (s: ShadowState, now: number): boolean =>
   s.phase === "bye"
     ? now >= s.deadline + GRACE_MS
-    : s.phase === "pause"
+    : s.phase === "pause" || s.phase === "intro"
       ? now >= s.deadline
       : s.phase === "bouts" && s.bouts.some((b) => boutDue(b, now));
 
@@ -410,8 +425,13 @@ export const shadowTournament: MinigameType<ShadowConfig, ShadowState, Input, Co
       predictionHits: {},
       finalOrder: null,
     };
-    startTurn(s, now);
-    settle(s, now);
+    if (config.introSec > 0) {
+      s.phase = "intro";
+      s.deadline = now + config.introSec * 1000;
+    } else {
+      startTurn(s, now);
+      settle(s, now);
+    }
     return s;
   },
 
@@ -544,6 +564,7 @@ export const shadowTournament: MinigameType<ShadowConfig, ShadowState, Input, Co
       bouts: state.bouts.map((b) => boutView(state, b)),
       focusId: focus?.id ?? null,
       costs: costsOf(state.cfg),
+      rules: state.phase === "intro" ? rulesOf(state.cfg) : null,
       podium: state.phase === "done" ? podium(state) : null,
     };
   },
@@ -560,6 +581,7 @@ export const shadowTournament: MinigameType<ShadowConfig, ShadowState, Input, Co
       total: state.order.length,
       costs: { ...costsOf(state.cfg), extraLife: state.cfg.extraLifeCost },
       maxTokens: state.cfg.maxTokens,
+      rules: rulesOf(state.cfg),
     };
     if (!f) return { ...common, role: "spectator" as const };
     const me = { id: f.id, nickname: f.nickname, status: f.status, tokens: f.tokens, nextLives: f.nextLives, boutsWon: f.boutsWon, hits: state.predictionHits[f.id] ?? 0 };

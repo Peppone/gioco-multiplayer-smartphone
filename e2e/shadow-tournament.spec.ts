@@ -3,7 +3,7 @@ import { test as base } from "@playwright/test";
 import { type Client, test } from "./support";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80"] as const;
-const SCENES = ["shadow-choose", "shadow-react", "shadow-reward", "shadow-out", "shadow-bye", "shadow-podium"] as const;
+const SCENES = ["shadow-intro", "shadow-choose", "shadow-react", "shadow-reward", "shadow-out", "shadow-bye", "shadow-podium"] as const;
 
 // Le scene dell'anteprima mostrano schermo e telefono senza giocare una partita: qui si controllano layout e testi.
 for (const theme of THEMES) {
@@ -31,6 +31,21 @@ base("anteprima: con 30 giocatori il tabellone li mostra tutti e le carte della 
   const box = await hand.first().boundingBox();
   expect(Math.min(box!.width, box!.height)).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".phone-frame").getByText("Scommessa (2 token)")).toBeVisible();
+});
+
+base("anteprima: le regole stanno sullo schermo (a colonne) e sul telefono, con i numeri della partita", async ({ page }) => {
+  await page.goto("/preview?theme=manga&scene=shadow-intro&still=1");
+  const screen = page.locator(".screen-frame");
+  await expect(screen.getByRole("heading", { name: "Come si gioca" })).toBeVisible();
+  await expect(screen.locator(".sh-intro-grid section")).toHaveCount(7);
+  await expect(screen.getByText("Attacco batte Raggiro, Raggiro batte Difesa, Difesa batte Attacco")).toBeVisible();
+  await expect(screen.getByText("Scudo (1 token)")).toBeVisible();
+  await expect(screen.getByText("Mazzo Leggendario (8 carte)")).toBeVisible();
+  await expect(page.locator(".phone-frame .sh-intro-phone section")).toHaveCount(7);
+  // dal telefono le regole si riaprono anche in gioco con il «?»
+  await page.goto("/preview?theme=manga&scene=shadow-choose&still=1");
+  await page.locator(".phone-frame").getByRole("button", { name: "Regole" }).click();
+  await expect(page.locator(".phone-frame .gf-rules")).toContainText("Scommessa (2 token)");
 });
 
 base("anteprima: le reazioni mostrano solo ciò che si può fare, con il costo", async ({ page }) => {
@@ -80,6 +95,7 @@ test("un torneo da 4 telefoni: W/L, numero dispari con NPC, fino alla classifica
         title: "Shadow e2e",
         theme: "manga",
         config: {
+          introSec: 4,
           startLives: 1,
           startTokens: 1,
           extraLifeSec: 20,
@@ -100,6 +116,9 @@ test("un torneo da 4 telefoni: W/L, numero dispari con NPC, fino alla classifica
   const phones = [...g.reds, ...g.blues];
 
   await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  // prima del primo turno le regole compaiono sullo schermo e sui telefoni
+  await expect(screen.page.getByRole("heading", { name: "Come si gioca" })).toBeVisible();
+  await expect(phones[0]!.page.getByRole("heading", { name: "Come si gioca" })).toBeVisible();
   await expect(screen.page.getByText("Turno 1")).toBeVisible();
   await expect(screen.page.locator(".sh-board li")).toHaveCount(4);
   await expect(screen.page.getByLabel("Scontro in evidenza")).toBeVisible();

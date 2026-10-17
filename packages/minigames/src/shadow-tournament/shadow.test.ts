@@ -7,7 +7,7 @@ import { simulateTournament } from "./simulate.js";
 const players = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, nickname: `Nome${i}`, teamId: null }));
 const ctx = (n: number, seed = 5): MinigameContext => ({ players: players(n), teams: [], seed });
 // i test sulle singole azioni fissano i costi del regolamento originale (Scommessa 1, Scudo e Trappola 2, Cambia carta 5)
-const legacy = { startTokens: 1, maxTokens: 5, betCost: 1, shieldCost: 2, trapCost: 2, swapCost: 5, counterCost: 5 };
+const legacy = { introSec: 0, startTokens: 1, maxTokens: 5, betCost: 1, shieldCost: 2, trapCost: 2, swapCost: 5, counterCost: 5 };
 const cfgWith = (o: Partial<ShadowConfig> = {}): ShadowConfig => ({ ...sampleShadowConfig, ...legacy, ...o });
 // i test della vita extra usano il costo di 1 token: così basta il token iniziale
 const cheapExtra = { extraLifeCost: 1 };
@@ -389,5 +389,26 @@ describe("tornei simulati", () => {
     const { seconds, turns } = simulateTournament({ players: 30, seed: 21, thinkSec: 5 });
     expect(turns).toBeGreaterThan(3);
     expect(seconds / 60).toBeLessThan(45);
+  });
+});
+
+describe("introduzione con le regole", () => {
+  it("prima del primo turno c'è una pausa con le regole; poi parte il torneo, o subito con «Salta timer»", () => {
+    now = 1_000_000;
+    let s = plugin.init(cfgWith({ introSec: 20 }), ctx(4), now);
+    expect(s.phase).toBe("intro");
+    expect((plugin.screenView(s) as { rules: { startLives: number } }).rules.startLives).toBe(3);
+    expect(view(s, "p0")).toMatchObject({ phase: "intro", role: "wait" });
+    expect(view(s, "p0").rules.costs.bet).toBe(1);
+    expect(plugin.onTick(s, now + 5_000)).toBe(s);
+    const skipped = plugin.onHostCommand(s, { type: "skip" }, now + 5_000);
+    expect(skipped.phase).toBe("bouts");
+    s = plugin.onTick(s, now + 20_000);
+    expect(s.phase).toBe("bouts");
+    expect(s.turn).toBe(1);
+  });
+
+  it("introSec 0 salta l'introduzione", () => {
+    expect(start(4).phase).toBe("bouts");
   });
 });

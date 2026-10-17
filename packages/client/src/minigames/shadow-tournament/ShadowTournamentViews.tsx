@@ -4,7 +4,7 @@ import { useSfx } from "../../audio/useAudio";
 import { Sfx } from "../../ui/Sfx";
 import { Countdown } from "../Countdown";
 import type { ControllerProps, ViewProps } from "../types";
-import { type Costs, rulesSections } from "./rulesText";
+import { type Costs, type Rules, rulesSections } from "./rulesText";
 import "./shadow-tournament.css";
 
 type Card = "attack" | "defense" | "trick";
@@ -60,7 +60,7 @@ interface PodiumRow {
 }
 
 interface ScreenData {
-  phase: "bye" | "bouts" | "pause" | "done";
+  phase: "intro" | "bye" | "bouts" | "pause" | "done";
   turn: number;
   paused: boolean;
   openedAt: number;
@@ -71,6 +71,7 @@ interface ScreenData {
   bye: { id: string; nickname: string; choice: "bye" | "npc" | null } | null;
   bouts: BoutView[];
   focusId: string | null;
+  rules: Rules | null;
   podium: PodiumRow[] | null;
 }
 
@@ -99,6 +100,7 @@ interface PhoneBase {
   total: number;
   costs: Costs;
   maxTokens: number;
+  rules: Rules;
 }
 interface MeView {
   id: string;
@@ -281,6 +283,22 @@ export function ShadowTournamentScreen({ view, clock, theme }: ViewProps) {
   }, [v.phase, v.turn, sfx]);
 
   if (v.phase === "done" && v.podium) return <div className="sh-screen"><Podium rows={v.podium} /></div>;
+  if (v.phase === "intro" && v.rules) {
+    return (
+      <div className="sh-screen sh-intro">
+        <h2>Come si gioca</h2>
+        <Countdown openedAt={v.openedAt} deadline={v.deadline} clock={clock} />
+        <div className="sh-intro-grid">
+          {rulesSections(v.rules).map((s) => (
+            <section key={s.title}>
+              <h3>{s.title}</h3>
+              {s.lines.map((line) => <p key={line}>{line}</p>)}
+            </section>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const focus = v.bouts.find((b) => b.id === v.focusId) ?? null;
   const others = v.bouts.filter((b) => b.id !== v.focusId);
@@ -319,12 +337,12 @@ export function ShadowTournamentScreen({ view, clock, theme }: ViewProps) {
 
 // ---------- telefono ----------
 
-function RulesDialog({ costs, maxTokens, onClose }: { costs: Costs; maxTokens: number; onClose: () => void }) {
+function RulesDialog({ rules, onClose }: { rules: Rules; onClose: () => void }) {
   return (
     <div className="gf-rules" role="dialog" aria-modal="true" aria-label="Regole del gioco">
       <div className="gf-rules-body">
         <h2>Come si gioca</h2>
-        {rulesSections(costs, maxTokens).map((s) => (
+        {rulesSections(rules).map((s) => (
           <section key={s.title}>
             <h3>{s.title}</h3>
             {s.lines.map((line) => <p key={line}>{line}</p>)}
@@ -523,7 +541,20 @@ export function ShadowTournamentController({ view, send, clock, theme }: Control
   const [rules, setRules] = useState(false);
 
   let body: React.ReactNode;
-  if (v.role === "spectator") body = <Wait>Il torneo è già iniziato: guardi dallo schermo.</Wait>;
+  if (v.phase === "intro")
+    body = (
+      <div className="sh-ctrl sh-intro-phone">
+        <h2>Come si gioca</h2>
+        <Countdown openedAt={v.openedAt} deadline={v.deadline} clock={clock} />
+        {rulesSections(v.rules).map((s) => (
+          <section key={s.title}>
+            <h3>{s.title}</h3>
+            {s.lines.map((line) => <p key={line}>{line}</p>)}
+          </section>
+        ))}
+      </div>
+    );
+  else if (v.role === "spectator") body = <Wait>Il torneo è già iniziato: guardi dallo schermo.</Wait>;
   else if (v.role === "bye")
     body = (
       <div className="sh-actions">
@@ -574,16 +605,18 @@ export function ShadowTournamentController({ view, send, clock, theme }: Control
   const me = "me" in v ? v.me : null;
   return (
     <div className="sh-phone">
-      {me && (
-        <header className="sh-me">
-          <span>{me.nickname} <StatusBadge status={me.status} /></span>
-          <span className="sh-tokens" aria-label={plural(me.tokens, "token", "token")}>● {me.tokens}/{"maxTokens" in v ? v.maxTokens : 5}</span>
-          {me.nextLives !== 0 && <span className="muted">prossimo scontro: {me.nextLives > 0 ? "+" : ""}{me.nextLives} vite</span>}
-          <button className="sh-help" aria-label="Regole" onClick={() => setRules(true)}>?</button>
-        </header>
-      )}
+      <header className="sh-me">
+        {me && (
+          <>
+            <span>{me.nickname} <StatusBadge status={me.status} /></span>
+            <span className="sh-tokens" aria-label={plural(me.tokens, "token", "token")}>● {me.tokens}/{v.maxTokens}</span>
+            {me.nextLives !== 0 && <span className="muted">prossimo scontro: {me.nextLives > 0 ? "+" : ""}{me.nextLives} vite</span>}
+          </>
+        )}
+        <button className="sh-help" aria-label="Regole" onClick={() => setRules(true)}>?</button>
+      </header>
       {body}
-      {rules && <RulesDialog costs={v.costs} maxTokens={v.maxTokens} onClose={() => setRules(false)} />}
+      {rules && <RulesDialog rules={v.rules} onClose={() => setRules(false)} />}
     </div>
   );
 }

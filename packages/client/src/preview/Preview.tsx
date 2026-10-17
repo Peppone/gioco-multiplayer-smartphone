@@ -208,6 +208,7 @@ function sceneViews(scene: Scene, now: number) {
     case "stanze-history":
     case "stanze-reveal":
       return { typeId: "stanze-segrete", ...stanzeScene(scene, now) };
+    case "shadow-intro":
     case "shadow-choose":
     case "shadow-react":
     case "shadow-reward":

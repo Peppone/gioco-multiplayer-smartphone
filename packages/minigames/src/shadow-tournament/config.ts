@@ -37,6 +37,7 @@ export const shadowConfigSchema = z.object({
   showSec: sec("Pausa dopo ogni scambio (s)", 1, 15, 3),
   rewardSec: sec("Tempo per scegliere il mazzo (s)", 3, 60, 10),
   byeSec: sec("Tempo per scegliere Bye o NPC (s)", 3, 60, 15),
+  introSec: sec("Durata delle regole a inizio torneo (s)", 0, 120, 25, "Le regole compaiono sullo schermo e sui telefoni prima del primo turno; 0 = nessuna introduzione"),
   turnPauseSec: sec("Pausa tra i turni (s)", 1, 30, 5),
   maxTurns: sec("Turni massimi", 1, 100, 40, "Passati questi turni il torneo finisce con la classifica attuale"),
 

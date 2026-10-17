@@ -1,8 +1,9 @@
 /** Viste d'esempio di Shadow Tournament per l'anteprima dei temi (`/preview`): nessuna partita da giocare. */
 
-export type ShadowSceneId = "shadow-choose" | "shadow-react" | "shadow-reward" | "shadow-out" | "shadow-bye" | "shadow-podium";
+export type ShadowSceneId = "shadow-intro" | "shadow-choose" | "shadow-react" | "shadow-reward" | "shadow-out" | "shadow-bye" | "shadow-podium";
 
 export const SHADOW_SCENES: { id: ShadowSceneId; label: string }[] = [
+  { id: "shadow-intro", label: "Shadow: regole" },
   { id: "shadow-choose", label: "Shadow: scelta (30 giocatori)" },
   { id: "shadow-react", label: "Shadow: reazioni" },
   { id: "shadow-reward", label: "Shadow: ricompensa" },
@@ -13,6 +14,29 @@ export const SHADOW_SCENES: { id: ShadowSceneId; label: string }[] = [
 
 const NAMES = ["Gina", "Marco", "Sofia", "Luca", "Anna", "Paolo", "Giulia", "Enrico", "Chiara", "Matteo", "Elisa", "Davide", "Sara", "Andrea", "Marta"];
 const costs = { bet: 2, shield: 1, trap: 1, swap: 2, counter: 2, extraLife: 2 };
+const rules = {
+  startLives: 3,
+  maxLives: 5,
+  startTokens: 2,
+  maxTokens: 6,
+  allStartLoser: false,
+  costs,
+  decks: {
+    normal: [
+      { label: "+1 token", qty: 5, tokens: 1, nextLives: 0, either: false },
+      { label: "+2 token", qty: 3, tokens: 2, nextLives: 0, either: false },
+      { label: "+1 token e 1 vita", qty: 2, tokens: 1, nextLives: 1, either: false },
+      { label: "Neutra", qty: 3, tokens: 0, nextLives: 0, either: false },
+      { label: "Rischio lieve", qty: 2, tokens: -1, nextLives: 0, either: false },
+    ],
+    legendary: [
+      { label: "+3 token", qty: 4, tokens: 3, nextLives: 0, either: false },
+      { label: "Vantaggio rischioso", qty: 1, tokens: 2, nextLives: -1, either: false },
+      { label: "Rischio forte", qty: 3, tokens: -2, nextLives: -1, either: true },
+    ],
+  },
+  points: { placement: [1000, 700, 500], placementMin: 100, boutWin: 50, prediction: 30 },
+};
 
 const fighters = (n: number) =>
   Array.from({ length: n }, (_, i) => ({
@@ -57,8 +81,8 @@ export function shadowScene(scene: ShadowSceneId, now: number) {
     const y = alive[3 + (i % (alive.length - 3))]!;
     return bout(now, `t3-${i + 2}`, x, y, { phase: i % 4 === 0 ? "done" : "choose", winnerId: i % 4 === 0 ? x.id : null });
   });
-  const base = { phase: "bouts" as const, turn: 3, paused: false, openedAt: now, deadline: now + 10_000, alive: alive.length, total: 30, fighters: f, bye: null };
-  const phoneBase = { phase: "bouts", turn: 3, openedAt: now, deadline: now + 10_000, alive: alive.length, total: 30, costs, maxTokens: 5 };
+  const base = { phase: "bouts" as const, turn: 3, paused: false, openedAt: now, deadline: now + 10_000, alive: alive.length, total: 30, fighters: f, bye: null, rules: null };
+  const phoneBase = { phase: "bouts", turn: 3, openedAt: now, deadline: now + 10_000, alive: alive.length, total: 30, costs, maxTokens: 6, rules };
   const me = { id: a.id, nickname: a.nickname, status: a.status, tokens: 3, nextLives: 0, boutsWon: 1, hits: 0 };
   const mine = {
     pick: null,
@@ -78,6 +102,12 @@ export function shadowScene(scene: ShadowSceneId, now: number) {
   const phoneBout = (view: ReturnType<typeof bout>, my: typeof mine) => ({ ...phoneBase, role: "bout", me, asNpc: false, mySide: a.id, opponentId: b.id, bout: view, my });
 
   switch (scene) {
+    case "shadow-intro":
+      return {
+        typeId: "shadow-tournament",
+        screen: { ...base, phase: "intro", turn: 0, bouts: [], focusId: null, rules, podium: null },
+        phone: { ...phoneBase, phase: "intro", turn: 0, role: "wait", me, byeNow: null, bye: null },
+      };
     case "shadow-choose": {
       const focus = bout(now, "t3-1", a, b, { spotlight: true, sides: [{ ...bout(now, "x", a, b).sides[0], picked: true }, bout(now, "x", a, b).sides[1]] });
       return { typeId: "shadow-tournament", screen: { ...base, bouts: [focus, ...others], focusId: "t3-1", podium: null }, phone: phoneBout(focus, mine) };
