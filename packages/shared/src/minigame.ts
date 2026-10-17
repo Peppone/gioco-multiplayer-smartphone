@@ -24,6 +24,8 @@ export interface MinigameContext {
   teams: TeamInfo[];
   /** Seme per ogni casualità: gli stati restano deterministici e testabili. */
   seed: number;
+  /** Contenuti (es. parole) già mostrati dai round precedenti della stessa partita, come li dichiara `shownItems`. */
+  seen?: string[];
 }
 
 /** Metadati calcolati dal server per ogni input (mai forniti dal client). */
@@ -133,6 +135,8 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   maxPlayers?: number;
   /** Messaggi ed eventi del round (id crescenti), che l'engine salva nel database dopo ogni cambio di stato. */
   messages?(state: State): RoundMessage[];
+  /** Contenuti mostrati finora nel round: l'engine li passa ai round successivi (`ctx.seen`) perché non si ripetano. */
+  shownItems?(state: State): string[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

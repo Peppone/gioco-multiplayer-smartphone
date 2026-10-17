@@ -61,6 +61,8 @@ interface Live {
   roundIndex: number;
   phase: GamePhase;
   roundState: unknown;
+  /** Contenuti già mostrati dai round conclusi (assente nelle fotografie salvate prima di questa funzione). */
+  seen?: string[];
 }
 
 /** Stato dell'engine in forma serializzabile (le Map diventano elenchi di coppie). */
@@ -311,6 +313,7 @@ export class Engine {
         players: l.roster,
         teams: [...l.teamNames].map(([id, name]) => ({ id, name, color: l.teamColors.get(id) })),
         seed: Math.floor(random() * 2 ** 31),
+        seen: l.seen ?? [],
       },
       this.deps.now(),
     );
@@ -373,6 +376,8 @@ export class Engine {
       }));
     this.deps.scores.record(entries);
     this.invalidateScores();
+    const shown = this.plugin(round).shownItems?.(l.roundState);
+    if (shown?.length) l.seen = [...new Set([...(l.seen ?? []), ...shown])];
     l.phase = "results";
     l.roundState = null;
     this.touch();
