@@ -34,5 +34,5 @@ export function useAdminGame() {
     [socket],
   );
 
-  return { state, connected, command };
+  return { state, connected, command, socket };
 }

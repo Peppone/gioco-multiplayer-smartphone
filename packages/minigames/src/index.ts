@@ -4,12 +4,15 @@ import { ghostHunt } from "./caccia-fantasmi/index.js";
 import { indovinaCanzone } from "./indovina-canzone/index.js";
 import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
+import { reazioneACatena, wordListSchema } from "./reazione-a-catena/index.js";
+import { stanzeSegrete } from "./stanze-segrete/index.js";
+import { scalata } from "./scalata/index.js";
 import { sondaggio } from "./sondaggio/index.js";
 import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
 
-export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, sondaggio, stima, veroFalso, zombieHunt };
+export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, reazioneACatena, scalata, sondaggio, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -31,7 +34,13 @@ const knightDuel = createKnightDuel(roundMinigames);
  * sua istanza riferisce altre istanze della libreria, quindi non è tra quelli che può orchestrare.
  * Per aggiungere un minigioco: vedi docs/NUOVO-MINIGIOCO.md.
  */
-export const minigames: Record<string, AnyMinigame> = { ...roundMinigames, [knightDuel.id]: knightDuel };
+export const minigames: Record<string, AnyMinigame> = {
+  ...roundMinigames,
+  [knightDuel.id]: knightDuel,
+  [stanzeSegrete.id]: stanzeSegrete,
+  [reazioneACatena.id]: reazioneACatena,
+  [scalata.id]: scalata,
+};
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */
 export interface LibraryContentType {
@@ -49,5 +58,12 @@ export const libraryContentTypes: Record<string, LibraryContentType> = {
     defaultTheme: "pixel",
     configSchema: deckSchema as unknown as import("zod").ZodType<unknown>,
     sampleConfig: DEFAULT_DECK,
+  },
+  "word-list": {
+    id: "word-list",
+    title: "Lista di parole (Reazione a catena)",
+    defaultTheme: "gameshow",
+    configSchema: wordListSchema as unknown as import("zod").ZodType<unknown>,
+    sampleConfig: { words: ["Pizza", "Spiaggia", "Telefono", "Montagna", "Chitarra", "Gelato"] },
   },
 };

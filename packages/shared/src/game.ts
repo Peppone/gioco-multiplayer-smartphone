@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { HostView, ThemeId } from "./minigame.js";
+import type { PublicPlayer } from "./protocol.js";
 
 // ---- Classifiche ----
 
@@ -56,8 +57,26 @@ export interface GameAdminState extends GameScreenState {
   matchId?: string;
   rounds: { id: string; title: string; typeId: string }[];
   host?: HostView;
+  /** Il round in corso ha un Game Master: la regia può generare il link per il suo telefono. */
+  master?: boolean;
   engineActions: { id: string; label: string; enabled: boolean; danger?: boolean }[];
 }
+
+/** Vista del Game Master: solo il round in corso, se il plugin lo prevede (`master: true`). */
+export interface GameMasterState {
+  phase: GamePhase;
+  matchName?: string;
+  roundTitle?: string;
+  typeId?: string;
+  /** La `hostView` del plugin: presente solo se il round in corso ha un'interfaccia per il GM. */
+  host?: HostView;
+  /** Giocatori della partita (il GM non è tra loro). */
+  players: PublicPlayer[];
+}
+
+/** Il GM può inviare soltanto comandi del plugin del round in corso. */
+export const masterCommandSchema = z.object({ type: z.literal("plugin"), command: z.record(z.string(), z.unknown()) });
+export type MasterCommand = z.infer<typeof masterCommandSchema>;
 
 // ---- Comandi della regia ----
 

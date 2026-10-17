@@ -17,6 +17,14 @@ import {
 import type { AdminAuth, AuthResult } from "./admin-auth.js";
 import type { Result } from "./result.js";
 import type { AdminService } from "./admin-service.js";
+import type { Engine } from "./engine.js";
+import type { MasterAuth } from "./master-auth.js";
+
+/** Funzioni legate al Game Master: link limitato e archivio dei messaggi. */
+export interface MasterDeps {
+  auth: MasterAuth;
+  engine: Engine;
+}
 
 const STATUS: Record<AdminError, number> = {
   invalid: 400,
@@ -47,7 +55,7 @@ function parse<T>(schema: ZodType<T>, body: unknown, reply: FastifyReply): T | u
 
 type IdParams = { id: string };
 
-export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, service: AdminService): void {
+export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, service: AdminService, master?: MasterDeps): void {
   // ---- Pubbliche: stato, prima configurazione, login ----
   app.get("/api/admin/status", async () => ({ configured: auth.isConfigured() }));
 
@@ -130,6 +138,23 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
     api.delete<{ Params: IdParams }>("/api/admin/matches/:id", async (req, reply) =>
       send(reply, service.deleteMatch(req.params.id)),
     );
+
+    // ---- Game Master: link limitato e archivio dei messaggi ed eventi ----
+    if (master) {
+      api.post("/api/admin/master-link", async (_req, reply) => {
+        const matchId = master.engine.activeMatchId;
+        if (!matchId || !master.engine.masterAvailable) {
+          return reply.code(409).send({ error: "conflict" satisfies AdminError, detail: "Il round in corso non prevede un Game Master." });
+        }
+        return master.auth.issue(matchId);
+      });
+      api.delete("/api/admin/master-link", async (_req, reply) => {
+        master.auth.revoke();
+        return reply.code(204).send();
+      });
+      api.get<{ Params: IdParams }>("/api/admin/events/:id/messages", async (req) => master.engine.messageStore.list(req.params.id));
+      api.delete<{ Params: IdParams }>("/api/admin/events/:id/messages", async (req) => ({ removed: master.engine.messageStore.deleteForEvent(req.params.id) }));
+    }
 
     // ---- Libreria minigiochi e round ----
     const lib = service.library;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AnyMinigame, MinigameContext } from "@gioco/shared";
-import { roundMinigames } from "../../../packages/minigames/src/index.js";
+import { minigames, roundMinigames } from "../../../packages/minigames/src/index.js";
 import { createKnightDuel, duelModeSchema, DEFAULT_DECK } from "../../../packages/minigames/src/knight-duel/index.js";
 import { GHOST_HUNT_BOT_CODES, decide, makeRnd } from "./strategy.js";
 
@@ -93,5 +93,56 @@ describe("strategia dei bot", () => {
     act(1_800);
     s = duel.onTick(s, 1_900);
     expect(s.phase).toBe("battle-result"); // tutti hanno confermato: lo scontro si risolve senza attendere il tempo
+  });
+});
+
+describe("strategia dei bot: Stanze Segrete", () => {
+  const game = minigames["stanze-segrete"]!;
+  const cfg = game.configSchema.parse(game.sampleConfig);
+  const cmd = (s: any, c: unknown) => game.onHostCommand(s, c, 50);
+  const act = (s: any, id: string, rnd = makeRnd(2)) => {
+    const d = decide("stanze-segrete", game.viewFor(s, id, null), rnd);
+    if (!d) return { s, d };
+    let next = s;
+    for (const input of d.inputs) {
+      const parsed = game.inputSchema.safeParse(input);
+      expect(parsed.success, JSON.stringify(input)).toBe(true);
+      if (parsed.success) next = game.onInput(next, id, parsed.data, meta);
+    }
+    return { s: next, d };
+  };
+  const started = () => {
+    let s = game.init(cfg, ctx, 0);
+    s = cmd(s, { type: "place-spread" });
+    return cmd(s, { type: "start" });
+  };
+
+  it("senza permessi il bot non fa nulla; con i permessi chiede di muoversi, guarda e scrive", () => {
+    let s = started();
+    expect(decide("stanze-segrete", game.viewFor(s, "r1", "t1"), makeRnd(1))).toBeNull();
+    s = cmd(s, { type: "grant", target: "all", action: "move" });
+    const moved = act(s, "r1");
+    expect(moved.s.requests).toHaveLength(1);
+    s = cmd(s, { type: "grant", target: "all", action: "sight", uses: 2 });
+    s = cmd(s, { type: "resolve-all-moves", approve: true });
+    s = cmd(s, { type: "grant", target: "all", action: "message" });
+    const written = act(s, "b1");
+    expect(["ss-mv", "ss-sight", "ss-msg"].some((k) => written.d?.key.startsWith(k))).toBe(true);
+  });
+
+  it("accetta gli eventi, legge e risponde ai messaggi del GM", () => {
+    let s = started();
+    s = cmd(s, { type: "event", to: "all", text: "Allarme" });
+    let r = act(s, "r2");
+    expect(r.d?.key).toMatch(/^ss-ev-/);
+    expect(r.s.events[0].accepted.r2).not.toBeNull();
+    r = act(r.s, "r2");
+    expect(r.d).toBeNull();
+    s = cmd(r.s, { type: "message", to: { player: "r2" }, text: "Ciao" });
+    r = act(s, "r2");
+    expect(r.d?.key).toMatch(/^ss-ack-/);
+    r = act(r.s, "r2");
+    expect(r.d?.key).toMatch(/^ss-reply-/);
+    expect(r.s.messages.at(-1).from).toBe("r2");
   });
 });

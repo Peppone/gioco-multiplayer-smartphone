@@ -18,7 +18,7 @@ export interface JsonSchema {
   widget?: "textarea" | "optionIndex" | "contestant" | "instance" | "audio";
   optionsKey?: string;
   /** Per il widget «instance»: quale tipo di istanza della libreria mostrare. */
-  instanceKind?: "minigame" | "deck";
+  instanceKind?: "minigame" | "deck" | "word-list";
   itemLabel?: string;
   /** Etichette leggibili per i valori di un enum (valore → testo). */
   enumLabels?: Record<string, string>;

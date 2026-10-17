@@ -1,0 +1,11 @@
+/* La scalata: intestazione a livelli, elenco di chi è in gara. Solo variabili del tema. */
+.sc-screen, .sc-ctrl { display: grid; gap: .8rem; justify-items: center; text-align: center; width: 100%; }
+.sc-head { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; justify-content: center; font-weight: 800; }
+.sc-prize { color: var(--accent); }
+.sc-verdict { font-size: 1.6rem; font-weight: 800; margin: 0; }
+.sc-alive { display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; list-style: none; padding: 0; margin: 0; }
+.sc-alive li { background: var(--panel); border: var(--border-w) solid var(--border-c); border-radius: var(--radius); padding: .2rem .8rem; font-weight: 700; }
+.sc-winners { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; font-size: 2rem; }
+.sc-out { background: var(--panel-2); border-radius: var(--radius); padding: .4rem 1rem; margin: 0; opacity: .85; }
+.sc-top { list-style: none; padding: 0; margin: 0; display: grid; gap: .2rem; font-size: 1.2rem; }
+.sc-top li.out { opacity: .65; }

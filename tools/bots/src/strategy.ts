@@ -67,9 +67,39 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
       return suspects.length > 0 ? { key: "gf-accuse", inputs: [{ type: "accuse", target: pick(suspects, rnd).id }] } : null;
     }
 
+    case "stanze-segrete":
+      return decideStanze(v, rnd);
+
     default:
       return null;
   }
+}
+
+/**
+ * Stanze Segrete: un giocatore che fa quello che può quando il GM lo abilita. Accetta gli eventi, legge e risponde,
+ * chiede di muoversi e di guardare la lettera, scrive al GM. Dopo ogni azione arriva un nuovo stato e ne segue
+ * un'altra: è la «raffica» che mette sotto sforzo posta, richieste e database.
+ */
+function decideStanze(v: View, rnd: Rnd): Decision | null {
+  if (!v.member) return null;
+  const events = (v.pendingEvents ?? []) as { id: number }[];
+  if (events.length > 0) return { key: `ss-ev-${events[0]!.id}`, inputs: [{ type: "accept-event", eventId: events[0]!.id }] };
+  const msgs = (v.messages ?? []) as { id: number; mine: boolean; readAt: number | null; canReply: boolean }[];
+  const unread = msgs.find((m) => !m.mine && m.readAt === null);
+  if (unread) return { key: `ss-ack-${unread.id}`, inputs: [{ type: "ack", messageId: unread.id }] };
+  const open = msgs.find((m) => m.canReply);
+  if (open) return { key: `ss-reply-${open.id}`, inputs: [{ type: "reply", messageId: open.id, text: "Ricevuto, Master." }] };
+
+  const pending = (v.pending ?? []) as { kind: string }[];
+  const abilities = ((v.abilities ?? []) as { action: string }[]).map((a) => a.action);
+  const move = v.compass?.move as Record<string, string> | undefined;
+  if (move && !pending.some((r) => r.kind === "move")) {
+    const dirs = Object.keys(move).filter((d) => move[d] === "open");
+    if (dirs.length > 0) return { key: `ss-mv-${v.cell}-${v.feedback?.at ?? 0}`, inputs: [{ type: "move", direction: pick(dirs, rnd) }] };
+  }
+  if (abilities.includes("sight") && !v.sighting) return { key: `ss-sight-${v.cell}-${v.feedback?.at ?? 0}-${msgs.length}`, inputs: [{ type: "sight" }] };
+  if (abilities.includes("message")) return { key: `ss-msg-${msgs.length}`, inputs: [{ type: "message", text: "Master, cosa succede?" }] };
+  return null;
 }
 
 /**

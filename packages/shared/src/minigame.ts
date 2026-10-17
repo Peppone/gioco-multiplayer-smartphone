@@ -24,6 +24,8 @@ export interface MinigameContext {
   teams: TeamInfo[];
   /** Seme per ogni casualità: gli stati restano deterministici e testabili. */
   seed: number;
+  /** Contenuti (es. parole) già mostrati dai round precedenti della stessa partita, come li dichiara `shownItems`. */
+  seen?: string[];
 }
 
 /** Metadati calcolati dal server per ogni input (mai forniti dal client). */
@@ -60,6 +62,28 @@ export interface HostAction {
 export interface HostView {
   info: unknown;
   actions: HostAction[];
+}
+
+/**
+ * Messaggio o evento di un round da salvare nel database (il plugin li tiene nello stato, l'engine li copia).
+ * `id` cresce per round; l'inserimento è idempotente su (round, id).
+ */
+export interface RoundMessage {
+  id: number;
+  kind: "message" | "event";
+  fromKind: "master" | "player";
+  fromPlayerId: string | null;
+  toKind: "master" | "player" | "room" | "all" | "players";
+  toPlayerId: string | null;
+  toCell: number | null;
+  /** Destinatari fissati all'invio (stanza, tutti, multicast). */
+  recipients: string[] | null;
+  text: string;
+  ts: number;
+  readAt: number | null;
+  /** Solo per gli eventi: giocatore → istante di accettazione (null finché non accetta). */
+  accepted?: Record<string, number | null>;
+  cancelled?: boolean;
 }
 
 /**
@@ -104,6 +128,15 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   /** Solo ciò che quel giocatore/team può vedere. */
   viewFor(state: State, playerId: string, teamId: string | null): unknown;
   hostView(state: State): HostView;
+
+  /** Il round ha un'interfaccia per il Game Master: senza, il link del GM non si genera e i suoi comandi sono rifiutati. */
+  master?: true;
+  /** Numero massimo di giocatori del round: l'engine rifiuta l'avvio se la serata ne ha di più. */
+  maxPlayers?: number;
+  /** Messaggi ed eventi del round (id crescenti), che l'engine salva nel database dopo ogni cambio di stato. */
+  messages?(state: State): RoundMessage[];
+  /** Contenuti mostrati finora nel round: l'engine li passa ai round successivi (`ctx.seen`) perché non si ripetano. */
+  shownItems?(state: State): string[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -12,3 +12,19 @@ describe("stress test con 30 giocatori", () => {
     expect(report.fanoutMs.p95).toBeLessThan(1_500);
   }, 280_000);
 });
+
+// Stanze Segrete: 10 giocatori scrivono e chiedono di muoversi a raffica, un GM simulato approva e manda posta ed eventi.
+describe("stress test di Stanze Segrete con il Game Master", () => {
+  it("10 giocatori: nessun errore, aggiornamenti rapidi, messaggi ed eventi tutti nel database", async () => {
+    const report = await runStress({ players: 10, scenario: "stanze", latencyMs: [50, 200], thinkMs: [200, 1200], seed: 3, stanzeSeconds: 15 });
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`);
+    expect(failed, `controlli falliti:\n${failed.join("\n")}`).toEqual([]);
+  }, 120_000);
+
+  it("con 11 giocatori l'avvio del round viene rifiutato con un messaggio chiaro", async () => {
+    const report = await runStress({ players: 11, scenario: "stanze", latencyMs: [20, 80], thinkMs: [100, 300], seed: 4 });
+    const warnings = report.matches.flatMap((m) => m.run.warnings);
+    expect(warnings.some((w) => w.includes("massimo 10 giocatori, in serata ce ne sono 11"))).toBe(true);
+    expect(report.matches[0]!.run.reachedEnd).toBe(false);
+  }, 120_000);
+});

@@ -2,6 +2,7 @@
 //
 //   pnpm stress                         → avvia un server di prova isolato e gioca con 30 bot (partita classica + duello)
 //   pnpm stress --players 20 --scenario duel
+//   pnpm stress --players 10 --scenario stanze         → Stanze Segrete con un Game Master simulato (massimo 10 giocatori)
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
 import { pathToFileURL } from "node:url";
@@ -9,7 +10,8 @@ import type { GameAdminState } from "@gioco/shared";
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { classicMatch, duelMatch, setupEvent } from "./scenario.js";
+import { classicMatch, duelMatch, setupEvent, stanzeMatch } from "./scenario.js";
+import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
 export interface StressOptions {
@@ -17,7 +19,9 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "all";
+  scenario: "classic" | "duel" | "stanze" | "all";
+  /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
+  stanzeSeconds?: number;
   latencyMs: [number, number];
   thinkMs: [number, number];
   seed: number;
@@ -86,15 +90,18 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
     await host.connect();
 
     const jobs: { name: string; matchId: string }[] = [];
-    if (opts.scenario !== "duel") jobs.push({ name: "Partita classica (5 minigiochi)", matchId: (await classicMatch(api, setup.eventId)).matchId });
-    if (opts.scenario !== "classic") jobs.push({ name: "Duello dei Cavalieri", matchId: (await duelMatch(api, setup)).matchId });
+    if (opts.scenario === "classic" || opts.scenario === "all") jobs.push({ name: "Partita classica (5 minigiochi)", matchId: (await classicMatch(api, setup.eventId)).matchId });
+    if (opts.scenario === "duel" || opts.scenario === "all") jobs.push({ name: "Duello dei Cavalieri", matchId: (await duelMatch(api, setup)).matchId });
+
+    if (opts.scenario === "stanze") jobs.push({ name: "Stanze Segrete (con Game Master)", matchId: (await stanzeMatch(api, setup.eventId)).matchId });
 
     for (const job of jobs) {
       log(`Parte: ${job.name}`);
-      const run = await host.runMatch(job.matchId);
+      const run = opts.scenario === "stanze" ? await playStanze(host, api, url, job.matchId, opts.stanzeSeconds ?? 20) : await host.runMatch(job.matchId);
       report.matches.push({ name: job.name, run });
       log(`  ${run.reachedEnd ? "conclusa" : "NON conclusa"} in ${(run.durationMs / 1000).toFixed(1)}s, ${run.commands.length} comandi`);
       if (run.finalState) checkMatch(job.name, run.finalState, bots.length, check);
+      if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
 
     // ---- Controlli finali ----
@@ -136,6 +143,20 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
   return report;
 }
 
+/** Scritture nel database della sessione con il GM: tutti i messaggi e gli eventi, e le accettazioni dei bot. */
+async function checkStanze(api: AdminApi, eventId: string, run: StanzeRun, check: (n: string, ok: boolean, d?: string) => void): Promise<void> {
+  const rows = await api.get<{ kind: string; fromKind: string; recipients: { acceptedAt: number | null }[] }[]>(`/events/${eventId}/messages`);
+  const events = rows.filter((r) => r.kind === "event");
+  const fromPlayers = rows.filter((r) => r.kind === "message" && r.fromKind === "player");
+  check("Stanze: spostamenti approvati dal GM", run.moves > 0, String(run.moves));
+  check("Stanze: tutti i messaggi del GM sono nel database", rows.filter((r) => r.kind === "message" && r.fromKind === "master").length === run.messagesSent, `${rows.length} righe, ${run.messagesSent} inviati`);
+  check("Stanze: i giocatori hanno scritto al GM", fromPlayers.length > 0, String(fromPlayers.length));
+  check("Stanze: tutti gli eventi sono nel database", events.length === run.eventsSent, `${events.length}/${run.eventsSent}`);
+  // L'ultimo evento può arrivare a fine sessione: si controllano i primi.
+  const settled = events.slice(0, Math.max(0, events.length - 1));
+  check("Stanze: i bot hanno accettato gli eventi", settled.length > 0 && settled.every((e) => e.recipients.length > 0 && e.recipients.every((x) => x.acceptedAt !== null)), `${settled.filter((e) => e.recipients.some((x) => x.acceptedAt === null)).length} eventi con accettazioni mancanti`);
+}
+
 /** Controlli sulla classifica finale di una partita. */
 function checkMatch(name: string, s: GameAdminState, bots: number, check: (n: string, ok: boolean, d?: string) => void): void {
   const lb = s.leaderboards;
@@ -170,8 +191,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel o all");
+  if (!["classic", "duel", "stanze", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze o all");
     process.exit(2);
   }
   const url = arg("url");

@@ -2,6 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import type {
   AnyMinigame,
   GameAdminState,
+  GameMasterState,
   GamePhase,
   GamePlayerState,
   GameScreenState,
@@ -24,6 +25,7 @@ import {
   players,
   teams,
 } from "./db.js";
+import { MessageStore } from "./message-store.js";
 import { type NewScoreEntry, ScoreService } from "./scores.js";
 
 export interface EngineDeps {
@@ -59,6 +61,8 @@ interface Live {
   roundIndex: number;
   phase: GamePhase;
   roundState: unknown;
+  /** Contenuti già mostrati dai round conclusi (assente nelle fotografie salvate prima di questa funzione). */
+  seen?: string[];
 }
 
 /** Stato dell'engine in forma serializzabile (le Map diventano elenchi di coppie). */
@@ -80,8 +84,12 @@ export class Engine {
   private lbCache: Leaderboards | null = null;
   /** Incrementa a ogni cambiamento: serve a capire se rinviare le viste. */
   version = 0;
+  /** Archivio dei messaggi ed eventi dei round con Game Master. */
+  readonly messageStore: MessageStore;
 
-  constructor(private readonly deps: EngineDeps) {}
+  constructor(private readonly deps: EngineDeps) {
+    this.messageStore = new MessageStore(deps.db);
+  }
 
   private get db() {
     return this.deps.db;
@@ -236,16 +244,8 @@ export class Engine {
         }
         return this.endMatch(l);
 
-      case "plugin": {
-        const round = this.currentRound;
-        if (l.phase !== "round" || !round) return fail("Nessun round in corso.");
-        const plugin = this.plugin(round);
-        const parsed = plugin.commandSchema.safeParse(cmd.command);
-        if (!parsed.success) return fail("Comando non valido.");
-        const next = plugin.onHostCommand(l.roundState, parsed.data, this.deps.now());
-        if (next !== l.roundState) this.setRoundState(l, next);
-        return OK;
-      }
+      case "plugin":
+        return this.pluginCommand(l, cmd.command);
 
       case "adjust": {
         const playerTeam = cmd.playerId ? l.roster.find((p) => p.id === cmd.playerId) : undefined;
@@ -270,11 +270,41 @@ export class Engine {
     }
   }
 
+  private pluginCommand(l: Live, command: unknown): EngineResult {
+    const round = this.currentRound;
+    if (l.phase !== "round" || !round) return fail("Nessun round in corso.");
+    const plugin = this.plugin(round);
+    const parsed = plugin.commandSchema.safeParse(command);
+    if (!parsed.success) return fail("Comando non valido.");
+    const next = plugin.onHostCommand(l.roundState, parsed.data, this.deps.now());
+    if (next !== l.roundState) this.setRoundState(l, next);
+    return OK;
+  }
+
+  /** Comando del Game Master: solo il plugin del round in corso, e solo se il round prevede il ruolo. */
+  masterCommand(command: unknown): EngineResult {
+    const l = this.live;
+    const round = this.currentRound;
+    if (!l || l.phase !== "round" || !round) return fail("Nessun round in corso.");
+    if (!this.plugin(round).master) return fail("Questo round non ha un Game Master.");
+    return this.pluginCommand(l, command);
+  }
+
+  /** Il round in corso ha un'interfaccia per il Game Master? */
+  get masterAvailable(): boolean {
+    const round = this.currentRound;
+    return !!this.live && this.live.phase === "round" && !!round && !!this.plugin(round).master;
+  }
+
   private next(l: Live): EngineResult {
     if (l.phase !== "ready" && l.phase !== "results") return fail("Non si può avanzare ora.");
     if (l.roundIndex + 1 >= l.rounds.length) return this.endMatch(l);
 
     const round = l.rounds[l.roundIndex + 1]!;
+    const max = this.plugin(round).maxPlayers;
+    if (max !== undefined && l.roster.length > max) {
+      return fail(`${round.title}: massimo ${max} giocatori, in serata ce ne sono ${l.roster.length}.`);
+    }
     const random = this.deps.random ?? Math.random;
     l.roundIndex++;
     l.roundState = this.plugin(round).init(
@@ -283,6 +313,7 @@ export class Engine {
         players: l.roster,
         teams: [...l.teamNames].map(([id, name]) => ({ id, name, color: l.teamColors.get(id) })),
         seed: Math.floor(random() * 2 ** 31),
+        seen: l.seen ?? [],
       },
       this.deps.now(),
     );
@@ -305,7 +336,16 @@ export class Engine {
 
   private setRoundState(l: Live, state: unknown): void {
     l.roundState = state;
+    this.saveMessages(l);
     this.afterRoundChange(l);
+  }
+
+  /** Copia nel database i messaggi ed eventi nuovi o cambiati del round (idempotente). */
+  private saveMessages(l: Live): void {
+    const round = this.currentRound;
+    const plugin = round ? this.plugin(round) : null;
+    if (!round || !plugin?.messages || l.roundState === null) return;
+    this.messageStore.persist({ eventId: l.eventId, matchId: l.matchId, roundId: round.roundId }, plugin.messages(l.roundState));
   }
 
   /** Dopo ogni modifica: se il plugin ha esaurito il suo flusso si chiude il round. */
@@ -321,6 +361,7 @@ export class Engine {
   /** Registra i punti del round (una sola volta) e passa alla fase risultati. */
   private finalizeRound(l: Live): void {
     const round = this.currentRound!;
+    this.saveMessages(l);
     const teamOf = new Map(l.roster.map((p) => [p.id, p.teamId]));
     const entries: NewScoreEntry[] = this.plugin(round)
       .scores(l.roundState)
@@ -335,6 +376,8 @@ export class Engine {
       }));
     this.deps.scores.record(entries);
     this.invalidateScores();
+    const shown = this.plugin(round).shownItems?.(l.roundState);
+    if (shown?.length) l.seen = [...new Set([...(l.seen ?? []), ...shown])];
     l.phase = "results";
     l.roundState = null;
     this.touch();
@@ -421,6 +464,16 @@ export class Engine {
     };
   }
 
+  /** Vista del Game Master: solo il round in corso, e solo se il plugin lo prevede. I giocatori li completa il server. */
+  masterState(): Omit<GameMasterState, "players"> {
+    const l = this.live;
+    if (!l) return { phase: "idle" };
+    const round = this.currentRound;
+    const base = { phase: l.phase, matchName: l.matchName };
+    if (l.phase !== "round" || !round || !this.plugin(round).master) return base;
+    return { ...base, roundTitle: round.title, typeId: round.typeId, host: this.plugin(round).hostView(l.roundState) };
+  }
+
   adminState(): GameAdminState {
     const l = this.live;
     const base = this.screenState();
@@ -448,6 +501,7 @@ export class Engine {
       matchId: l.matchId,
       rounds: l.rounds.map((r) => ({ id: r.roundId, title: r.title, typeId: r.typeId })),
       host,
+      master: this.masterAvailable,
       engineActions,
     };
   }

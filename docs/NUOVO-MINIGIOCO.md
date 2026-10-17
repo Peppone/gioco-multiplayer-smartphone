@@ -95,6 +95,17 @@ Registra le viste in `packages/client/src/minigames/registry.ts`:
 4. **Test end-to-end** in `e2e/`: uno scenario che gioca il minigioco dal telefono alla classifica, controlla il DOM e (se ci sono segreti) il traffico WebSocket. Usa il fixture `newGame` di `e2e/support.ts` (vedi `e2e/minigames.spec.ts`). Lancia `pnpm test:e2e`.
 5. Se il minigioco ha latenza o ordine di arrivo rilevanti, aggiungi una simulazione con ritardi casuali (vedi `buzzer.test.ts`).
 
+## 4 bis. Game Master e interfaccia ricca per la regia (facoltativo)
+
+Per un gioco condotto da una persona (un GDR, un gioco a indizi) il plugin può dichiarare:
+
+- `master: true`: il round ha un'interfaccia per il **Game Master**. La regia genera dal pannello Live un link limitato (`/master#t=…`, QR) che apre un telefono con la `hostView` del plugin e i soli comandi del plugin (`commandSchema`): niente CRUD, niente engine, niente rettifiche. Il token si può revocare e scade a fine partita.
+- `maxPlayers: N`: l'engine rifiuta l'avvio del round se la serata ha più giocatori, con un messaggio chiaro alla regia.
+- `messages(state)`: messaggi ed eventi del round (`RoundMessage[]`, id crescenti). L'engine li salva nel database dopo ogni cambio di stato, in modo idempotente (chiave unica round + id), anche quando lo stato ne tiene solo gli ultimi.
+- Una vista `Host` nel registro del client (`Host: lazy(() => import("./<id>/<Nome>Host"))`): riceve `{ info, run(command), clock, theme }`, dove `info` è la `hostView.info` e `run` invia un comando al plugin. Compare nel pannello Live al posto dei pulsanti generici di `hostView.actions` e in `/master`. Va caricata con `lazy`, così non finisce nel pacchetto del telefono.
+
+Esempio completo: `stanze-segrete` (guida in [STANZE-SEGRETE.md](STANZE-SEGRETE.md)). Ricorda che i contenuti segreti che il GM vede non devono mai comparire in `screenView` / `viewFor`: aggiungi i test anti-leak.
+
 ## 5. Anteprima grafica (facoltativa)
 
 Aggiungi una scena a `packages/client/src/preview/Preview.tsx` per vedere il look del plugin nei quattro temi su `/preview?theme=…&scene=…`.

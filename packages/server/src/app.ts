@@ -6,6 +6,7 @@ import type { AdminAuth } from "./admin-auth.js";
 import { registerMediaRoutes } from "./media-routes.js";
 import { registerAdminRoutes } from "./admin-routes.js";
 import type { AdminService } from "./admin-service.js";
+import type { MasterDeps } from "./admin-routes.js";
 
 export interface AppOptions {
   port: number;
@@ -13,7 +14,7 @@ export interface AppOptions {
   getTunnel: () => TunnelInfo;
   /** Cartella del client buildato; se assente il server espone solo le API. */
   clientDir?: string;
-  admin?: { auth: AdminAuth; service: AdminService };
+  admin?: { auth: AdminAuth; service: AdminService; master?: MasterDeps };
   /** Cartella dei brani caricati dalla regia (richiede `admin` per il login). */
   mediaDir?: string;
 }
@@ -26,7 +27,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
     tunnel: opts.getTunnel(),
   }));
 
-  if (opts.admin) registerAdminRoutes(app, opts.admin.auth, opts.admin.service);
+  if (opts.admin) registerAdminRoutes(app, opts.admin.auth, opts.admin.service, opts.admin.master);
 
   if (opts.admin && opts.mediaDir) registerMediaRoutes(app, opts.admin.auth, opts.mediaDir);
 

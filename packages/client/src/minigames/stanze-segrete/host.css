@@ -1,0 +1,107 @@
+/* Interfaccia del Game Master (/master e pannello Live). Pensata per il telefono: tutto in colonna, bersagli grandi. */
+.master { max-width: 44rem; margin: 0 auto; padding: .6rem .6rem 3rem; background: var(--bg); color: var(--fg); min-height: 100vh; box-sizing: border-box; }
+.master-head h1 { margin: 0; font-size: 1.4rem; }
+.master-head p { margin: 0; }
+
+.sh { display: grid; gap: .8rem; min-width: 0; }
+.sh-sec { background: var(--panel); border-radius: var(--radius); padding: .6rem .7rem; display: grid; gap: .5rem; min-width: 0; }
+.sh-sec h3, .sh h4 { margin: 0; }
+.sh .row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.sh button { touch-action: manipulation; }
+.sh-count { background: var(--opt-0); color: var(--on-opt); border-radius: 1rem; padding: 0 .5rem; font-size: .8rem; margin-left: .3rem; }
+.sh-num-in { width: 4.5rem; }
+.sh textarea, .sh input:not([type=checkbox]), .sh select { box-sizing: border-box; max-width: 100%; }
+.sh .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.sh .chip { border-width: 2px; padding: .3rem .7rem; background: var(--panel-2); color: inherit; }
+.sh .chip.on { background: var(--accent); color: #000; }
+
+/* Mappa */
+.sh-map { display: grid; gap: .5rem; }
+.sh-room { position: relative; aspect-ratio: 1; background: var(--panel-2); border-radius: calc(var(--radius) / 1.5); display: grid; grid-template-rows: 1fr auto; padding: .2rem; min-width: 0; }
+.sh-room.sel { outline: 3px solid var(--accent); }
+.sh-room-tap { background: transparent; border: 0; color: inherit; display: grid; place-items: center; width: 100%; height: 100%; padding: 0; position: relative; box-shadow: none !important; }
+.sh-num { position: absolute; top: 0; left: .2rem; font-size: .7rem; opacity: .6; }
+.sh-letter { font-size: 1.8rem; font-weight: 800; color: var(--accent); }
+.sh-note { position: absolute; top: .1rem; right: .2rem; font-size: .55rem; max-width: 70%; opacity: .6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-occupants { display: flex; flex-wrap: wrap; gap: .15rem; justify-content: center; min-height: 1.6rem; }
+.sh-av { width: 1.7rem; height: 1.7rem; border-radius: 50%; padding: 0; font-weight: 800; font-size: .8rem; color: var(--on-opt); border: 2px solid var(--fg); display: inline-grid; place-items: center; }
+.sh-av.sel { outline: 3px solid var(--accent); transform: scale(1.15); }
+.sh-av.static { width: 1.5rem; height: 1.5rem; font-size: .75rem; border-width: 1px; }
+.sh-ask { font-size: .65rem; background: var(--opt-2); color: var(--on-opt); border-radius: 1rem; padding: 0 .35rem; }
+.sh-door { position: absolute; background: var(--fg); opacity: .25; border: 0; padding: 0; border-radius: .2rem; font-size: .6rem; display: grid; place-items: center; box-shadow: none !important; }
+.sh-door.h { right: -.5rem; top: 25%; width: .45rem; height: 50%; }
+.sh-door.v { bottom: -.5rem; left: 25%; height: .45rem; width: 50%; }
+.sh-door.closed { background: var(--opt-0); opacity: 1; }
+.sh-door::after { content: ""; position: absolute; inset: -.5rem; }
+
+/* Richieste */
+.sh-req-list, .sh-inbox, .sh-sent, .sh-event-list, .sh-log, .sh-talk, .sh-caps-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .4rem; }
+.sh-req { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .4rem; outline: 2px solid var(--opt-2); }
+.sh-req .ok { color: var(--accent); } .sh-req .ko { color: var(--opt-0); }
+
+/* Giocatori */
+.sh-player { background: var(--panel-2); border-radius: var(--radius); padding: .3rem .6rem; }
+.sh-player summary { cursor: pointer; display: flex; align-items: center; gap: .4rem; min-height: 2.4rem; flex-wrap: wrap; }
+.sh-player-body { display: grid; gap: .5rem; padding: .4rem 0; }
+.sh-caps, .sh-out { font-size: .75rem; background: var(--panel); border-radius: 1rem; padding: 0 .4rem; }
+.sh-toggle { width: 100%; text-align: left; padding: .5rem .7rem; background: var(--panel); color: inherit; border: 2px solid transparent; }
+.sh-toggle.on { border-color: var(--accent); background: var(--opt-3); color: var(--on-opt); }
+.sh-caps-list li { display: grid; gap: .25rem; }
+.sh-dirs { display: flex; gap: .3rem; }
+.sh-dir { width: 2.6rem; height: 2.6rem; font-size: 1.2rem; padding: 0; }
+.sh-dir.blocked { background: var(--opt-0); color: var(--on-opt); }
+.sh-dir.open { background: var(--opt-1); color: var(--on-opt); }
+.sh-talk li { font-size: .9rem; } .sh-talk li.gm { opacity: .8; }
+
+/* Posta ed eventi */
+.sh-compose { display: grid; gap: .4rem; }
+.sh-compose .check { display: flex; align-items: center; gap: .4rem; }
+.sh-compose .check input { width: auto; }
+.sh-inbox li, .sh-sent li, .sh-event-list li { background: var(--panel-2); border-radius: var(--radius); padding: .4rem .6rem; display: grid; gap: .25rem; overflow-wrap: anywhere; }
+.sh-inbox li.unread { outline: 2px solid var(--accent); }
+.sh-event-list li.cancelled { opacity: .55; }
+.sh-acc { font-size: .9rem; }
+.sh-log { font-size: .9rem; max-height: 14rem; overflow-y: auto; }
+.sh-unplaced { margin: 0; display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; }
+.master-link .master-url { word-break: break-all; font-size: .8rem; }
+
+/* Oggetti */
+.sh-items { list-style: none; padding: 0; margin: 0; display: grid; gap: .5rem; }
+.sh-item { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .35rem; }
+.sh-item.on { outline: 2px solid var(--accent); }
+
+/* Cronometri */
+.sh-timers { list-style: none; padding: 0; margin: 0 0 .4rem; display: grid; gap: .5rem; }
+.sh-timer { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .3rem; }
+.sh-timer.running { outline: 2px solid var(--opt-3); }
+.sh-timer.flash { outline: 3px solid var(--opt-2); animation: sh-flash .6s infinite alternate; }
+.sh-clock { margin-left: auto; font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; font-family: var(--font-display); }
+.sh-lap-bar { height: .5rem; border-radius: 1rem; background: var(--panel); overflow: hidden; }
+.sh-lap-bar div { height: 100%; background: var(--accent); }
+.sh-lap-alert { color: var(--opt-2); }
+@keyframes sh-flash { from { background: var(--panel-2); } to { background: var(--opt-2); color: var(--on-opt); } }
+@media (prefers-reduced-motion: reduce) { .sh-timer.flash { animation: none; } }
+
+.sh-new-item { background: var(--panel-2); border-radius: var(--radius); padding: .4rem .6rem; }
+.sh-new-item summary { cursor: pointer; min-height: 2.2rem; display: flex; align-items: center; font-weight: 700; }
+.sh-item-del { margin-left: auto; padding: .2rem .5rem; }
+
+.sh-wall { color: var(--opt-2); font-weight: 700; }
+
+/* Menu laterale del giocatore: a destra su PC, foglio dal basso su telefono */
+.sh-drawer { position: fixed; z-index: 50; background: var(--panel); color: var(--fg); box-shadow: 0 0 1.5rem #000a; overflow-y: auto; box-sizing: border-box; padding: .7rem; display: grid; gap: .6rem; align-content: start; }
+.sh-drawer > header { display: flex; gap: .6rem; align-items: center; }
+.sh-drawer > header > div { flex: 1; }
+.sh-drawer-close { padding: .4rem .7rem; font-size: 1.1rem; }
+.sh-act { background: var(--panel-2); border-radius: var(--radius); padding: .5rem .6rem; display: grid; gap: .4rem; }
+.sh-act h4 { margin: 0; }
+.sh-pick { margin: 0; padding: .5rem .7rem; border-radius: var(--radius); background: var(--opt-2); color: var(--on-opt); font-weight: 700; }
+@media (min-width: 900px) {
+  .sh-drawer { top: 0; right: 0; bottom: 0; width: min(26rem, 90vw); }
+  /* La pagina si sposta a sinistra, così il menu non copre la mappa. */
+  main:has(.sh.has-drawer) { margin-right: 26rem; }
+}
+@media (max-width: 899px) {
+  .sh-drawer { left: 0; right: 0; bottom: 0; max-height: 75vh; border-radius: var(--radius) var(--radius) 0 0; }
+  .sh.has-drawer { padding-bottom: 76vh; }
+}

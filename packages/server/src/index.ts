@@ -5,6 +5,7 @@ import { DEFAULT_PORT } from "@gioco/shared";
 import { minigames } from "@gioco/minigames";
 import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
+import { MasterAuth } from "./master-auth.js";
 import { buildApp } from "./app.js";
 import { backupDatabase } from "./backup.js";
 import { openDb } from "./db.js";
@@ -61,15 +62,16 @@ if (recovery.restored) console.log("Partita in corso ripresa dopo il riavvio.");
 if (recovery.abandoned.length > 0) console.log(`${recovery.abandoned.length} partite interrotte senza salvataggio sono state chiuse.`);
 const snapshotTimer = setInterval(() => snapshots.sync(), 1000);
 
+const masterAuth = new MasterAuth(db, () => engine.activeMatchId);
 const app = buildApp({
   port,
   lanAddress,
   getTunnel: () => tunnel.current,
   clientDir: resolve(rootDir, process.env.CLIENT_DIR ?? "packages/client/dist"),
-  admin: { auth: adminAuth, service: new AdminService(db) },
+  admin: { auth: adminAuth, service: new AdminService(db), master: { auth: masterAuth, engine } },
   mediaDir: resolve(dirname(dbFile), "media"),
 });
-const realtime = attachRealtime(app.server, { service: new PlayerService(db), presence, engine, adminAuth });
+const realtime = attachRealtime(app.server, { service: new PlayerService(db), presence, engine, adminAuth, masterAuth });
 const ticker = setInterval(realtime.tick, 100);
 
 try {
