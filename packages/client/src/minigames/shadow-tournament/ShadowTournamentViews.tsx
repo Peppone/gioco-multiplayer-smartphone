@@ -122,7 +122,6 @@ type PhoneData = PhoneBase &
   );
 
 const CARD_LABEL: Record<Card, string> = { attack: "Attacco", defense: "Difesa", trick: "Raggiro" };
-const CARD_ICON: Record<Card, string> = { attack: "⚔️", defense: "🛡️", trick: "🎭" };
 const ACTION_LABEL: Record<Action | "counter", string> = { shield: "Scudo", trap: "Trappola", swap: "Cambia carta", counter: "Contromossa" };
 const CARDS: Card[] = ["attack", "defense", "trick"];
 
@@ -137,12 +136,13 @@ function StatusBadge({ status }: { status: Status }) {
   return <b className={`sh-badge sh-${status}`}>{status === "out" ? "OUT" : status}</b>;
 }
 
-function CardFace({ card, label }: { card: Card; label?: string }) {
+/** Illustrazione della carta: la miniatura (leggera) per il telefono, la carta intera solo per lo schermo condiviso. */
+function CardArt({ card, size, caption }: { card: Card; size: "thumb" | "full"; caption?: string }) {
   return (
-    <span className={`sh-card sh-card-${card}`}>
-      <span className="sh-card-icon" aria-hidden>{CARD_ICON[card]}</span>
-      {label ?? CARD_LABEL[card]}
-    </span>
+    <figure className={`sh-art sh-art-${size}`}>
+      <img src={`/assets/shadow/${card}-${size}.webp`} alt={CARD_LABEL[card]} loading="lazy" decoding="async" />
+      {caption && <figcaption>{caption}</figcaption>}
+    </figure>
   );
 }
 
@@ -208,7 +208,7 @@ function Fighter({ s, b, big }: { s: SideView; b: BoutView; big?: boolean }) {
       <div className="sh-tokens" aria-label={plural(s.tokens, "token", "token")}>{"●".repeat(s.tokens) || "○"}</div>
       {b.phase === "choose" && <div className="sh-picked">{s.picked ? "ha scelto ✓" : "…"}</div>}
       {b.phase === "react" && <div className="sh-picked">{s.reacted ? "ha risposto ✓" : ""}</div>}
-      {card && (b.phase === "react" || b.phase === "counter" || b.phase === "show") && <CardFace card={card} />}
+      {card && (b.phase === "react" || b.phase === "counter" || b.phase === "show") && <CardArt card={card} size="full" />}
       {bet && <div className="sh-bet">Scommessa!</div>}
       {s.blocked && b.phase === "choose" && <div className="sh-blocked">Non può usare: {CARD_LABEL[s.blocked]}</div>}
     </div>
@@ -410,12 +410,11 @@ function BoutController({ v, send, clock, theme }: { v: Extract<PhoneData, { rol
             {CARDS.map((c) => (
               <button
                 key={c}
-                className={`sh-handcard sh-card-${c} ${my.pick?.card === c ? "chosen" : ""}`}
+                className={`sh-handcard ${my.pick?.card === c ? "chosen" : ""}`}
                 disabled={my.blockedCard === c}
                 onClick={() => pick(c)}
               >
-                <span className="sh-card-icon" aria-hidden>{CARD_ICON[c]}</span>
-                {CARD_LABEL[c]}
+                <img src={`/assets/shadow/${c}-thumb.webp`} alt={CARD_LABEL[c]} decoding="async" />
                 {my.blockedCard === c && <small>Bloccata dalla Trappola</small>}
               </button>
             ))}
@@ -440,8 +439,8 @@ function BoutController({ v, send, clock, theme }: { v: Extract<PhoneData, { rol
       {(b.phase === "react" || b.phase === "counter") && cards && (
         <div className="sh-reveal">
           <div className="sh-reveal-cards">
-            <CardFace card={cards[v.mySide]!} label={`Tu: ${CARD_LABEL[cards[v.mySide]!]}`} />
-            <CardFace card={cards[v.opponentId]!} label={`${theirs.nickname}: ${CARD_LABEL[cards[v.opponentId]!]}`} />
+            <CardArt card={cards[v.mySide]!} size="thumb" caption="Tu" />
+            <CardArt card={cards[v.opponentId]!} size="thumb" caption={theirs.nickname} />
           </div>
           {result && <p className="big">{result}</p>}
         </div>
@@ -462,9 +461,8 @@ function BoutController({ v, send, clock, theme }: { v: Extract<PhoneData, { rol
             {swapOpen && (
               <div className="sh-hand">
                 {my.swapCards.map((c) => (
-                  <button key={c} className={`sh-handcard sh-card-${c}`} onClick={() => send({ type: "react", action: "swap", card: c })}>
-                    <span className="sh-card-icon" aria-hidden>{CARD_ICON[c]}</span>
-                    {CARD_LABEL[c]}
+                  <button key={c} className="sh-handcard" onClick={() => send({ type: "react", action: "swap", card: c })}>
+                    <img src={`/assets/shadow/${c}-thumb.webp`} alt={CARD_LABEL[c]} decoding="async" />
                   </button>
                 ))}
               </div>
@@ -490,8 +488,8 @@ function BoutController({ v, send, clock, theme }: { v: Extract<PhoneData, { rol
         <div className="sh-reveal">
           {cards && (
             <div className="sh-reveal-cards">
-              <CardFace card={cards[v.mySide]!} label={`Tu: ${CARD_LABEL[cards[v.mySide]!]}`} />
-              <CardFace card={cards[v.opponentId]!} label={`${theirs.nickname}: ${CARD_LABEL[cards[v.opponentId]!]}`} />
+              <CardArt card={cards[v.mySide]!} size="thumb" caption="Tu" />
+              <CardArt card={cards[v.opponentId]!} size="thumb" caption={theirs.nickname} />
             </div>
           )}
           <p className="big">{lastSentence(b)}</p>

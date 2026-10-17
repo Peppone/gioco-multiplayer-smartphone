@@ -64,3 +64,12 @@ Carta, Scommessa, vita extra, reazioni scelte e carta del Cambia carta restano n
 
 - `pnpm test`: regole degli scambi, accoppiamento, ricompense, flusso completo, anti-leak e tornei simulati da 2 a 30 giocatori.
 - `pnpm test:e2e` (`e2e/shadow-tournament.spec.ts`): anteprima dei quattro temi senza overflow e un torneo da 4 telefoni fino alla classifica, con Bye/NPC e controllo dei frame WebSocket.
+
+## Illustrazioni delle carte
+
+Le tre carte base hanno un'illustrazione (rosso Attacco, blu Difesa, viola Raggiro), uguale in tutti i temi. Gli originali (832×1248, ~1,5 MB l'uno) stanno in `art/shadow-tournament/`; **non vanno mai serviti ai giocatori**. `pnpm art:shadow` ne ricava, in `packages/client/public/assets/shadow/`:
+
+- `<carta>-thumb.webp` (~16 KB): titolo e illustrazione, per la mano sul telefono (in tutto ~47 KB, il telefono resta leggero);
+- `<carta>-full.webp` (~60 KB): carta intera, solo per lo schermo condiviso, alla rivelazione.
+
+Per cambiare un'illustrazione si sostituisce il PNG in `art/shadow-tournament/` (stesse dimensioni) e si rilancia il comando. Lo strumento usa Edge e il canvas del browser: nessuna dipendenza in più.

@@ -48,6 +48,27 @@ base("anteprima: le regole stanno sullo schermo (a colonne) e sul telefono, con 
   await expect(page.locator(".phone-frame .gf-rules")).toContainText("Scommessa (2 token)");
 });
 
+base("anteprima: le carte hanno la loro illustrazione e sul telefono pesano pochissimo", async ({ page, request }) => {
+  await page.goto("/preview?theme=manga&scene=shadow-choose&still=1");
+  const thumbs = page.locator(".phone-frame .sh-handcard img");
+  await expect(thumbs).toHaveCount(3);
+  for (let i = 0; i < 3; i++) await expect.poll(() => thumbs.nth(i).evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  // la mano del telefono usa solo le miniature: tre immagini, poche decine di KB ciascuna
+  let total = 0;
+  for (const c of ["attack", "defense", "trick"]) {
+    const res = await request.get(`/assets/shadow/${c}-thumb.webp`);
+    expect(res.ok()).toBe(true);
+    total += (await res.body()).length;
+  }
+  expect(total, "peso delle miniature sul telefono").toBeLessThan(80 * 1024);
+  // le carte intere compaiono solo sullo schermo condiviso, alla rivelazione
+  await page.goto("/preview?theme=pixel&scene=shadow-react&still=1");
+  const full = page.locator(".screen-frame .sh-art-full img");
+  await expect(full).toHaveCount(2);
+  for (let i = 0; i < 2; i++) await expect.poll(() => full.nth(i).evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await expect(page.locator(".phone-frame .sh-art-full")).toHaveCount(0);
+});
+
 base("anteprima: le reazioni mostrano solo ciò che si può fare, con il costo", async ({ page }) => {
   await page.goto("/preview?theme=manga&scene=shadow-react&still=1");
   const phone = page.locator(".phone-frame");
