@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSfx } from "../../audio/useAudio";
 import { useRemaining } from "../Countdown";
-import type { HostProps } from "../types";
+import type { HostLibrary, HostProps } from "../types";
 import "./host.css";
 import { DIRS, DIR_ARROW, DIR_LABEL, type Dir, type Outcome, playerColor } from "./types";
 
@@ -554,6 +554,25 @@ function Clocks({ info, run, clock }: { info: HostInfo; run: Run; clock: HostPro
   );
 }
 
+/** Descrizione privata della stanza scelta sulla mappa: la scrivi o la cambi in partita e resta salvata con la partita. */
+function RoomNote({ info, cell, run }: { info: HostInfo; cell: number; run: Run }) {
+  const saved = info.rooms[cell]?.note ?? "";
+  const [text, setText] = useState(saved);
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (text.trim() !== saved) void run({ type: "room-note", cellId: cell, note: text });
+  };
+  return (
+    <form className="sh-compose sh-room-note" onSubmit={save} data-room-note={cell}>
+      <label>
+        <b>Descrizione della {roomName(cell)}</b> <small className="muted">(solo per te)</small>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={400} placeholder="Cosa c'è, cosa si vede, cosa leggere ai giocatori…" aria-label={`Descrizione della ${roomName(cell)}`} />
+      </label>
+      <button type="submit" className="primary" disabled={text.trim() === saved}>{saved ? "Salva la descrizione" : "Aggiungi la descrizione"}</button>
+    </form>
+  );
+}
+
 // ------------------------------------------------------------------ Oggetti
 
 /** Gli oggetti del complesso: li metti in una stanza, li rendi percepibili (misteriosi) e poi li palesi ai presenti o ad alcuni. */
@@ -920,7 +939,80 @@ function NoticeBar({ n, onMail }: { n: ReturnType<typeof useNotices>; onMail: ()
 
 // ------------------------------------------------------------------ Host
 
-export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
+/** Cosa serve di una configurazione salvata per caricarla in partita (il resto: mappa, lettere, punti, resta com'è). */
+function contentOf(config: unknown, rooms: number): { rooms: { note: string }[]; items: Record<string, unknown>[] } {
+  const c = config as { rooms?: { note?: unknown }[]; items?: Record<string, unknown>[] } | null;
+  if (!c || !Array.isArray(c.rooms) || !Array.isArray(c.items)) throw new Error("La configurazione non è di Stanze Segrete.");
+  if (c.rooms.length !== rooms) throw new Error(`La mappa ha ${rooms} stanze, la configurazione ne ha ${c.rooms.length}.`);
+  return {
+    rooms: c.rooms.map((r) => ({ note: typeof r.note === "string" ? r.note : "" })),
+    items: c.items.map((i) => ({ icon: "📦", text: "", note: "", cell: null, ...i })),
+  };
+}
+
+/** Solo nella regia: salvare, esportare e caricare le descrizioni delle stanze e gli oggetti (istanza in libreria o file JSON). */
+function ConfigPanel({ library, info, run }: { library: HostLibrary; info: HostInfo; run: Run }) {
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<{ id: string; title: string }[]>([]);
+  const [pick, setPick] = useState("");
+  useEffect(() => {
+    library.list().then(setSaved, () => setSaved([]));
+  }, [library]);
+
+  /** Esegue un'operazione mostrando l'esito (e gli errori in italiano) accanto ai pulsanti. */
+  const job = async (okText: string, work: () => Promise<void>) => {
+    setBusy(true);
+    setStatus(null);
+    try {
+      await work();
+      setStatus({ ok: true, text: okText });
+      library.list().then(setSaved, () => undefined);
+    } catch (e) {
+      setStatus({ ok: false, text: e instanceof Error ? e.message : "Operazione non riuscita." });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const load = (source: Parameters<HostLibrary["fetchConfig"]>[0]) => {
+    if (!confirm("Caricare descrizioni delle stanze e oggetti? Sostituiscono quelli di questa partita (gli oggetti che la configurazione non ha vengono tolti).")) return;
+    void job("Configurazione caricata.", async () => {
+      const content = contentOf(await library.fetchConfig(source), info.rooms.length);
+      const ack = await run({ type: "load-content", ...content });
+      if (!ack.ok) throw new Error(ack.error || "La configurazione non è valida.");
+    });
+  };
+  return (
+    <section className="sh-sec" id="sh-config">
+      <h3>Configurazione</h3>
+      <p className="muted">Descrizioni delle stanze e oggetti scritti o modificati qui valgono solo per questa partita. Salvali in libreria (anche con un altro nome) o scaricali in un file per riusarli.</p>
+      <div className="row">
+        <button disabled={busy} onClick={() => {
+          if (confirm("Salvare nell'istanza le descrizioni delle stanze e gli oggetti come sono ora? Sostituiscono quelli dell'istanza in libreria (oggetti eliminati compresi) e valgono per le prossime partite.")) void job("Salvato nell'istanza.", () => library.save());
+        }}>Salva nell'istanza</button>
+        <button disabled={busy} onClick={() => {
+          const title = prompt("Nome della nuova configurazione")?.trim();
+          if (title) void job(`Salvata come «${title}».`, () => library.save(title));
+        }}>Salva con nome…</button>
+        <button disabled={busy} onClick={() => void job("File scaricato.", () => library.exportFile())}>Esporta JSON</button>
+      </div>
+      <div className="row">
+        <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Configurazione salvata da caricare">
+          <option value="">Scegli una configurazione salvata…</option>
+          {saved.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+        </select>
+        <button disabled={busy || !pick} onClick={() => load({ instanceId: pick })}>Carica</button>
+        <label className="file-btn">
+          Carica da file JSON
+          <input type="file" accept="application/json,.json" hidden aria-label="File JSON da caricare" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) load({ file: f }); }} />
+        </label>
+      </div>
+      {status && <p role="status" className={status.ok ? "sh-saved" : "error"}>{status.text}</p>}
+    </section>
+  );
+}
+
+export function StanzeHost({ info: raw, run, clock, theme, library }: HostProps) {
   const info = raw as HostInfo;
   const sfx = useSfx(theme);
   const notices = useNotices(info, sfx);
@@ -993,6 +1085,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
           <p className="sh-pick" role="status">Tocca la stanza di destinazione per {nameOf(sel)} <button onClick={() => setSel(null)}>Annulla</button></p>
         )}
         <MapView info={info} run={run} sel={sel} setSel={setSel} onOpen={(id) => { setSel(null); setDrawerId(drawerId === id ? null : id); }} openId={drawerId} selCell={selCell} setSelCell={setSelCell} index={index} />
+        {selCell !== null && <RoomNote key={`${selCell}|${info.rooms[selCell]?.note}`} info={info} cell={selCell} run={run} />}
       </section>
 
       <section className="sh-sec">
@@ -1019,6 +1112,8 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
         <h3>⚡ Eventi</h3>
         <Events info={info} run={run} nameOf={nameOf} />
       </section>
+
+      {library && <ConfigPanel library={library} info={info} run={run} />}
 
       <section className="sh-sec">
         <h3>Diario</h3>

@@ -38,6 +38,8 @@ L'interfaccia è una colonna unica, pensata per il telefono.
   *Approva tutti gli spostamenti* e *Mostra la lettera per N s*. Suona e vibra quando ne arriva una.
 - **Mappa** con le lettere e le note. Per piazzare o spostare un giocatore: **tocca il giocatore, poi la stanza**
   (più affidabile del trascinamento). Tocca il bordo tra due stanze per **chiudere o riaprire la porta** (🔒) per tutti.
+  **Tocca una stanza** per scrivere o cambiare la sua **descrizione** (privata, fino a 400 caratteri): resta salvata con
+  la partita e non arriva mai a schermo né ai telefoni; l'istanza nella libreria non cambia, a meno che la regia non usi *Salva nell'istanza* (vedi sotto).
 - **Abilitazione rapida**: scegli giocatori (o «Tutti», o gli occupanti di una stanza), la capacità, durata e usi
   facoltativi, poi *Abilita* / *Disabilita*. *Spegni tutto* le toglie a tutti.
 - **Menu del giocatore**: **tocca un giocatore sulla mappa** e si apre un menu con tutte le azioni per lui. Da PC è un pannello laterale a destra (la pagina si sposta per non coprire la mappa), da telefono un foglio dal basso; si chiude con ✕ o Esc. Dentro: spostamento (scelta della stanza o «Scegli sulla mappa»; «Togli dalla mappa»), esito, interruttori delle capacità con durata/usi e frecce da bloccare, «Mostra una lettera», un **evento solo per lui**, i **suoi oggetti** (palesa quelli della sua stanza solo a lui) e la conversazione privata.
@@ -52,6 +54,15 @@ L'interfaccia è una colonna unica, pensata per il telefono.
   ogni voce porta alla sua sezione. Il numero di cose da fare compare anche nel titolo della scheda.
 - **⚡ Eventi**: testo (o evento pronto), destinatari (Tutti / scelta / occupanti di una stanza / tutti tranne…),
   *Invia*. L'elenco mostra «Accettato da N di M», chi manca e *Annulla*.
+- **Configurazione** (solo dalla regia, mai dal telefono del GM con il link; mentre il round è in corso). Riguarda le
+  descrizioni delle stanze e gli oggetti; lettere, mappa e il resto non cambiano.
+  - *Salva nell'istanza*: sostituisce quelle dell'istanza in libreria (oggetti eliminati compresi), con conferma.
+  - *Salva con nome…*: crea una **nuova istanza** con il nome che scegli (stesso tipo e tema); l'istanza del round resta com'è.
+  - *Esporta JSON*: scarica un file nello stesso formato della libreria, quindi si reimporta anche da lì con «Importa JSON».
+  - *Carica* (da una configurazione salvata in libreria o da un file JSON): sostituisce descrizioni e oggetti della
+    partita. Serve la stessa mappa (stesso numero di stanze). Gli oggetti già presenti restano dove sono con la nuova
+    descrizione, quelli nuovi arrivano nascosti nella loro stanza iniziale, quelli che la configurazione non ha vengono tolti.
+  La stanza di partenza degli oggetti salvati è quella dell'istanza, non la posizione raggiunta in partita.
 - **Diario** della partita (spostamenti, occhiate, soluzioni, eventi), visibile solo al GM.
 
 ## 3. Le regole del gioco

@@ -216,6 +216,20 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start") }),
   z.object({ type: z.literal("item-add"), name: text(30), icon: z.string().trim().min(1).max(8).optional(), text: z.string().trim().max(600).optional(), note: z.string().trim().max(400).optional(), cellId: cellSchema.nullable().optional(), enabled: z.boolean().optional() }),
   z.object({ type: z.literal("item-edit"), itemId: z.string().min(1), name: text(30).optional(), icon: z.string().trim().min(1).max(8).optional(), text: z.string().trim().max(600).optional(), note: z.string().trim().max(400).optional() }),
+  z.object({ type: z.literal("room-note"), cellId: cellSchema, note: z.string().trim().max(400) }),
+  // Carica descrizioni delle stanze e oggetti da una configurazione salvata (istanza o file): lettere e mappa non cambiano.
+  z.object({
+    type: z.literal("load-content"),
+    rooms: z.array(z.object({ note: z.string().trim().max(400) })).max(25),
+    items: z.array(z.object({
+      id: z.string().regex(/^[a-z0-9-]{1,20}$/),
+      name: text(30),
+      icon: z.string().trim().min(1).max(8),
+      text: z.string().trim().max(600),
+      note: z.string().trim().max(400),
+      cell: cellSchema.nullable(),
+    })).max(20),
+  }),
   z.object({ type: z.literal("item-remove"), itemId: z.string().min(1) }),
   z.object({ type: z.literal("place-item"), itemId: z.string().min(1), cellId: cellSchema.nullable() }),
   z.object({ type: z.literal("enable-item"), itemId: z.string().min(1), enabled: z.boolean() }),
@@ -598,7 +612,9 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       return begin(s, now);
     case "item-add": {
       if (s.itemDefs.length >= MAX_ITEMS || (cmd.cellId != null && !isCell(grid(s), cmd.cellId))) return s;
-      const ref = s.nextItemRef;
+      // L'id non deve coincidere con quello di un oggetto salvato in un'istanza o caricato (anche loro possono chiamarsi x5…).
+      let ref = s.nextItemRef;
+      while (s.itemDefs.some((d) => d.id === `x${ref}`)) ref++;
       const id = `x${ref}`;
       const def: ItemDef = { id, ref, name: cmd.name, icon: cmd.icon ?? "📦", text: cmd.text ?? "", note: cmd.note ?? "" };
       const cell = cmd.cellId ?? null;
@@ -613,6 +629,37 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       if (def.name === old.name && def.icon === old.icon && def.text === old.text && def.note === old.note) return s;
       // Chi conosce già l'oggetto vede subito la descrizione aggiornata; il registro non riporta i testi (sono dati dei giocatori).
       return addLog({ ...s, itemDefs: s.itemDefs.map((d) => (d.id === it.id ? def : d)) }, now, `Oggetto modificato: ${def.name}`);
+    }
+    case "room-note": {
+      const room = s.cfg.rooms[cmd.cellId];
+      if (!room || room.note === cmd.note) return s;
+      // Descrizione privata del GM: resta nello stato della partita e non arriva mai a schermo né ai telefoni.
+      const rooms = s.cfg.rooms.map((r, c) => (c === cmd.cellId ? { ...r, note: cmd.note } : r));
+      return addLog({ ...s, cfg: { ...s.cfg, rooms } }, now, `Descrizione modificata: ${roomName(cmd.cellId)}`);
+    }
+    case "load-content": {
+      // Solo con la stessa mappa (stesso numero di stanze) e id degli oggetti distinti.
+      if (!live(s) || cmd.rooms.length !== s.cfg.rooms.length || new Set(cmd.items.map((i) => i.id)).size !== cmd.items.length) return s;
+      const g = grid(s);
+      const wanted = new Map(cmd.items.map((i) => [i.id, i]));
+      // Gli oggetti già presenti restano dove sono (stanza, percezione, chi li conosce) con la descrizione nuova;
+      // quelli nuovi arrivano nascosti nella loro stanza iniziale; quelli che il file non ha vengono tolti.
+      const kept = s.items.filter((x) => wanted.has(x.id));
+      const fresh = cmd.items.filter((i) => !s.items.some((x) => x.id === i.id));
+      let ref = s.nextItemRef;
+      const itemDefs: ItemDef[] = [
+        ...kept.map((x) => {
+          const i = wanted.get(x.id)!;
+          return { ...defOf(s, x.id), name: i.name, icon: i.icon, text: i.text, note: i.note };
+        }),
+        ...fresh.map((i) => ({ id: i.id, ref: ref++, name: i.name, icon: i.icon, text: i.text, note: i.note })),
+      ];
+      const items: ItemState[] = [
+        ...kept,
+        ...fresh.map((i) => ({ id: i.id, cell: i.cell !== null && isCell(g, i.cell) ? i.cell : null, enabled: false, revealedTo: [] })),
+      ];
+      const rooms = s.cfg.rooms.map((r, c) => ({ ...r, note: cmd.rooms[c]!.note }));
+      return addLog({ ...s, cfg: { ...s.cfg, rooms }, itemDefs, items, nextItemRef: ref }, now, "Caricate le descrizioni delle stanze e gli oggetti");
     }
     case "item-remove": {
       const it = s.items.find((x) => x.id === cmd.itemId);
@@ -817,6 +864,16 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
     return out;
   },
   messages: toRoundMessages,
+
+  // Descrizioni delle stanze e oggetti come sono ora; la stanza iniziale degli oggetti già in istanza resta quella di partenza.
+  exportConfig(s) {
+    const start = new Map(s.cfg.items.map((i) => [i.id, i.cell]));
+    const items = s.itemDefs.map((d) => ({
+      id: d.id, name: d.name, icon: d.icon, text: d.text, note: d.note,
+      cell: start.has(d.id) ? start.get(d.id)! : (s.items.find((x) => x.id === d.id)?.cell ?? null),
+    }));
+    return { ...s.cfg, items };
+  },
 
   // Pubblico: la griglia, le posizioni (se pubbliche) e nient'altro fino alla rivelazione. Nessun testo dei giocatori.
   screenView(s) {

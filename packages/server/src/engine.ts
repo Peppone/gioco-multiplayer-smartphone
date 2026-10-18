@@ -296,6 +296,15 @@ export class Engine {
     return !!this.live && this.live.phase === "round" && !!round && !!this.plugin(round).master;
   }
 
+  /** Configurazione del round in corso come risulta dallo stato attuale, se il plugin la sa esportare (vedi `exportConfig`). */
+  exportRoundConfig(): { roundId: string; config: unknown } | null {
+    const l = this.live;
+    const round = this.currentRound;
+    if (!l || l.phase !== "round" || !round || l.roundState === null) return null;
+    const plugin = this.plugin(round);
+    return plugin.exportConfig ? { roundId: round.roundId, config: plugin.exportConfig(l.roundState) } : null;
+  }
+
   private next(l: Live): EngineResult {
     if (l.phase !== "ready" && l.phase !== "results") return fail("Non si può avanzare ora.");
     if (l.roundIndex + 1 >= l.rounds.length) return this.endMatch(l);

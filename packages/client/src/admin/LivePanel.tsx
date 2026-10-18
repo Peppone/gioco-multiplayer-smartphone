@@ -1,11 +1,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import type { EventDetail, EventSummary, HostCommand, MasterLink } from "@gioco/shared";
+import type { EventDetail, EventSummary, HostCommand, InstanceView, MasterLink } from "@gioco/shared";
 import { minigameViews } from "../minigames/registry";
+import type { HostLibrary } from "../minigames/types";
 import { useClockSync } from "../net/useClockSync";
 import { useServerInfo } from "../screen/useServerInfo";
 import { Leaderboard } from "../ui/Leaderboard";
-import { api, errorMessage } from "./api";
+import { ApiError, api, errorMessage } from "./api";
+import { parseImport, serializeInstance } from "./schema-form/logic";
 import { useAdminGame } from "./useAdminGame";
 import { type QrCode, ZoneQrSheet } from "./ZoneQrSheet";
 
@@ -137,6 +139,44 @@ function MasterLinkBox() {
   );
 }
 
+/** Salvataggio, esportazione e caricamento della configurazione del round in corso, per le interfacce della regia che lo offrono. */
+function hostLibrary(typeId: string): HostLibrary {
+  const guard = async <T,>(job: () => Promise<T>): Promise<T> => {
+    try {
+      return await job();
+    } catch (e) {
+      throw new Error(e instanceof Error && !(e instanceof ApiError) ? e.message : errorMessage(e));
+    }
+  };
+  return {
+    save: (title) => guard(async () => void (await api("POST", "/live/save-to-instance", title ? { title } : {}))),
+    exportFile: () =>
+      guard(async () => {
+        const inst = await api<{ typeId: string; title: string; theme: string; config: unknown }>("GET", "/live/config");
+        const url = URL.createObjectURL(new Blob([serializeInstance(inst)], { type: "application/json" }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${inst.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "configurazione"}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }),
+    list: () => guard(async () => (await api<InstanceView[]>("GET", "/instances")).filter((i) => i.typeId === typeId).map((i) => ({ id: i.id, title: i.title }))),
+    fetchConfig: (source) =>
+      guard(async () => {
+        if ("instanceId" in source) {
+          const found = (await api<InstanceView[]>("GET", "/instances")).find((i) => i.id === source.instanceId);
+          if (!found) throw new Error("Istanza non trovata.");
+          return found.config;
+        }
+        const parsed = parseImport(await source.file.text());
+        if (!parsed.ok) throw new Error(parsed.error);
+        const mine = parsed.instances.filter((i) => i.typeId === typeId);
+        if (mine.length !== 1) throw new Error(parsed.instances.length > 1 ? "Il file contiene più istanze: esportane una sola." : "Il file è di un altro tipo di minigioco.");
+        return mine[0]!.config;
+      }),
+  };
+}
+
 export function LivePanel() {
   const { state, connected, command, socket } = useAdminGame();
   const clock = useClockSync(socket, true);
@@ -198,6 +238,7 @@ export function LivePanel() {
                 run={(c) => command({ type: "plugin", command: c })}
                 clock={clock.current}
                 theme={state.frame!.theme}
+                library={hostLibrary(state.frame!.typeId)}
               />
             </Suspense>
           ) : state.host && (

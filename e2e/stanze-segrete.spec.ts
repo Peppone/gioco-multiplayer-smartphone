@@ -161,6 +161,16 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await m.locator(".sh-item", { hasText: "Una chiave arrugginita" }).getByRole("button", { name: `Palesa a ${n1}` }).click();
   await expect(p1.page.locator(".ss-item[data-known=true]")).toHaveCount(2);
   await expect(p1.page.locator(".ss-item[data-known=true]", { hasText: "chiave" })).toContainText("inciso un 7");
+  // Il telefono del GM da link non può toccare la libreria: il salvataggio nell'istanza non gli viene offerto.
+  await expect(m.locator("#sh-config")).toHaveCount(0);
+  // Descrizione privata di una stanza: il GM la scrive dalla mappa, nessun altro la riceve.
+  await m.getByRole("button", { name: /^Stanza 5, lettera/ }).click();
+  await m.getByLabel("Descrizione della Stanza 5").fill("Muffa alle pareti e una grata sul soffitto");
+  const saveNote = m.locator("[data-room-note] button[type=submit]");
+  await saveNote.click();
+  await expect(saveNote).toBeDisabled(); // salvata: non ci sono più modifiche in sospeso
+  await expect(m.locator(".sh-note", { hasText: "Muffa alle pareti" })).toBeVisible();
+  for (const c of [...phones, screen]) expect(c.traffic.text()).not.toContain("Muffa alle pareti");
   // Il GM modifica la descrizione: chi conosce l'oggetto la vede aggiornata subito.
   const chiave = m.locator(".sh-item", { hasText: "Una chiave arrugginita" });
   await chiave.locator("summary", { hasText: "Modifica" }).click();
@@ -355,7 +365,7 @@ test("stanze segrete: un link del GM sbagliato non apre nulla", async ({ browser
   await gm.context.close();
 });
 
-test("stanze segrete: la regia può fare il Game Master da sola, senza link", async ({ newGame }) => {
+test("stanze segrete: la regia può fare il Game Master da sola, senza link", async ({ newGame, request }) => {
   const g = await newGame([{ typeId: "stanze-segrete", title: "Complesso solo regia", theme: "retro80", config: CONFIG }], { playersPerTeam: 1 });
   const { admin, screen, a, b } = g;
   const nick = async (c: Client) => (await c.page.locator("h1").first().innerText()).trim();
@@ -405,4 +415,51 @@ test("stanze segrete: la regia può fare il Game Master da sola, senza link", as
   await admin.page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
   await expect(screen.page.locator(".ss-room")).toHaveCount(9); // la mappa è stata mostrata dalla regia
+
+  // Descrizione di una stanza scritta in partita, poi salvata nell'istanza in libreria (solo dalla regia).
+  await sh.getByRole("button", { name: /^Stanza 9, lettera/ }).click();
+  await sh.getByLabel("Descrizione della Stanza 9").fill("Una cella stretta con una grata");
+  await sh.locator("[data-room-note] button[type=submit]").click();
+  const token = await adminToken(request);
+  const instance = async () => {
+    const list = await adminApi(request, token).call<{ title: string; config: { rooms: { note: string }[] } }[]>("get", "/instances");
+    return list.find((i) => i.title === "Complesso solo regia")!;
+  };
+  expect((await instance()).config.rooms[8]!.note).toBe("Nota segreta 9"); // finora solo nella partita
+  await sh.getByRole("button", { name: "Salva nell'istanza" }).click(); // il dialogo di conferma è accettato dalla fixture
+  await expect(sh.locator("#sh-config [role=status]")).toHaveText("Salvato nell'istanza.");
+  expect((await instance()).config.rooms[8]!.note).toBe("Una cella stretta con una grata");
+
+  // Salva con nome: nasce una nuova istanza, quella del round non cambia.
+  // La fixture accetta i dialoghi senza testo: per il prompt del nome serve un gestore che lo scriva.
+  admin.page.removeAllListeners("dialog");
+  admin.page.on("dialog", (d) => void d.accept(d.type() === "prompt" ? "Complesso bis" : undefined));
+  await sh.getByRole("button", { name: "Salva con nome…" }).click();
+  await expect(sh.locator("#sh-config [role=status]")).toHaveText("Salvata come «Complesso bis».");
+  const all = () => adminApi(request, token).call<{ title: string; typeId: string; config: { rooms: { note: string }[] } }[]>("get", "/instances");
+  const bis = (await all()).find((i) => i.title === "Complesso bis")!;
+  expect(bis.typeId).toBe("stanze-segrete");
+  expect(bis.config.rooms[8]!.note).toBe("Una cella stretta con una grata");
+
+  // Esporta in JSON: stesso formato della libreria (si reimporta da lì).
+  const [download] = await Promise.all([admin.page.waitForEvent("download"), sh.getByRole("button", { name: "Esporta JSON" }).click()]);
+  expect(download.suggestedFilename()).toBe("complesso-solo-regia.json");
+  const exported = JSON.parse(await (await import("node:fs/promises")).readFile((await download.path())!, "utf8"));
+  expect(exported).toMatchObject({ kind: expect.any(String), typeId: "stanze-segrete", title: "Complesso solo regia" });
+  expect(exported.config.rooms[8].note).toBe("Una cella stretta con una grata");
+
+  // Carica: da un'istanza della libreria e da un file; il giocatore non vede nulla, la descrizione cambia nella partita.
+  await sh.getByLabel("Descrizione della Stanza 9").fill("Testo provvisorio"); // la Stanza 9 è ancora selezionata
+  await sh.locator("[data-room-note] button[type=submit]").click();
+  await sh.getByLabel("Configurazione salvata da caricare").selectOption({ label: "Complesso bis" });
+  await sh.getByRole("button", { name: "Carica", exact: true }).click();
+  await expect(sh.locator("#sh-config [role=status]")).toHaveText("Configurazione caricata.");
+  await expect(sh.getByLabel("Descrizione della Stanza 9")).toHaveValue("Una cella stretta con una grata");
+  exported.config.rooms[8].note = "Dal file";
+  await sh.getByLabel("File JSON da caricare").setInputFiles({ name: "config.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)) });
+  await expect(sh.getByLabel("Descrizione della Stanza 9")).toHaveValue("Dal file");
+  // Un file di un altro tipo è rifiutato con un messaggio chiaro.
+  await sh.getByLabel("File JSON da caricare").setInputFiles({ name: "altro.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...exported, typeId: "quiz" })) });
+  await expect(sh.locator("#sh-config [role=status]")).toHaveText("Il file è di un altro tipo di minigioco.");
+  for (const c of [a, b, screen]) expect(c.traffic.text()).not.toContain("Dal file");
 });

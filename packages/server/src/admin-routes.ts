@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { ZodType } from "zod";
+import { type ZodType, z } from "zod";
 import {
   type AdminError,
   assignPlayerSchema,
@@ -54,6 +54,9 @@ function parse<T>(schema: ZodType<T>, body: unknown, reply: FastifyReply): T | u
 }
 
 type IdParams = { id: string };
+
+/** Salvataggio della configurazione del round in corso: con `title` come nuova istanza, senza nell'istanza del round. */
+const saveAsBody = z.object({ title: z.string().trim().min(1).max(80).optional() });
 
 export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, service: AdminService, master?: MasterDeps): void {
   // ---- Pubbliche: stato, prima configurazione, login ----
@@ -158,6 +161,25 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
 
     // ---- Libreria minigiochi e round ----
     const lib = service.library;
+    // Salva nell'istanza in libreria ciò che il round in corso ha scritto o modificato (solo la regia, mai il Game Master da link).
+    if (master) {
+      const notSavable = (reply: FastifyReply) =>
+        reply.code(409).send({ error: "conflict" satisfies AdminError, detail: "Il round in corso non può essere salvato nell'istanza." });
+      // Senza titolo sostituisce l'istanza del round; con un titolo ne crea una nuova con quel nome.
+      api.post("/api/admin/live/save-to-instance", async (req, reply) => {
+        const body = parse(saveAsBody, req.body ?? {}, reply);
+        if (!body) return;
+        const out = master.engine.exportRoundConfig();
+        if (!out) return notSavable(reply);
+        return send(reply, lib.saveRoundConfig(out.roundId, out.config, body.title), body.title ? 201 : 200);
+      });
+      // La configurazione attuale nella forma di un'istanza, per esportarla in JSON.
+      api.get("/api/admin/live/config", async (_req, reply) => {
+        const out = master.engine.exportRoundConfig();
+        if (!out) return notSavable(reply);
+        return send(reply, lib.describeRoundConfig(out.roundId, out.config));
+      });
+    }
     api.get("/api/admin/minigame-types", async () => lib.listTypes());
     api.get("/api/admin/instances", async () => lib.listInstances());
     api.post("/api/admin/instances", async (req, reply) => {

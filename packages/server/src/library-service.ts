@@ -93,6 +93,29 @@ export class LibraryService {
     return ok(toInstance(next));
   }
 
+  private roundInstance(roundId: string): InstanceRow | undefined {
+    const round = this.db.select({ instanceId: matchRounds.instanceId }).from(matchRounds).where(eq(matchRounds.id, roundId)).get();
+    return round && this.getInstance(round.instanceId);
+  }
+
+  /**
+   * Salva la configurazione indicata per un round: senza `asTitle` sostituisce l'istanza del round, con `asTitle`
+   * ne crea una nuova con quel nome (stesso tipo e tema). Validata come ogni modifica.
+   */
+  saveRoundConfig(roundId: string, config: unknown, asTitle?: string): Result<InstanceView> {
+    const current = this.roundInstance(roundId);
+    if (!current) return fail("not_found", "Istanza del round non trovata");
+    if (asTitle) return this.createInstance({ typeId: current.typeId, title: asTitle, theme: current.theme as InstanceView["theme"], config });
+    return this.updateInstance(current.id, { title: current.title, config });
+  }
+
+  /** La configurazione indicata nella forma di un'istanza (per l'esportazione in JSON). */
+  describeRoundConfig(roundId: string, config: unknown): Result<Pick<InstanceView, "typeId" | "title" | "theme" | "config">> {
+    const current = this.roundInstance(roundId);
+    if (!current) return fail("not_found", "Istanza del round non trovata");
+    return ok({ typeId: current.typeId, title: current.title, theme: current.theme as InstanceView["theme"], config });
+  }
+
   /** Un'istanza già usata in una partita non si elimina (la partita perderebbe il round). */
   deleteInstance(id: string): Result<null> {
     if (!this.getInstance(id)) return fail("not_found");

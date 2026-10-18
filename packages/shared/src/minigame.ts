@@ -135,6 +135,11 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   maxPlayers?: number;
   /** Messaggi ed eventi del round (id crescenti), che l'engine salva nel database dopo ogni cambio di stato. */
   messages?(state: State): RoundMessage[];
+  /**
+   * Configurazione dell'istanza come risulta dallo stato attuale del round (contenuti scritti o modificati in partita):
+   * la regia può salvarla nell'istanza in libreria perché valga anche per le prossime partite.
+   */
+  exportConfig?(state: State): Config;
   /** Contenuti mostrati finora nel round: l'engine li passa ai round successivi (`ctx.seen`) perché non si ripetano. */
   shownItems?(state: State): string[];
 }

@@ -476,6 +476,57 @@ describe("oggetti", () => {
     expect(cmd(s, { type: "item-edit", itemId: "inesistente", name: "X" })).toBe(s);
   });
 
+  it("il master scrive la descrizione di una stanza: la vede solo lui, si può cambiare e svuotare", () => {
+    let s = cmd(withItems(), { type: "room-note", cellId: 4, note: "Una stanza umida, con un odore di muffa" });
+    expect((game.hostView(s).info as any).rooms[4].note).toBe("Una stanza umida, con un odore di muffa");
+    expect(JSON.stringify(game.screenView(s))).not.toContain("muffa");
+    for (const id of ["a", "b", "c"]) expect(JSON.stringify(view(s, id))).not.toContain("muffa");
+    expect(s.log.at(-1)?.text).not.toContain("muffa");
+    s = cmd(s, { type: "room-note", cellId: 4, note: "" });
+    expect((game.hostView(s).info as any).rooms[4].note).toBe("");
+    expect(cmd(s, { type: "room-note", cellId: 4, note: "" })).toBe(s); // nessun cambiamento
+    expect(cmd(s, { type: "room-note", cellId: 99, note: "x" })).toBe(s); // stanza inesistente
+  });
+
+  it("exportConfig riporta descrizioni e oggetti attuali ed è valido per lo schema dell'istanza", () => {
+    let s = cmd(withItems(), { type: "room-note", cellId: 4, note: "Muffa alle pareti" });
+    s = cmd(s, { type: "item-edit", itemId: "scopa", text: "Il manico è spezzato" });
+    s = cmd(s, { type: "item-add", name: "Una torcia", cellId: 2, enabled: true });
+    s = cmd(s, { type: "place-item", itemId: "libro", cellId: 4 }); // la posizione in partita non entra nell'istanza
+    s = cmd(s, { type: "item-remove", itemId: "occhiali" });
+    const out = game.exportConfig!(s);
+    expect(stanzeConfigSchema.safeParse(out).success).toBe(true);
+    expect(out.rooms[4].note).toBe("Muffa alle pareti");
+    expect(out.items.find((i) => i.id === "scopa")?.text).toBe("Il manico è spezzato");
+    expect(out.items.find((i) => i.id === "libro")?.cell).toBeNull();
+    expect(out.items.find((i) => i.id === "occhiali")).toBeUndefined();
+    expect(out.items.find((i) => i.name === "Una torcia")).toMatchObject({ cell: 2 });
+    expect(out.rows).toBe(s.cfg.rows);
+  });
+
+  it("load-content carica descrizioni e oggetti: gli esistenti restano dove sono, i nuovi arrivano nascosti, gli altri spariscono", () => {
+    let s = cmd(withItems(), { type: "reveal-item", itemId: "scopa", to: "room" });
+    s = cmd(s, { type: "place-item", itemId: "scopa", cellId: 4 });
+    s = cmd(s, { type: "enable-item", itemId: "scopa", enabled: true });
+    const rooms = s.cfg.rooms.map((_, c) => ({ note: `Stanza ${c + 1}: descrizione caricata` }));
+    const items = [
+      { id: "scopa", name: "Una scopa nuova", icon: "🧹", text: "Pulita", note: "", cell: null },
+      { id: "x9", name: "Una chiave", icon: "🗝️", text: "", note: "", cell: 2 },
+    ];
+    const loaded = cmd(s, { type: "load-content", rooms, items });
+    expect((game.hostView(loaded).info as any).rooms[4].note).toBe("Stanza 5: descrizione caricata");
+    expect(loaded.items.map((i) => i.id).sort()).toEqual(["scopa", "x9"]); // lettera, libro, occhiali, attrezzi tolti
+    expect(loaded.items.find((i) => i.id === "scopa")).toMatchObject({ cell: 4, enabled: true }); // non si sposta né si nasconde
+    expect(loaded.items.find((i) => i.id === "x9")).toMatchObject({ cell: 2, enabled: false, revealedTo: [] });
+    expect(loaded.itemDefs.find((d) => d.id === "scopa")).toMatchObject({ name: "Una scopa nuova", text: "Pulita" });
+    // un nuovo oggetto creato dopo non riusa un id già presente
+    const next = cmd(cmd(loaded, { type: "item-add", name: "A" }), { type: "item-add", name: "B" });
+    expect(new Set(next.itemDefs.map((d) => d.id)).size).toBe(next.itemDefs.length);
+    // mappa diversa, id doppi o comando fuori fase: ignorato
+    expect(cmd(s, { type: "load-content", rooms: rooms.slice(1), items })).toBe(s);
+    expect(cmd(s, { type: "load-content", rooms, items: [items[0]!, items[0]!] })).toBe(s);
+  });
+
   it("il master elimina un oggetto; i riferimenti degli altri non cambiano; limite e stanza non valida", () => {
     let s = cmd(withItems(), { type: "enable-item", itemId: "libro", enabled: true });
     s = cmd(s, { type: "place-item", itemId: "libro", cellId: 4 });
