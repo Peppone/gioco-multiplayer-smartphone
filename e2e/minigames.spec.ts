@@ -13,7 +13,8 @@ test("vero/falso a raffica: risposte, rivelazione automatica, passaggio da solo 
           { text: "Il Monte Bianco è in Svizzera.", answer: false },
         ],
         timeSec: 30,
-        revealSec: 1,
+        // Passa da sola all'affermazione dopo: abbastanza da controllare schermo e telefoni anche sotto carico.
+        revealSec: 6,
         wrongPenalty: 0,
       },
     },
@@ -34,9 +35,12 @@ test("vero/falso a raffica: risposte, rivelazione automatica, passaggio da solo 
 
   // Bob sbaglia: hanno risposto tutti, si rivela da sola
   await b.page.getByRole("button", { name: "FALSO", exact: true }).click();
-  await expect(screen.page.locator(".tf-true.right")).toBeVisible();
-  await expect(a.page.getByText(/Giusto! \+\d+/)).toBeVisible();
-  await expect(b.page.getByText(/Sbagliato/)).toBeVisible();
+  // Controlli insieme, prima che la rivelazione passi da sola alla successiva.
+  await Promise.all([
+    expect(screen.page.locator(".tf-true.right")).toBeVisible(),
+    expect(a.page.getByText(/Giusto! \+\d+/)).toBeVisible(),
+    expect(b.page.getByText(/Sbagliato/)).toBeVisible(),
+  ]);
 
   // Dopo la pausa passa da sola alla seconda affermazione
   await expect(screen.page.getByText("Il Monte Bianco è in Svizzera.")).toBeVisible();

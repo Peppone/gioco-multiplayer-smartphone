@@ -13,8 +13,16 @@ for (const theme of THEMES) {
         await page.goto(`/preview?theme=${theme}&scene=${scene}&still=1`);
         const phone = page.locator(".phone-frame .controller");
         await expect(phone).toBeVisible();
-        const p = await phone.evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
-        expect(p.sw, "overflow orizzontale del telefono").toBeLessThanOrEqual(p.cw + 1);
+        const p = await phone.evaluate((el) => {
+          // Gli elementi che escono a destra: se il test fallisce, il messaggio dice quali sono.
+          const right = el.getBoundingClientRect().right + 1;
+          const wide = [...el.querySelectorAll("*")]
+            .filter((e) => e.getBoundingClientRect().right > right)
+            .slice(0, 4)
+            .map((e) => `${e.tagName.toLowerCase()}.${String(e.className)} «${(e.textContent ?? "").trim().slice(0, 25)}» (${Math.round(e.getBoundingClientRect().width)}px)`);
+          return { sw: el.scrollWidth, cw: el.clientWidth, wide };
+        });
+        expect(p.sw, `overflow orizzontale del telefono: ${p.wide.join(" · ")}`).toBeLessThanOrEqual(p.cw + 1);
         const s = await page.locator(".screen-frame .screen").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
         expect(s.sw, "overflow orizzontale dello schermo").toBeLessThanOrEqual(s.cw + 1);
       });
@@ -165,7 +173,13 @@ test("un torneo da 4 telefoni: W/L, numero dispari con NPC, fino alla classifica
   // Classifica serata: il vincitore del torneo ha almeno 1000 punti di piazzamento, gli altri molto meno.
   const rows = screen.page.locator(".lb-table", { hasText: "Giocatori" }).locator("li");
   await expect(rows).toHaveCount(4);
-  await expect(rows.first()).toContainText(/1[01]\d\d/);
+  // Solo i punti (il nome ha cifre casuali); vittorie e previsioni aggiungono punti in quantità variabile.
+  // I numeri si animano: si aspetta il valore finale.
+  await expect(async () => {
+    const points = (await rows.locator(".pts").allTextContents()).map((t) => Number(t.replace(/\D/g, "")));
+    expect(points[0]).toBeGreaterThanOrEqual(1000);
+    for (const p of points.slice(1)) expect(p).toBeLessThan(points[0]!);
+  }).toPass();
 
   // Nessun frame verso schermo e telefoni ha mai contenuto lo stato grezzo delle scelte segrete.
   for (const c of [screen, ...phones]) {

@@ -17,7 +17,9 @@ test("la scalata: chi sbaglia continua a rispondere con punti ridotti, chi non s
           defaultTimeSec: 60,
           basePoints: 100,
           afterOutPercent: 50,
-          revealSec: 1,
+          // La rivelazione passa da sola al livello dopo: deve durare abbastanza da controllare schermo e telefoni
+          // anche con la macchina carica (i controlli partono insieme, vedi sotto).
+          revealSec: 8,
         },
       },
     ],
@@ -40,9 +42,12 @@ test("la scalata: chi sbaglia continua a rispondere con punti ridotti, chi non s
   for (const c of [screen, ada, bea]) expect(c.traffic.text()).not.toContain("correctIndex");
   await pick(bob, /Alfa/);
   await pick(rosa, /Alfa/);
-  await expect(screen.page.getByText(/Primo errore per:/)).toBeVisible();
-  await expect(bea.page.getByText("Sbagliato: sei fuori dal montepremi")).toBeVisible();
-  await expect(ada.page.getByText("+100 punti!")).toBeVisible();
+  // Controlli insieme: uno dopo l'altro si sommerebbero le attese e la rivelazione potrebbe finire prima dell'ultimo.
+  await Promise.all([
+    expect(screen.page.getByText(/Primo errore per:/)).toBeVisible(),
+    expect(bea.page.getByText("Sbagliato: sei fuori dal montepremi")).toBeVisible(),
+    expect(ada.page.getByText("+100 punti!")).toBeVisible(),
+  ]);
 
   // Livello 2: Bea ha già sbagliato ma risponde lo stesso (vale la metà); Bob e Rosa sbagliano, resta solo Ada.
   await expect(screen.page.getByText("Livello 2 di 2")).toBeVisible();
@@ -53,8 +58,10 @@ test("la scalata: chi sbaglia continua a rispondere con punti ridotti, chi non s
   await pick(ada, /Epsilon/);
   await pick(bob, /Delta/);
   await pick(rosa, /Zeta/);
-  await expect(bea.page.getByText("+100 punti!")).toBeVisible(); // 200 × 50%
-  await expect(ada.page.getByText("+200 punti!")).toBeVisible();
+  await Promise.all([
+    expect(bea.page.getByText("+100 punti!")).toBeVisible(), // 200 × 50%
+    expect(ada.page.getByText("+200 punti!")).toBeVisible(),
+  ]);
 
   // Finito il livello 2 resta Ada sola: il round si chiude e la classifica dà a lei 100 + 200 + 1000 di montepremi, agli altri 100 a testa.
   await expect(screen.page.getByText("Classifica dopo il round 1")).toBeVisible();

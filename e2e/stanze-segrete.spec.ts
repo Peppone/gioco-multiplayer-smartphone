@@ -23,6 +23,8 @@ async function openMaster(browser: Browser, hash: string): Promise<Client> {
 }
 
 test("stanze segrete: il Game Master conduce la sessione dal telefono, con lettere, permessi, messaggi ed eventi", async ({ newGame, browser, request }) => {
+  // Sessione completa con 6 browser: con gli altri test in parallelo supera il minuto del limite generale.
+  test.slow();
   const g = await newGame([{ typeId: "stanze-segrete", title: "Complesso e2e", theme: "retro80", config: CONFIG }], { playersPerTeam: 2 });
   const { screen, admin } = g;
   const phones = [g.reds[0]!, g.reds[1]!, g.blues[0]!, g.blues[1]!];

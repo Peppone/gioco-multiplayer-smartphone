@@ -230,6 +230,15 @@ const TAP_SCRIPT = `
     return best;
   };`;
 
+/**
+ * Il tocco che sblocca l'audio dello schermo. Si aspetta l'app e si tocca un testo: in un punto fisso (in alto a
+ * sinistra) c'è il pulsante del muto, e a pagina già disegnata il tocco spegnerebbe l'audio invece di sbloccarlo.
+ */
+async function unlockAudio(page: import("@playwright/test").Page) {
+  await page.getByText("Si comincia tra poco!").click();
+  await expect(page.getByRole("button", { name: "Disattiva l'audio" })).toBeVisible();
+}
+
 async function uploadTone(request: import("@playwright/test").APIRequestContext, name: string, wav: Buffer): Promise<string> {
   const res = await request.post("/api/admin/media", {
     headers: { Authorization: `Bearer ${await adminToken(request)}`, "Content-Type": "audio/wav", "X-File-Name": name },
@@ -248,7 +257,7 @@ test("effetto «senza voce»: nello stesso brano il tono centrale (la «voce») 
   const { screen, admin } = g;
   await screen.context.addInitScript(TAP_SCRIPT);
   await screen.page.reload();
-  await screen.page.mouse.click(20, 20); // il tocco che sblocca l'audio
+  await unlockAudio(screen.page);
   await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
   await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
   await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
@@ -266,7 +275,7 @@ test("effetto «sfocato»: nello stesso brano il tono grave passa e quello acuto
   const { screen, admin } = g;
   await screen.context.addInitScript(TAP_SCRIPT);
   await screen.page.reload();
-  await screen.page.mouse.click(20, 20); // il tocco che sblocca l'audio
+  await unlockAudio(screen.page);
   await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
   await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
   await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();

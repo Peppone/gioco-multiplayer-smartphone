@@ -68,7 +68,13 @@ async function toQuestions(g: Awaited<ReturnType<Parameters<Parameters<typeof te
   await expect(admin.page.getByText("Ruoli (segreto)")).toBeVisible();
   await admin.page.getByRole("button", { name: "Distribuisci i ruoli" }).click();
 
-  const mayor = clients[(await Promise.all(clients.map((c) => c.page.getByTestId("pm-words").count()))).findIndex((n) => n > 0)]!;
+  // Si aspetta che la distribuzione arrivi ai telefoni: uno solo, quello del Sindaco, mostra le parole da scegliere.
+  let mayorIndex = -1;
+  await expect(async () => {
+    mayorIndex = (await Promise.all(clients.map((c) => c.page.getByTestId("pm-words").count()))).findIndex((n) => n > 0);
+    expect(mayorIndex, "il telefono del Sindaco mostra la scelta della parola").toBeGreaterThanOrEqual(0);
+  }).toPass();
+  const mayor = clients[mayorIndex]!;
   await expect(mayor.page.getByTestId("pm-words").locator("button")).toHaveCount(3);
   for (const c of clients) if (c !== mayor) await expect(c.page.getByText("Il Sindaco sta scegliendo la parola…")).toBeVisible();
   await mayor.page.getByTestId("pm-words").locator("button").first().click();
