@@ -92,7 +92,7 @@ Ogni plugin implementa un'interfaccia comune:
 interface MinigameType<Config, State, Input> {
   id: string;                    // "quiz-multipla"
   configSchema: ZodSchema<Config>; // genera automaticamente il form nell'editor admin
-  defaultTheme: ThemeId;          // "gameshow" | "pixel" | "manga" | "retro80"
+  defaultTheme: ThemeId;          // "gameshow" | "pixel" | "manga" | "retro80" | "boom"
   init(config, players, teams): State;
   onInput(state, playerId, input): State;       // pura, testabile
   onTick?(state, now): State;                   // timer
@@ -123,7 +123,8 @@ Ogni **theme pack** comprende: palette (variabili CSS), font (Google Fonts incor
 - `gameshow`: luci, colori saturi, riflettori, jingle;
 - `pixel`: font bitmap, `image-rendering: pixelated`, PixiJS;
 - `manga`: linee cinetiche, balloon, onomatopee ("DON!");
-- `retro80`: neon, griglia synthwave, CRT scanlines.
+- `retro80`: neon, griglia synthwave, CRT scanlines;
+- `boom`: grafica piatta rosso/blu/grigio con strisce e fasce di colore, Montserrat Black (OFL), pensato per Stanze col botto.
 
 L'admin può cambiare il tema di ogni istanza di minigioco. Il telefono adotta lo stesso tema, ma in versione leggera.
 
@@ -274,6 +275,15 @@ Ispirato a *Werewords* ma **senza scatola né companion app**: l'app sostituisce
 - **Numero di Lupi** adattato alla dimensione (1 / 2 / 3 con 4–6 / 7–11 / 12 giocatori). Regole mostrate nell'app in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
 - **Test**: unit e anti-leak del plugin, anteprima Playwright (`pm-*`, layout e gesti), e2e di partite complete e stress (`pnpm stress --players 12 --scenario parole`).
 
+### 💣 Stanze col botto (`stanze-col-botto`, tema `boom`): deduzione sociale in due stanze
+Ispirato a *Two Rooms and a Boom* ma **senza carte**: il telefono è la carta personaggio, l'app abbina i giocatori a due stanze fisiche, distribuisce i ruoli, tiene il tempo, gestisce leader (voto, nomina, passaggio), ostaggi, condivisioni delle carte e rivelazione. Da 6 a 30 giocatori (`minPlayers: 6`, `maxPlayers: 30`). La trattativa resta a voce. Regole, decisioni e piano in [docs/PIANO-STANZE-COL-BOTTO.md](docs/PIANO-STANZE-COL-BOTTO.md); guida in [docs/STANZE-COL-BOTTO.md](docs/STANZE-COL-BOTTO.md).
+- **Nuovo campo di `MinigameType`**: `minPlayers`, controllato dall'engine accanto a `maxPlayers` (vale anche per Parole Mannare, da 4).
+- **Chi conosce la carta di chi** è una funzione pura del registro `shares` (`knownBy`): «Mostra» è a senso unico, «Scambia» è reciproco e consensuale (alcuni personaggi avanzati conteranno solo le condivisioni).
+- **Leader non segreti ma ritardati**: la propria stanza lo vede subito, l'altra e lo schermo dopo il blocco di entrambe le stanze.
+- **Regia cieca**: con «Gioco anch'io» `hostView` non contiene carte, voti, condivisioni né scelte degli ostaggi (il segreto non arriva al browser).
+- **Abbinamento alle stanze** a caso, con QR di stanza (`/play?stanza=CODICE`, scanner di Caccia ai Fantasmi riusato) o dalla regia.
+- **Test**: unit e anti-leak del plugin, anteprima Playwright (`scb-*` nei 5 temi), e2e di partite complete e stress (`pnpm stress --players 30 --scenario botto`).
+
 ### 👻 Caccia ai Fantasmi (`caccia-fantasmi`, tema `retro80`): gioco fisico con QR
 Re della collina con ruoli nascosti, da giocare muovendosi nella location.
 
@@ -329,11 +339,12 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F2 Admin base | ✅ | Password, squadre, serate, partite, assegnazioni |
 | F3 Engine + primi giochi | ✅ | Quiz e Buzzer con ora equa; punteggi e classifiche |
 | F4 Editor minigiochi | ✅ | Form generato dallo schema, import/export JSON |
-| F5 Grafica e temi | ✅ | 4 theme pack, audio sintetizzato, classifiche animate, reazioni |
+| F5 Grafica e temi | ✅ | 5 theme pack (`boom` aggiunto con Stanze col botto), audio sintetizzato, classifiche animate, reazioni |
 | F6 Altri minigiochi | ✅ | Vero/Falso, Stima, Sondaggio; guida `docs/NUOVO-MINIGIOCO.md` |
 | F7 Duello dei Cavalieri | ✅ (da provare con persone) | Guida `docs/DUELLO-DEI-CAVALIERI.md`; arena in HTML/CSS con sprite Kenney |
 | F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
 | Extra: Parole Mannare | ✅ (da provare con persone) | Deduzione sociale a voce con gettoni trascinabili; guida `docs/PAROLE-MANNARE.md` |
+| Extra: Stanze col botto | ✅ (da provare con persone) | Deduzione sociale in due stanze (6–30 giocatori) con leader, ostaggi, mostra/scambia carte e regia cieca; tema `boom`; guida `docs/STANZE-COL-BOTTO.md`; personaggi avanzati (T8) da fare |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 
 **Scostamenti dal piano originale (concordati)**

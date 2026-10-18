@@ -19,7 +19,7 @@ Crea `packages/minigames/src/<id>/index.ts` ed esporta un oggetto `MinigameType`
 export const mioGioco: MinigameType<Config, State, Input, Command> = {
   id: "mio-gioco",            // minuscolo con trattini: è anche la chiave delle viste
   title: "Il mio gioco",      // nome mostrato all'admin
-  defaultTheme: "gameshow",   // gameshow | pixel | manga | retro80
+  defaultTheme: "gameshow",   // gameshow | pixel | manga | retro80 | boom
   configSchema,               // zod: genera il form dell'editor
   inputSchema,                // zod: cosa può inviare il telefono
   commandSchema,              // zod: cosa può inviare la regia ({ type: <id azione> })
@@ -100,7 +100,7 @@ Registra le viste in `packages/client/src/minigames/registry.ts`:
 Per un gioco condotto da una persona (un GDR, un gioco a indizi) il plugin può dichiarare:
 
 - `master: true`: il round ha un'interfaccia per il **Game Master**. La regia genera dal pannello Live un link limitato (`/master#t=…`, QR) che apre un telefono con la `hostView` del plugin e i soli comandi del plugin (`commandSchema`): niente CRUD, niente engine, niente rettifiche. Il token si può revocare e scade a fine partita.
-- `maxPlayers: N`: l'engine rifiuta l'avvio del round se la serata ha più giocatori, con un messaggio chiaro alla regia.
+- `maxPlayers: N` e `minPlayers: N`: l'engine rifiuta l'avvio del round se la serata ha più giocatori (o meno), con un messaggio chiaro alla regia.
 - `messages(state)`: messaggi ed eventi del round (`RoundMessage[]`, id crescenti). L'engine li salva nel database dopo ogni cambio di stato, in modo idempotente (chiave unica round + id), anche quando lo stato ne tiene solo gli ultimi.
 - Una vista `Host` nel registro del client (`Host: lazy(() => import("./<id>/<Nome>Host"))`): riceve `{ info, run(command), clock, theme }`, dove `info` è la `hostView.info` e `run` invia un comando al plugin. Compare nel pannello Live al posto dei pulsanti generici di `hostView.actions` e in `/master`. Va caricata con `lazy`, così non finisce nel pacchetto del telefono.
 

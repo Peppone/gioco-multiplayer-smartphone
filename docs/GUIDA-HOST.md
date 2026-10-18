@@ -55,6 +55,8 @@ I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li as
 
 **Parole Mannare**: gioco di deduzione a voce per 4–12 giocatori (con più di 12 il round non parte). Dal pannello Live premi *Distribuisci i ruoli* (prima, se vuoi, *Cambia Sindaco*); il Sindaco risponde alle domande dal proprio telefono e la regia segue ruoli e parola nel riquadro informativo. Pulsanti utili: *Pausa*, *Annulla ultimo gettone*, *Chiudi le domande*, *Chiudi il voto*, *Avanti* alla rivelazione. Guida completa: [PAROLE-MANNARE.md](PAROLE-MANNARE.md).
 
+**Stanze col botto**: deduzione sociale per 6–30 giocatori che si dividono in **due stanze fisiche** (due locali vicini, o due angoli lontani del salone: tra le stanze non si può comunicare). Prima di cominciare scegli come abbinare i giocatori (a caso, con i QR mostrati sullo schermo, o a mano dalla regia), poi premi *Distribuisci le carte* e *Avvia il round*. Se vuoi giocare anche tu, spunta **«Gioco anch'io (regia cieca)»** prima di distribuire le carte: non vedrai carte, voti né scelte degli ostaggi. Lo schermo è uno solo: chi sta nell'altra stanza si affida al telefono per tempo e avvisi (alza il volume, su iPhone non c'è la vibrazione). Guida completa: [STANZE-COL-BOTTO.md](STANZE-COL-BOTTO.md).
+
 **Reazioni**: i giocatori possono mandare emoji dal telefono; volano sullo schermo.
 
 **Audio**: il browser blocca l'audio finché non si clicca. Sulla pagina `/screen` clicca una volta sul pulsante 🔊 (o ovunque). L'audio dello schermo esce dal PC: se usi un proiettore/TV via HDMI, scegli l'uscita HDMI come dispositivo audio di Windows.

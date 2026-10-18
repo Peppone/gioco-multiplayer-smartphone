@@ -38,7 +38,7 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 - **Tipo** (codice) vs **istanza** (contenuto creato dall'admin): i contenuti non si scrivono mai nel codice. Il `configSchema` zod genera il form dell'editor.
 - **Meta-gioco**: un minigioco può orchestrare altri minigiochi della libreria (es. `knight-duel`, che usa `result()` dei figli per assegnare premi). È un round come gli altri: la sua istanza riferisce altre istanze per id (`libraryConfigSchema`) e `buildConfig` le risolve all'avvio della partita.
 - I **controlli del telefono** riusano le primitive condivise (`buttons`, `buzzer`, `text`, `number`, `vote`, `reactions`, `waiting`) e il modulo `team-vote`.
-- **Temi** (`gameshow`, `pixel`, `manga`, `retro80`) come theme pack: variabili CSS, font locali, suoni, transizioni.
+- **Temi** (`gameshow`, `pixel`, `manga`, `retro80`, `boom`) come theme pack: variabili CSS, font locali, suoni, transizioni.
 - Messaggi socket sempre **validati con zod** lato server.
 - I punteggi passano dal registro `score_entries`; le classifiche si calcolano da lì.
 - Interfaccia utente e testi di gioco in **italiano**. Nomi nel codice in inglese.
@@ -54,6 +54,7 @@ Non cambiare queste scelte senza discuterne prima con l'utente e aggiornare `PIA
 - **Bilanciamento di «Shadow Tournament»** (`pnpm balance:shadow`, ~25 s): fa giocare il vero plugin a giocatori simulati e stampa durata del torneo, uso delle azioni e quota di tornei vinti da ogni stile contro il gioco «bilanciato» (vicino al 50%, nessuno stile oltre il 60%). Si rilancia dopo ogni modifica a costi, mazzi o regole, e si aggiorna `rulesText.ts`. Guida in [docs/SHADOW-TOURNAMENT.md](docs/SHADOW-TOURNAMENT.md).
 - **Game Master** (`stanze-segrete`): il ruolo `master` accetta solo comandi del plugin (mai `engine`, `adjust` o `start`); le modifiche che toccano `master-auth.ts`, `realtime.ts` o `message-store.ts` richiedono i test di `master.test.ts`, lo scenario e2e `e2e/stanze-segrete.spec.ts` e `pnpm stress --players 10 --scenario stanze` (con 11 giocatori l'avvio del round deve essere rifiutato).
 - **Parole Mannare**: ogni modifica a gettoni, annulla, fasi o voti richiede i test di `parole-mannare.test.ts` (compresi gli anti-leak), gli scenari `e2e/parole-preview.spec.ts` e `e2e/parole-mannare.spec.ts` e `pnpm stress --players 12 --scenario parole` (con 13 giocatori l'avvio del round deve essere rifiutato). Se cambiano le regole si aggiorna `rulesText.ts`. Guida in [docs/PAROLE-MANNARE.md](docs/PAROLE-MANNARE.md).
+- **Stanze col botto**: ogni modifica a stanze, leader, ostaggi, condivisioni o regia cieca richiede i test di `stanze-col-botto.test.ts` (compresi gli anti-leak e quelli su `hostView` cieca), gli scenari `e2e/stanze-col-botto-preview.spec.ts` e `e2e/stanze-col-botto.spec.ts` e `pnpm stress --players 30 --scenario botto` (con 5 giocatori l'avvio del round deve essere rifiutato). Se cambiano le regole si aggiorna `rulesText.ts`. Guida in [docs/STANZE-COL-BOTTO.md](docs/STANZE-COL-BOTTO.md).
 - **Pacchetto Windows** (`pnpm package:win`, poi `pnpm package:check [--tunnel]`): ogni modifica che tocca server, client o dipendenze native va verificata anche nel pacchetto impacchettato.
 - Prima di dichiarare conclusa una fase, eseguire i test (`pnpm test` e `pnpm test:e2e`) e la demo indicata in `PIANO.md`.
 

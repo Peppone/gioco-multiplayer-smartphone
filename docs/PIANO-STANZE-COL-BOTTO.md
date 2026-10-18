@@ -1,7 +1,14 @@
 # Piano: «Stanze col botto» (deduzione sociale in stile *Two Rooms and a Boom*)
 
-> Stato: **decisioni chiuse, implementazione non iniziata**. Tutte le decisioni prese con l'utente sono nel §2;
-> il lavoro parte dal passo T1 (§13).
+> Stato: **implementato fino al passo T7** (MVP: Presidente, Bombarolo, membri, Giocatore d'azzardo); il passo T8
+> (personaggi avanzati e carta sepolta) è da fare. Tutte le decisioni prese con l'utente sono nel §2. Guida in
+> [STANZE-COL-BOTTO.md](STANZE-COL-BOTTO.md).
+>
+> **Scostamenti dal piano in fase di implementazione:** i punti sono due campi piatti (`winPoints`, `gamblerPoints`) invece
+> dell'oggetto `points`; la configurazione non ha ancora `characters` né `oddPlayer` (arrivano con T8); sul telefono
+> non ci sono i due pulsanti «Salotto»/«Cucina» come ultima possibilità senza QR (servirebbe esporre i codici o accettare
+> la stanza senza codice): restano scanner, fotocamera di sistema e codice a mano; la regia ha un'unica vista `Host`
+> con pulsanti propri.
 > Da leggere insieme a [PIANO.md](../PIANO.md), [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md) e
 > [PIANO-PAROLE-MANNARE.md](PIANO-PAROLE-MANNARE.md) (stesso genere di gioco, molte soluzioni si riusano).
 
@@ -153,7 +160,7 @@ durante la partita è «pulita» (perde le condizioni precedenti).
 
 | Campo | Tipo | Default | Note |
 |---|---|---|---|
-| `roomNames` | `[string, string]` | `["Stanza A", "Stanza B"]` | Nomi mostrati su telefoni e TV (es. «Salotto», «Cucina») |
+| `firstRoomName`, `secondRoomName` | stringhe | `"Stanza A"`, `"Stanza B"` | Nomi mostrati su telefoni e TV (es. «Salotto», «Cucina») |
 | `roomAssignment` | `"random"` \| `"qr"` \| `"host"` | `"random"` | Come si abbina ogni giocatore a una stanza (§5.10). La regia lo può cambiare anche nella fase `pairing` |
 | `roundMode` | `"base"` \| `"long"` \| `"custom"` | `"base"` | `base`: 3-2-1 minuti con la prima tabella del §3; `long`: 5-4-3-2-1 con la tabella della carta del leader (solo con più di 10 giocatori, altrimenti si ripiega su `base`); `custom`: durate e ostaggi dalla tabella sotto |
 | `customRounds` | `{ seconds, hostages6to10, hostages11to21, hostages22plus }[]` | vuoto | Solo per `custom` |
@@ -616,13 +623,13 @@ Ogni passo si chiude con test verdi e una piccola demo; commit semantici separat
 | Passo | Contenuto | Verifica |
 |---|---|---|
 | **T0 Decisioni** ✅ | Domande chiuse con l'utente | Tabella del §2 completa |
-| **T1 Infrastruttura** | `minPlayers` in `MinigameType` ed engine (anche per Parole Mannare) | Unit test dell'engine |
-| **T2 Logica del plugin (MVP)** | Config, distribuzione, stanze, fasi, leader (voto, nomina, abdicazione, blocco), ostaggi, condivisioni e rivelazioni, Giocatore d'azzardo, esito, punti, comandi della regia, modalità cieca | Unit test del §10 + `registry.test.ts` |
-| **T3 Anti-leak** | Scorrimento dello stato, `hostView` cieca compresa | Test anti-leak del §10 |
-| **T4 Viste** | Tema `boom`, `Controller`, `Screen`, `Host`, `rulesText.ts`, scene in `/preview` | Asserzioni Playwright su `/preview` |
-| **T5 End-to-end** | Scenari del §10 | `pnpm test:e2e`, frame WebSocket |
-| **T6 Bot e stress** | Strategia nei bot, scenario `stanze-col-botto` | `pnpm stress --players 30 --scenario botto`; 5 giocatori rifiutati |
-| **T7 Documenti e pacchetto** | tema `boom` in `PIANO.md` (D7) e in `CLAUDE.md`, `docs/STANZE-COL-BOTTO.md`, sezione in `PIANO.md`, `GUIDA-HOST.md` (come preparare due stanze, la modalità cieca), riga in `CLAUDE.md` (test richiesti) | `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
+| **T1 Infrastruttura** ✅ | `minPlayers` in `MinigameType` ed engine (anche per Parole Mannare) | Unit test dell'engine |
+| **T2 Logica del plugin (MVP)** ✅ | Config, distribuzione, stanze, fasi, leader (voto, nomina, abdicazione, blocco), ostaggi, condivisioni e rivelazioni, Giocatore d'azzardo, esito, punti, comandi della regia, modalità cieca | Unit test del §10 + `registry.test.ts` |
+| **T3 Anti-leak** ✅ | Scorrimento dello stato, `hostView` cieca compresa | Test anti-leak del §10 |
+| **T4 Viste** ✅ | Tema `boom`, `Controller`, `Screen`, `Host`, `rulesText.ts`, scene in `/preview` | Asserzioni Playwright su `/preview` |
+| **T5 End-to-end** ✅ | Scenari del §10 | `pnpm test:e2e`, frame WebSocket |
+| **T6 Bot e stress** ✅ | Strategia nei bot, scenario `stanze-col-botto` | `pnpm stress --players 30 --scenario botto`; 5 giocatori rifiutati |
+| **T7 Documenti e pacchetto** ✅ | tema `boom` in `PIANO.md` (D7) e in `CLAUDE.md`, `docs/STANZE-COL-BOTTO.md`, sezione in `PIANO.md`, `GUIDA-HOST.md` (come preparare due stanze, la modalità cieca), riga in `CLAUDE.md` (test richiesti) | `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
 | **T8 Personaggi fase 2** | Carta sepolta con Figlia del Presidente e Martire; i personaggi proposti nel §7.2 | Unit e anti-leak per ogni personaggio |
 
 ## 14. Rischi
