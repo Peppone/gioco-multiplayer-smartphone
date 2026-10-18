@@ -118,6 +118,15 @@ describe("Engine: round duello", () => {
     start();
     next();
     const secrets = new Set<string>();
+    // Ciò che un team conosce lecitamente non è un segreto per lui: le carte che ha avuto in mano (se l'avversario
+    // gliele ruba con «Mano lesta», l'evento del furto ne riporta l'uid) e quelle che ha svelato con «Occhio del mago»
+    // (l'evento `spy` con l'uid arriva solo al team che spia).
+    const everRed = new Set<string>();
+    const everBlue = new Set<string>();
+    const spiedBy = (nick: string) => {
+      const v = view(nick) as { side?: number; result?: { events?: { type: string; side: number; uid: string | null }[] } } | null;
+      return (v?.result?.events ?? []).filter((e) => e.type === "spy" && e.side === v?.side && e.uid).map((e) => e.uid!);
+    };
     for (let i = 0; i < 400 && w.engine.screenState().phase === "round"; i++) {
       w.clock.t += 1_500;
       w.engine.tick();
@@ -128,13 +137,15 @@ describe("Engine: round duello", () => {
       const handOf = (nick: string) => ((view(nick)?.hand ?? []) as { uid: string }[]).map((c) => c.uid);
       const redUids = handOf("ada");
       const blueUids = handOf("cleo");
+      [...redUids, ...spiedBy("ada")].forEach((u) => everRed.add(u));
+      [...blueUids, ...spiedBy("cleo")].forEach((u) => everBlue.add(u));
       const screen = JSON.stringify(w.engine.screenState());
       for (const uid of [...redUids, ...blueUids]) {
         secrets.add(uid);
         expect(screen, `schermo non deve contenere ${uid}`).not.toContain(uid);
       }
-      for (const uid of redUids) expect(JSON.stringify(view("cleo")), `blu non deve vedere ${uid}`).not.toContain(uid);
-      for (const uid of blueUids) expect(JSON.stringify(view("ada")), `rossi non devono vedere ${uid}`).not.toContain(uid);
+      for (const uid of redUids.filter((u) => !everBlue.has(u))) expect(JSON.stringify(view("cleo")), `blu non deve vedere ${uid}`).not.toContain(uid);
+      for (const uid of blueUids.filter((u) => !everRed.has(u))) expect(JSON.stringify(view("ada")), `rossi non devono vedere ${uid}`).not.toContain(uid);
       // anche la vista della regia (info + azioni) non contiene mani né voti
       const host = JSON.stringify(w.engine.adminState().host);
       for (const uid of [...redUids, ...blueUids]) expect(host).not.toContain(uid);
