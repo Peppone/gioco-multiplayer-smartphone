@@ -39,6 +39,13 @@ const MOTION: Record<ThemeId, ThemeMotion> = {
     exit: { opacity: 0, filter: "blur(8px)", x: 20 },
     transition: { duration: 0.3 },
   },
+  // Carta che si gira: scatto secco, senza rimbalzi.
+  boom: {
+    initial: { opacity: 0, scale: 0.9, rotateX: 25 },
+    animate: { opacity: 1, scale: 1, rotateX: 0 },
+    exit: { opacity: 0, scale: 1.08 },
+    transition: { duration: 0.2 },
+  },
 };
 
 const REDUCED: ThemeMotion = {

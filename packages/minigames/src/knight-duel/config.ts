@@ -59,7 +59,7 @@ export const resolvedInstanceSchema = z.object({
   instanceId: z.string(),
   title: z.string(),
   typeId: z.string(),
-  theme: z.enum(["gameshow", "pixel", "manga", "retro80"]),
+  theme: z.enum(["gameshow", "pixel", "manga", "retro80", "boom"]),
   config: z.unknown(),
 });
 export type ResolvedInstance = z.infer<typeof resolvedInstanceSchema>;

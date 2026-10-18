@@ -21,7 +21,7 @@ describe.each(Object.values(minigames))("contratto del plugin «$id»", (plugin:
   it("la configurazione di esempio è valida e ha titolo, tema e id in minuscolo con trattini", () => {
     expect(plugin.id).toMatch(/^[a-z][a-z0-9-]*$/);
     expect(plugin.title.length).toBeGreaterThan(2);
-    expect(["gameshow", "pixel", "manga", "retro80"]).toContain(plugin.defaultTheme);
+    expect(["gameshow", "pixel", "manga", "retro80", "boom"]).toContain(plugin.defaultTheme);
   });
 
   it("init è deterministico e lo stato è serializzabile in JSON (serve per gli snapshot)", () => {

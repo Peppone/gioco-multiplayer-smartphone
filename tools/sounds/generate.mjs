@@ -16,6 +16,7 @@ const THEMES = {
   pixel: { wave: "pulse", decay: 7 },
   manga: { wave: "saw", decay: 9 },
   retro80: { wave: "synth", decay: 4 },
+  boom: { wave: "pulse", decay: 5 },
 };
 
 function osc(wave, phase, t) {

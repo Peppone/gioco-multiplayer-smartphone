@@ -67,7 +67,7 @@ export interface OutcomeV {
 export interface MinigameFrameV {
   typeId: string;
   title: string;
-  theme: "gameshow" | "pixel" | "manga" | "retro80";
+  theme: "gameshow" | "pixel" | "manga" | "retro80" | "boom";
   view: unknown;
 }
 

@@ -82,7 +82,7 @@ export interface MatchView {
 export const instanceInputSchema = z.object({
   typeId: z.string().min(1).max(40),
   title: z.string().trim().min(1).max(80),
-  theme: z.enum(["gameshow", "pixel", "manga", "retro80"]).optional(),
+  theme: z.enum(["gameshow", "pixel", "manga", "retro80", "boom"]).optional(),
   /** Validata dal `configSchema` del tipo di minigioco. */
   config: z.unknown(),
 });
@@ -95,7 +95,7 @@ export interface InstanceView {
   id: string;
   typeId: string;
   title: string;
-  theme: "gameshow" | "pixel" | "manga" | "retro80";
+  theme: "gameshow" | "pixel" | "manga" | "retro80" | "boom";
   config: unknown;
 }
 
@@ -104,7 +104,7 @@ export interface MinigameTypeView {
   /** minigame: si aggiunge come round · content: contenuto della libreria (es. mazzo di carte) */
   kind: "minigame" | "content";
   title: string;
-  defaultTheme: "gameshow" | "pixel" | "manga" | "retro80";
+  defaultTheme: "gameshow" | "pixel" | "manga" | "retro80" | "boom";
   sampleConfig: unknown;
   /** Punto di partenza dell'editor per una nuova istanza (se assente, vale `sampleConfig`). */
   draftConfig?: unknown;

@@ -1,0 +1,48 @@
+/* Theme pack «boom»: grafica piatta rosso/blu/grigio ispirata ai giochi di carte a squadre, dinamite e fasce di colore. */
+@import "@fontsource/montserrat/latin-800.css";
+@import "@fontsource/montserrat/latin-900.css";
+
+[data-theme="boom"] {
+  --bg: #1d1d22;
+  --fg: #f6f3ee;
+  --panel: #2b2b33;
+  --panel-2: #3a3a45;
+  --primary: #c8202f;
+  --accent: #ffb703;
+  --good: #1f6fd1;
+  --good-ring: #8cc1ff;
+  --bad: #c8202f;
+  --buzz: #c8202f;
+  --buzz-ring: #ffb703;
+  --opt-0: #c8202f;
+  --opt-1: #1f6fd1;
+  --opt-2: #7b7b86;
+  --opt-3: #ffb703;
+  --opt-4: #7a1420;
+  --opt-5: #124a93;
+  --on-opt: #ffffff;
+  --team-blue: #1f6fd1;
+  --team-red: #c8202f;
+  --team-grey: #8a8a95;
+  --font: "Montserrat", system-ui, sans-serif;
+  --font-display: "Montserrat", system-ui, sans-serif;
+  --radius: 0.35rem;
+  --border-w: 3px;
+  --border-c: #f6f3ee;
+  --shadow: 0 0.3rem 0 rgba(0, 0, 0, 0.45);
+  --text-shadow: none;
+}
+[data-theme="boom"] h1,
+[data-theme="boom"] h2,
+[data-theme="boom"] .big { font-weight: 900; text-transform: uppercase; letter-spacing: 0.03em; }
+[data-theme="boom"] .question { font-weight: 800; }
+[data-theme="boom"] button { font-weight: 800; border: 3px solid rgba(255, 255, 255, 0.85); }
+[data-theme="boom"] .lb-table li { border-left: 10px solid var(--accent); }
+
+/* Sfondo dello schermo: strisce diagonali a basso contrasto, come il retro di una carta. */
+.screen[data-theme="boom"]::before {
+  background: repeating-linear-gradient(135deg, #ffffff08 0 1.4rem, transparent 1.4rem 2.8rem);
+}
+.screen[data-theme="boom"]::after {
+  background: radial-gradient(circle at 50% 120%, #c8202f55, transparent 60%);
+}

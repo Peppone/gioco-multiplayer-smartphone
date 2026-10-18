@@ -9,6 +9,7 @@ const THEMES: { id: ThemeId; label: string }[] = [
   { id: "pixel", label: "Pixel art" },
   { id: "manga", label: "Manga" },
   { id: "retro80", label: "Retro anni 80" },
+  { id: "boom", label: "Boom" },
 ];
 
 const pretty = (v: unknown) => JSON.stringify(v, null, 2);
