@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ClockSync, type Leaderboards, REACTIONS, type ThemeId } from "@gioco/shared";
 import { type SoundName, audio } from "../audio/audio";
 import { minigameViews } from "../minigames/registry";
+import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
 import { Leaderboard } from "../ui/Leaderboard";
 import { MuteButton } from "../ui/MuteButton";
@@ -62,6 +63,7 @@ type Scene =
   | "stanze-history"
   | "stanze-reveal"
   | ShadowSceneId
+  | ParoleSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -90,6 +92,7 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "stanze-history", label: "Stanze: cronologia" },
   { id: "stanze-reveal", label: "Stanze: rivelazione" },
   ...SHADOW_SCENES,
+  ...PAROLE_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -216,6 +219,16 @@ function sceneViews(scene: Scene, now: number) {
     case "shadow-bye":
     case "shadow-podium":
       return shadowScene(scene, now);
+    case "pm-word":
+    case "pm-night":
+    case "pm-questions":
+    case "pm-questions-player":
+    case "pm-grace":
+    case "pm-seer-hunt":
+    case "pm-vote":
+    case "pm-runoff":
+    case "pm-reveal":
+      return paroleScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }
