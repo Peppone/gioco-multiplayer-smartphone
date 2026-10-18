@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80"] as const;
-const SOUNDS = ["start", "tick", "buzz", "correct", "wrong", "reveal", "fanfare"];
+const SOUNDS = ["start", "tick", "buzz", "correct", "wrong", "reveal", "fanfare", "notify", "mail"];
 
 // Verifiche sul DOM e sugli stili calcolati: niente screenshot.
 test.describe("theme pack", () => {

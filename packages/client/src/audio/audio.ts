@@ -1,7 +1,7 @@
 import { Howl, Howler } from "howler";
 import type { ThemeId } from "@gioco/shared";
 
-export type SoundName = "tick" | "start" | "buzz" | "correct" | "wrong" | "reveal" | "fanfare";
+export type SoundName = "tick" | "start" | "buzz" | "correct" | "wrong" | "reveal" | "fanfare" | "notify" | "mail";
 
 const MUTE_KEY = "gioco.muted";
 

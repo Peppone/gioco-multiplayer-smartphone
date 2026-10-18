@@ -14,7 +14,7 @@ const THEMES: { id: ThemeId; label: string }[] = [
   { id: "retro80", label: "Retro 80" },
 ];
 
-const SOUNDS: SoundName[] = ["start", "tick", "buzz", "correct", "wrong", "reveal", "fanfare"];
+const SOUNDS: SoundName[] = ["start", "tick", "buzz", "correct", "wrong", "reveal", "fanfare", "notify", "mail"];
 
 const BOARDS: Leaderboards = {
   teams: [

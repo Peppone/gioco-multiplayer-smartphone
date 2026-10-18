@@ -77,7 +77,7 @@ export function MioGiocoController({ view, send, clock, theme }: ControllerProps
 - `view` è esattamente ciò che ha restituito `screenView`/`viewFor`: definisci un'interfaccia TypeScript locale e fai il cast.
 - `send({ ... })` invia un'intenzione (viene validata con `inputSchema` sul server). Il timestamp della pressione è aggiunto in automatico.
 - Per i conto alla rovescia usa `<Countdown openedAt deadline clock />`: le scadenze sono in **ora server** e `clock` le converte.
-- Suoni: `const sfx = useSfx(theme); sfx("start" | "tick" | "buzz" | "correct" | "wrong" | "reveal" | "fanfare")`, di solito in un `useEffect` che reagisce al cambio di fase.
+- Suoni: `const sfx = useSfx(theme); sfx("start" | "tick" | "buzz" | "correct" | "wrong" | "reveal" | "fanfare" | "notify" | "mail")`, di solito in un `useEffect` che reagisce al cambio di fase.
 - Il tema è già applicato dal contenitore (`data-theme`): usa le variabili CSS (`--panel`, `--accent`, `--opt-0…5`, `--radius`…) e le classi esistenti (`.question`, `.option`, `.answer`, `.big`, `.muted`, `.bars`, `.results`) invece di colori fissi.
 - Sul telefono: pulsanti grandi, niente scroll, azioni con `onClick` (o `onPointerDown` se conta la rapidità).
 

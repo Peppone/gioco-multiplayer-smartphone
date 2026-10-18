@@ -67,6 +67,9 @@ const EVENTS = {
   correct: (t) => concat([note(t, N.C5, 0.1), note(t, N.G5, 0.22)]),
   wrong: (t) => concat([note(t, N.A3, 0.14, { to: N.E3 }), note(t, N.E3, 0.22, { to: 110 })]),
   reveal: (t) => concat([note({ wave: "noise", decay: 12 }, 0, 0.05, { vol: 0.5 }), note(t, N.C4, 0.35, { to: N.A3 })]),
+  // Avvisi del Game Master: un «din-don» ascendente per le richieste, una nota sola più morbida per la posta.
+  notify: (t) => concat([note(t, N.G5, 0.12, { vol: 0.55 }), silence(0.02), note(t, N.C6, 0.3, { vol: 0.55 })]),
+  mail: (t) => note(t, N.E5, 0.14, { vol: 0.4 }),
   fanfare: (t) =>
     concat([
       note(t, N.C5, 0.12),
