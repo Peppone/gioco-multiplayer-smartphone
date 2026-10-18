@@ -53,6 +53,8 @@ I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li as
 
 **Stanze Segrete (con Game Master)**: se il round in corso è un gioco con Game Master, nel pannello Live compare il riquadro **«Link del Game Master»**. Premi *Genera il link* e fai inquadrare il QR al telefono di chi conduce (o copia il link). Il link vale solo per quella partita e puoi revocarlo o rigenerarlo quando vuoi. Il gioco accetta al massimo 10 giocatori per serata. Dopo la serata, scheda **Messaggi** per rileggere, esportare o eliminare messaggi ed eventi. Guida completa: [STANZE-SEGRETE.md](STANZE-SEGRETE.md).
 
+**Parole Mannare**: gioco di deduzione a voce per 4–12 giocatori (con più di 12 il round non parte). Dal pannello Live premi *Distribuisci i ruoli* (prima, se vuoi, *Cambia Sindaco*); il Sindaco risponde alle domande dal proprio telefono e la regia segue ruoli e parola nel riquadro informativo. Pulsanti utili: *Pausa*, *Annulla ultimo gettone*, *Chiudi le domande*, *Chiudi il voto*, *Avanti* alla rivelazione. Guida completa: [PAROLE-MANNARE.md](PAROLE-MANNARE.md).
+
 **Reazioni**: i giocatori possono mandare emoji dal telefono; volano sullo schermo.
 
 **Audio**: il browser blocca l'audio finché non si clicca. Sulla pagina `/screen` clicca una volta sul pulsante 🔊 (o ovunque). L'audio dello schermo esce dal PC: se usi un proiettore/TV via HDMI, scegli l'uscita HDMI come dispositivo audio di Windows.

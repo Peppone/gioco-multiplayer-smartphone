@@ -1,6 +1,7 @@
 # Piano: «Parole Mannare» (deduzione sociale in stile Werewords)
 
-> Stato: **decisioni confermate**, pronto per il passo P1.
+> Stato: **implementato** (passi P1–P6). Guida d'uso in [PAROLE-MANNARE.md](PAROLE-MANNARE.md).
+> Scostamenti dal piano: `werewolves` è un'enumerazione di stringhe (`auto`/`1`/`2`/`3`) e `maybePool` + `maybeUnlimited` sostituiscono `maybePool: null`, perché il form generato dall'editor non gestisce unioni né valori nulli; `set-mayor` senza `playerId` passa al giocatore successivo (pulsante «Cambia Sindaco»).
 > Da leggere insieme a [PIANO.md](../PIANO.md) e [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md).
 
 ## 1. Obiettivo

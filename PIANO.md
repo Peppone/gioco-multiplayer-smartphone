@@ -266,6 +266,14 @@ Sessione ispirata a *Room 25*, condotta da una persona (il **Game Master**, che 
 - **Messaggi ed eventi nel database**: il plugin li tiene nello stato (ultimi 300) e l'engine li copia dopo ogni cambio di stato in modo idempotente; la regia li consulta, filtra, esporta ed elimina dalla scheda «Messaggi».
 - **Privacy**: le lettere arrivano a un telefono solo durante un'occhiata concessa (e spariscono alla scadenza); schermo e telefoni non ricevono mai note, porte, permessi, richieste o messaggi altrui; i testi dei giocatori non vanno mai sullo schermo. Coperto da test anti-leak, e2e sui frame WebSocket e stress (`pnpm stress --players 10 --scenario stanze`).
 
+### 🐺 Parole Mannare (`parole-mannare`, tema `manga`): deduzione sociale a voce
+Ispirato a *Werewords* ma **senza scatola né companion app**: l'app sostituisce i componenti fisici (ruoli in privato, timer, gettoni, voti, punti) e le domande restano a voce. Da 4 a 12 giocatori (`maxPlayers: 12`). Il **Sindaco** (giocatore con un ruolo segreto) sceglie la parola e risponde assegnando **gettoni** dal telefono, trascinando un nome su un gettone o il contrario (o toccando uno e poi l'altro); **Lupi** e **Veggente** conoscono la parola. Parola indovinata → i Lupi cercano il Veggente; non indovinata → voto sul Lupo; i pareggi vanno al **ballottaggio**. Decisioni in [docs/PIANO-PAROLE-MANNARE.md](docs/PIANO-PAROLE-MANNARE.md), guida in [docs/PAROLE-MANNARE.md](docs/PAROLE-MANNARE.md).
+- **Registro dei gettoni**: conteggi per giocatore e riserve (Sì/No comuni, Forse, «Ci sei quasi», «Lontanissimo») sono funzioni pure del registro (voci con `undone`), così l'**annulla** a più passi non ha contatori da riallineare; l'annulla non restituisce tempo. «Esatto» ha una breve finestra di annullamento.
+- **Avvisi**: ogni gettone arriva a tutti i telefoni («Sì → Carla», «Sì **a te**!», «Annullato…») dal registro nella vista; dopo una riconnessione gli avvisi vecchi non si rimostrano.
+- **Privacy**: parola, proposte, ruoli e voti sono segreti per schermo e telefoni fino al momento giusto; coperto da test anti-leak e da e2e sui frame WebSocket.
+- **Numero di Lupi** adattato alla dimensione (1 / 2 / 3 con 4–6 / 7–11 / 12 giocatori). Regole mostrate nell'app in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
+- **Test**: unit e anti-leak del plugin, anteprima Playwright (`pm-*`, layout e gesti), e2e di partite complete e stress (`pnpm stress --players 12 --scenario parole`).
+
 ### 👻 Caccia ai Fantasmi (`caccia-fantasmi`, tema `retro80`): gioco fisico con QR
 Re della collina con ruoli nascosti, da giocare muovendosi nella location.
 
@@ -325,6 +333,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F6 Altri minigiochi | ✅ | Vero/Falso, Stima, Sondaggio; guida `docs/NUOVO-MINIGIOCO.md` |
 | F7 Duello dei Cavalieri | ✅ (da provare con persone) | Guida `docs/DUELLO-DEI-CAVALIERI.md`; arena in HTML/CSS con sprite Kenney |
 | F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
+| Extra: Parole Mannare | ✅ (da provare con persone) | Deduzione sociale a voce con gettoni trascinabili; guida `docs/PAROLE-MANNARE.md` |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 
 **Scostamenti dal piano originale (concordati)**
