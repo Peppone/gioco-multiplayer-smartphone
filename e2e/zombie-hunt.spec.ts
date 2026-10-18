@@ -7,7 +7,8 @@ test("zombie hunt: ruoli segreti, morso allo sfidante, schermo senza ruoli, clas
       typeId: "zombie-hunt",
       title: "Zombie e2e",
       theme: "pixel",
-      config: { rounds: 1, turnSec: 60, revealSec: 2, zombieCount: 1, vaccineCount: 0 },
+      // rivelazione abbastanza lunga da controllarla su schermo e telefoni anche con la macchina sotto carico
+      config: { rounds: 1, turnSec: 60, revealSec: 6, zombieCount: 1, vaccineCount: 0 },
     },
   ]);
   const { screen, admin, a, b } = g;
@@ -39,11 +40,13 @@ test("zombie hunt: ruoli segreti, morso allo sfidante, schermo senza ruoli, clas
   await expect(screen.page.getByText("Esiti del turno")).toHaveCount(0);
   await zombie.page.getByRole("button", { name: /Morsica/ }).click();
 
-  // Hanno scelto tutti: si rivela da sola.
-  await expect(human.page.getByText(/era uno ZOMBIE/)).toBeVisible();
-  await expect(zombie.page.getByText(/Hai infettato/)).toBeVisible();
-  await expect(screen.page.getByText("Esiti del turno")).toBeVisible();
-  await expect(screen.page.locator(".zh-stat", { hasText: "infettati" })).toContainText("1");
+  // Hanno scelto tutti: si rivela da sola. La rivelazione dura pochi secondi: schermo e telefoni si controllano insieme.
+  await Promise.all([
+    expect(human.page.getByText(/era uno ZOMBIE/)).toBeVisible(),
+    expect(zombie.page.getByText(/Hai infettato/)).toBeVisible(),
+    expect(screen.page.getByText("Esiti del turno")).toBeVisible(),
+    expect(screen.page.locator(".zh-stat", { hasText: "infettati" })).toContainText("1"),
+  ]);
 
   // Un solo turno: dopo la pausa la partita finisce e arriva la classifica.
   await expect(screen.page.getByText("Classifica dopo il round 1")).toBeVisible();
