@@ -6,6 +6,10 @@ interface Props {
   /** Chiamata una sola volta, con il codice di una zona. */
   onCode: (code: string) => void;
   onClose: () => void;
+  /** Nome del parametro del link che contiene il codice (`zona` per Caccia ai Fantasmi, `stanza` per Stanze col botto). */
+  param?: string;
+  /** Cosa si sta inquadrando, per i messaggi (es. «della zona»). */
+  what?: string;
 }
 
 const MAX_WIDTH = 480;
@@ -22,7 +26,7 @@ function cameraError(e: unknown): string {
 }
 
 /** Scanner di QR dentro l'app. Caricato solo quando serve: la libreria di decodifica non pesa sul telefono finché non lo si apre. */
-export default function QrScanner({ onCode, onClose }: Props) {
+export default function QrScanner({ onCode, onClose, param = "zona", what = "della zona" }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
@@ -44,13 +48,13 @@ export default function QrScanner({ onCode, onClose }: Props) {
         ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
         const found = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, { inversionAttempts: "dontInvert" });
         if (found) {
-          const code = extractZoneCode(found.data);
+          const code = extractZoneCode(found.data, param);
           if (code) {
             stopped = true;
             onCode(code);
             return;
           }
-          setHint("Questo QR non è di una zona del gioco.");
+          setHint("Questo QR non fa parte del gioco.");
         }
       }
       timer = setTimeout(tick, SCAN_EVERY_MS);
@@ -88,7 +92,7 @@ export default function QrScanner({ onCode, onClose }: Props) {
         <>
           <video ref={video} className="gf-scanner-video" playsInline muted />
           <div className="gf-scanner-frame" aria-hidden="true" />
-          <p className="gf-scanner-msg">{hint ?? "Inquadra il QR della zona"}</p>
+          <p className="gf-scanner-msg">{hint ?? `Inquadra il QR ${what}`}</p>
         </>
       )}
       <button className="gf-scanner-close" onClick={onClose}>Chiudi</button>

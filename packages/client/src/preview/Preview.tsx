@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ClockSync, type Leaderboards, REACTIONS, type ThemeId } from "@gioco/shared";
 import { type SoundName, audio } from "../audio/audio";
 import { minigameViews } from "../minigames/registry";
+import { BOTTO_SCENES, type BottoSceneId, bottoScene } from "../minigames/stanze-col-botto/previewData";
 import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
 import { Leaderboard } from "../ui/Leaderboard";
@@ -13,6 +14,7 @@ const THEMES: { id: ThemeId; label: string }[] = [
   { id: "pixel", label: "Pixel" },
   { id: "manga", label: "Manga" },
   { id: "retro80", label: "Retro 80" },
+  { id: "boom", label: "Boom" },
 ];
 
 const SOUNDS: SoundName[] = ["start", "tick", "buzz", "correct", "wrong", "reveal", "fanfare", "notify", "mail"];
@@ -64,6 +66,7 @@ type Scene =
   | "stanze-reveal"
   | ShadowSceneId
   | ParoleSceneId
+  | BottoSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -93,6 +96,7 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "stanze-reveal", label: "Stanze: rivelazione" },
   ...SHADOW_SCENES,
   ...PAROLE_SCENES,
+  ...BOTTO_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -229,6 +233,19 @@ function sceneViews(scene: Scene, now: number) {
     case "pm-runoff":
     case "pm-reveal":
       return paroleScene(scene, now);
+    case "scb-pairing":
+    case "scb-deal":
+    case "scb-round":
+    case "scb-round-full":
+    case "scb-offer":
+    case "scb-known":
+    case "scb-lock":
+    case "scb-leaders":
+    case "scb-hostages":
+    case "scb-travel":
+    case "scb-gamble":
+    case "scb-reveal":
+      return bottoScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }

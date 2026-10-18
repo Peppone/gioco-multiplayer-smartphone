@@ -7,6 +7,7 @@ import { QuizController, QuizScreen } from "./quiz/QuizViews";
 import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/ReazioneViews";
 import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
 import { ParoleController, ParoleScreen } from "./parole-mannare/ParoleViews";
+import { BottoController, BottoScreen } from "./stanze-col-botto/BottoViews";
 import { ShadowTournamentController, ShadowTournamentScreen } from "./shadow-tournament/ShadowTournamentViews";
 import { SondaggioController, SondaggioScreen } from "./sondaggio/SondaggioViews";
 import { StimaController, StimaScreen } from "./stima/StimaViews";
@@ -52,6 +53,11 @@ export const minigameViews: Record<string, MinigameViews> = {
   scalata: { Screen: ScalataScreen, Controller: ScalataController },
   "shadow-tournament": { Screen: ShadowTournamentScreen, Controller: ShadowTournamentController },
   "parole-mannare": { Screen: ParoleScreen, Controller: ParoleController },
+  "stanze-col-botto": {
+    Screen: BottoScreen,
+    Controller: BottoController,
+    Host: lazy(() => import("./stanze-col-botto/BottoHost").then((m) => ({ default: m.BottoHost }))),
+  },
   "reazione-a-catena": {
     Screen: ReazioneScreen,
     Controller: ReazioneController,
