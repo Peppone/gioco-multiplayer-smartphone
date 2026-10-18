@@ -73,6 +73,45 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "shadow-tournament":
       return decideShadow(v, rnd);
 
+    case "parole-mannare":
+      return decideParole(v, rnd);
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * Parole Mannare: il Sindaco assegna gettoni a raffica (un nuovo gettone a ogni cambio del registro, ogni tanto annulla
+ * e, di rado, dà l'«Esatto»); tutti gli altri guardano il ruolo e votano a caso. La `key` cambia con il registro e con
+ * le riserve, così anche dopo un annulla il Sindaco continua.
+ */
+function decideParole(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me) return null;
+  const others = (v.players as { id: string }[]).filter((p) => p.id !== v.mayor.id);
+  const log = (v.log ?? []) as { seq: number; undone: boolean }[];
+  const sig = `${log.at(-1)?.seq ?? 0}-${log.filter((e) => e.undone).length}-${v.reserves.yesNo}-${v.reserves.maybe}-${v.reserves.close}-${v.reserves.far}`;
+  switch (v.phase) {
+    case "word":
+      return me.wordOptions ? { key: "pm-word", inputs: [{ type: "pick-word", index: Math.floor(rnd() * me.wordOptions.length) }] } : null;
+    case "night":
+      return me.seen ? null : { key: "pm-seen", inputs: [{ type: "seen" }] };
+    case "questions": {
+      if (!me.isMayor || others.length === 0) return null;
+      const r = rnd();
+      if (r < 0.08 && me.canUndo) return { key: `pm-q${sig}`, inputs: [{ type: "undo" }] };
+      if (r < 0.1) return { key: `pm-q${sig}`, inputs: [{ type: "give", playerId: pick(others, rnd).id, token: "correct" }] };
+      const available = (["yes", "yes", "no", "no", "maybe", "close", "far"] as const).filter((t) => (t === "maybe" ? v.reserves.maybe === null || v.reserves.maybe > 0 : t === "close" || t === "far" ? v.reserves[t] > 0 : v.reserves.yesNo > 0));
+      return { key: `pm-q${sig}`, inputs: [{ type: "give", playerId: pick(others, rnd).id, token: pick([...available], rnd) }] };
+    }
+    case "correct-grace":
+      return me.isMayor && rnd() < 0.3 ? { key: `pm-g${sig}`, inputs: [{ type: "undo" }] } : null;
+    case "seer-hunt":
+    case "werewolf-vote": {
+      if (!me.canVote || me.targets.length === 0) return null;
+      return { key: `pm-v${v.phase}-${(v.runoff ?? []).map((c: { id: string }) => c.id).join(",")}`, inputs: [{ type: "vote", targetId: pick(me.targets as { id: string }[], rnd).id }] };
+    }
     default:
       return null;
   }

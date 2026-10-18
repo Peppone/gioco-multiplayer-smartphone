@@ -28,3 +28,19 @@ describe("stress test di Stanze Segrete con il Game Master", () => {
     expect(report.matches[0]!.run.reachedEnd).toBe(false);
   }, 120_000);
 });
+
+// Parole Mannare: un Sindaco simulato assegna gettoni a raffica (anche annulla), gli altri votano; massimo 12 giocatori.
+describe("stress test di Parole Mannare", () => {
+  it("12 giocatori con latenza: nessun errore, conteggi coerenti con il registro", async () => {
+    const report = await runStress({ players: 12, scenario: "parole", latencyMs: [50, 250], thinkMs: [200, 1200], seed: 5 });
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`);
+    expect(failed, `controlli falliti:\n${failed.join("\n")}`).toEqual([]);
+  }, 200_000);
+
+  it("con 13 giocatori l'avvio del round viene rifiutato con un messaggio chiaro", async () => {
+    const report = await runStress({ players: 13, scenario: "parole", latencyMs: [20, 80], thinkMs: [100, 300], seed: 6 });
+    const warnings = report.matches.flatMap((m) => m.run.warnings);
+    expect(warnings.some((w) => w.includes("massimo 12 giocatori, in serata ce ne sono 13"))).toBe(true);
+    expect(report.matches[0]!.run.reachedEnd).toBe(false);
+  }, 120_000);
+});

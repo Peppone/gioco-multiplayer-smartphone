@@ -15,7 +15,7 @@ export interface MatchRun {
 /** Quanto ci mette lo stato nuovo ad arrivare a tutti i telefoni dopo un comando della regia (ms). */
 export const fanout: number[] = [];
 
-const PRIORITY = ["correct", "open", "start", "resume", "next", "continue", "end", "pick:0"];
+const PRIORITY = ["correct", "open", "start", "deal", "resume", "next", "continue", "end", "pick:0"];
 
 /** Una regia automatica: conduce una partita intera cliccando i pulsanti giusti al momento giusto. */
 export class AutoHost {
@@ -128,6 +128,8 @@ export class AutoHost {
         const ack = await this.send(cmd);
         run.commands.push(cmd.type === "engine" ? `engine:${cmd.action}` : cmd.type === "plugin" ? `plugin:${String(cmd.command.type)}` : cmd.type);
         if (!ack.ok) run.warnings.push(`comando rifiutato (${run.commands.at(-1)}): ${ack.error}`);
+        // Troppi giocatori per il round: riprovare non serve, la regia vera si fermerebbe qui.
+        if (!ack.ok && /massimo \d+ giocatori/.test(String(ack.error))) break;
         changedAt = Date.now();
         await this.waitState(300);
       } else {

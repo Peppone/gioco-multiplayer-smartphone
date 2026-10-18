@@ -98,3 +98,15 @@ export async function shadowMatch(api: AdminApi, eventId: string): Promise<{ mat
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };
 }
+
+/** Partita con il solo round «Parole Mannare»: tempi brevi e riserva di Sì/No piccola, così il Sindaco simulato finisce in fretta. */
+export async function paroleMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Parole Mannare" });
+  const inst = await api.post("/instances", {
+    typeId: "parole-mannare",
+    title: "Parole di prova",
+    config: { wordPickSeconds: 10, nightSeconds: 8, questionSeconds: 90, yesNoPool: 20, maybePool: 6, correctGraceSeconds: 2, seerHuntSeconds: 15, voteSeconds: 20, runoffSeconds: 10 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}

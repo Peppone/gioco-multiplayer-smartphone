@@ -33,10 +33,14 @@ export class Bot {
   lastStateAt = 0;
   /** Istante in cui l'ultimo stato è arrivato sul socket, prima della latenza simulata: misura il solo costo del server. */
   lastRawAt = 0;
+  /** Ultima vista ricevuta per ogni tipo di minigioco: serve ai controlli finali, quando lo stato del round non c'è più. */
+  readonly lastViews = new Map<string, unknown>();
   private socket!: Socket;
   private readonly rnd: () => number;
   private readonly clock = new ClockSync();
   private lastKey: string | null = null;
+  /** Istante (Date.now) in cui è prevista la consegna dell'ultimo stato in arrivo: i successivi non possono sorpassarlo. */
+  private lastDeliveryAt = 0;
   private timers = new Set<NodeJS.Timeout>();
 
   constructor(private readonly opts: BotOptions) {
@@ -65,10 +69,12 @@ export class Bot {
     this.socket = io(this.opts.url, { auth: { role: "play" }, transports: ["websocket"], forceNew: true });
     this.socket.on("disconnect", () => this.stats.disconnects++);
     this.socket.on("connect_error", (e) => this.stats.errors.push(`connessione: ${e.message}`));
-    // Anche i messaggi in arrivo subiscono la latenza simulata.
+    // Anche i messaggi in arrivo subiscono la latenza simulata, ma restano in ordine: un collegamento vero non li scambia.
     this.socket.on(ServerEvent.GamePlayer, (s: GamePlayerState) => {
       this.lastRawAt = Date.now();
-      this.later(() => this.onState(s), this.oneWay());
+      const at = Math.max(Date.now() + this.oneWay(), this.lastDeliveryAt + 1);
+      this.lastDeliveryAt = at;
+      this.later(() => this.onState(s), at - Date.now());
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -107,7 +113,8 @@ export class Bot {
     this.lastStateAt = Date.now();
     this.stats.states++;
     if (!s.frame || !s.inRoster) return;
-    const d = decide(s.frame.typeId, s.frame.view, this.rnd);
+    this.lastViews.set(s.frame.typeId, s.frame.view);
+    const d =decide(s.frame.typeId, s.frame.view, this.rnd);
     if (!d || d.key === this.lastKey) return;
     this.lastKey = d.key;
     const thinkMs = between(this.rnd, this.opts.thinkMs);

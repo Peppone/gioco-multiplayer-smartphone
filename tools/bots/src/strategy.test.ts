@@ -146,3 +146,53 @@ describe("strategia dei bot: Stanze Segrete", () => {
     expect(r.s.messages.at(-1).from).toBe("r2");
   });
 });
+
+describe("strategia dei bot: Parole Mannare", () => {
+  const game = minigames["parole-mannare"]!;
+  const players = Array.from({ length: 8 }, (_, i) => ({ id: `q${i}`, nickname: `Q${i}`, teamId: null }));
+  const cfg = game.configSchema.parse({ ...game.sampleConfig, yesNoPool: 12, maybePool: 4 });
+
+  /** Fa giocare il vero plugin ai soli bot (nessuna rete): ogni stato nuovo rimette in moto chi ha qualcosa da fare. */
+  function play(seed: number) {
+    let s = game.init(cfg, { players, teams: [], seed }, 0);
+    s = game.onHostCommand(s, { type: "deal" }, 1);
+    const rnds = new Map(players.map((p, i) => [p.id, makeRnd(seed * 100 + i)]));
+    const lastKey = new Map<string, string>();
+    let now = 1;
+    let steps = 0;
+    while (s.phase !== "reveal" && steps++ < 2000) {
+      let acted = false;
+      for (const p of players) {
+        const d = decide("parole-mannare", game.viewFor(s, p.id, null), rnds.get(p.id)!);
+        if (!d || lastKey.get(p.id) === d.key) continue;
+        lastKey.set(p.id, d.key);
+        for (const input of d.inputs) {
+          const parsed = game.inputSchema.safeParse(input);
+          expect(parsed.success, JSON.stringify(input)).toBe(true);
+          if (parsed.success) s = game.onInput(s, p.id, parsed.data, { receivedAt: ++now, claimedTime: now, rtt: 20 });
+          acted = true;
+        }
+      }
+      if (!acted) {
+        now += 5_000; // nessuno ha altro da fare: passa il tempo, come in una partita vera
+        s = game.onTick(s, now);
+      }
+    }
+    return s;
+  }
+
+  it("i bot portano a termine il round (parola, notte, gettoni, voto) con input sempre validi", () => {
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const s = play(seed);
+      expect(s.phase, `seme ${seed}`).toBe("reveal");
+      expect(s.outcome).not.toBeNull();
+      expect(s.word).not.toBeNull();
+    }
+  });
+
+  it("il Sindaco assegna davvero gettoni e ogni tanto annulla", () => {
+    const logs = [1, 2, 3, 4, 5, 6].map((seed) => play(seed).log);
+    expect(logs.every((l) => l.length > 0)).toBe(true);
+    expect(logs.some((l: { undone: boolean }[]) => l.some((e) => e.undone))).toBe(true);
+  });
+});

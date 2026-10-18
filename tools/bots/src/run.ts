@@ -3,6 +3,7 @@
 //   pnpm stress                         → avvia un server di prova isolato e gioca con 30 bot (partita classica + duello)
 //   pnpm stress --players 20 --scenario duel
 //   pnpm stress --players 10 --scenario stanze         → Stanze Segrete con un Game Master simulato (massimo 10 giocatori)
+//   pnpm stress --players 12 --scenario parole         → Parole Mannare: Sindaco simulato a raffica di gettoni (massimo 12 giocatori)
 //   pnpm stress --players 30 --scenario shadow         → Shadow Tournament: torneo intero con tempi brevi
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
@@ -11,7 +12,7 @@ import type { GameAdminState } from "@gioco/shared";
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { classicMatch, duelMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
+import { classicMatch, duelMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
@@ -20,7 +21,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "shadow" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -95,6 +96,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
     if (opts.scenario === "duel" || opts.scenario === "all") jobs.push({ name: "Duello dei Cavalieri", matchId: (await duelMatch(api, setup)).matchId });
 
     if (opts.scenario === "shadow") jobs.push({ name: "Shadow Tournament", matchId: (await shadowMatch(api, setup.eventId)).matchId });
+    if (opts.scenario === "parole") jobs.push({ name: "Parole Mannare", matchId: (await paroleMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "stanze") jobs.push({ name: "Stanze Segrete (con Game Master)", matchId: (await stanzeMatch(api, setup.eventId)).matchId });
 
     for (const job of jobs) {
@@ -103,6 +105,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       report.matches.push({ name: job.name, run });
       log(`  ${run.reachedEnd ? "conclusa" : "NON conclusa"} in ${(run.durationMs / 1000).toFixed(1)}s, ${run.commands.length} comandi`);
       if (run.finalState) checkMatch(job.name, run.finalState, bots.length, check);
+      if (opts.scenario === "parole" && run.reachedEnd) checkParole(bots, check);
       if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
 
@@ -159,6 +162,27 @@ async function checkStanze(api: AdminApi, eventId: string, run: StanzeRun, check
   check("Stanze: i bot hanno accettato gli eventi", settled.length > 0 && settled.every((e) => e.recipients.length > 0 && e.recipients.every((x) => x.acceptedAt !== null)), `${settled.filter((e) => e.recipients.some((x) => x.acceptedAt === null)).length} eventi con accettazioni mancanti`);
 }
 
+/** Parole Mannare: tutti i telefoni hanno l'identica vista pubblica e i conteggi tornano con le riserve e con i ruoli. */
+function checkParole(bots: Bot[], check: (n: string, ok: boolean, d?: string) => void): void {
+  type V = { phase: string; players: { id: string; summary: { yes: number; no: number; maybe: number; close: number; far: number } }[]; reserves: { yesNo: number; maybe: number | null; close: number; far: number }; rules: { yesNoPool: number; maybePool: number | null; closeTokens: number; farTokens: number; werewolves: number }; roles?: { id: string; role: string }[]; outcome?: { winner: string } | null; word: string | null };
+  const views = bots.map((b) => b.lastViews.get("parole-mannare") as V | undefined);
+  check("Parole: tutti i telefoni hanno ricevuto la vista del round", views.every((v) => v !== undefined));
+  const known = views.filter((v): v is V => v !== undefined);
+  if (known.length === 0) return;
+  const v = known[0]!;
+  const same = (pick: (x: V) => unknown) => known.every((x) => JSON.stringify(pick(x)) === JSON.stringify(pick(v)));
+  check("Parole: i telefoni sono arrivati alla rivelazione", known.every((x) => x.phase === "reveal" || x.phase === "done"), known.map((x) => x.phase).join(","));
+  check("Parole: stessi gettoni su tutti i telefoni", same((x) => x.players.map((p) => p.summary)));
+  check("Parole: stesse riserve su tutti i telefoni", same((x) => x.reserves));
+  const sum = (key: "yes" | "no" | "maybe" | "close" | "far") => v.players.reduce((n, p) => n + p.summary[key], 0);
+  check("Parole: Sì/No dati = riserva comune − rimasti", sum("yes") + sum("no") === v.rules.yesNoPool - v.reserves.yesNo, `${sum("yes") + sum("no")} contro ${v.rules.yesNoPool - v.reserves.yesNo}`);
+  check("Parole: Forse dati coerenti con la riserva", v.rules.maybePool === null || sum("maybe") === v.rules.maybePool - (v.reserves.maybe ?? 0));
+  check("Parole: «Ci sei quasi» e «Lontanissimo» mai oltre la dotazione", sum("close") <= v.rules.closeTokens && sum("far") <= v.rules.farTokens);
+  check("Parole: stesso esito e stessi ruoli su tutti i telefoni", same((x) => [x.outcome, x.roles]) && v.outcome !== null && v.outcome !== undefined, known.map((x) => JSON.stringify([x.outcome, (x.roles ?? []).length])).filter((t, i, a) => a.indexOf(t) === i).join(" | "));
+  const wolves = (v.roles ?? []).filter((r) => r.role === "werewolf").length;
+  check("Parole: numero di Lupi come da regola", wolves === v.rules.werewolves && (v.roles ?? []).filter((r) => r.role === "seer").length === 1, `${wolves} Lupi`);
+}
+
 /** Controlli sulla classifica finale di una partita. */
 function checkMatch(name: string, s: GameAdminState, bots: number, check: (n: string, ok: boolean, d?: string) => void): void {
   const lb = s.leaderboards;
@@ -193,8 +217,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "shadow", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze, shadow o all");
+  if (!["classic", "duel", "stanze", "shadow", "parole", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow, parole o all");
     process.exit(2);
   }
   const url = arg("url");
