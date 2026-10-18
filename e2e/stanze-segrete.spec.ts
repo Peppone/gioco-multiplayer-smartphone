@@ -463,3 +463,60 @@ test("stanze segrete: la regia può fare il Game Master da sola, senza link", as
   await expect(sh.locator("#sh-config [role=status]")).toHaveText("Il file è di un altro tipo di minigioco.");
   for (const c of [a, b, screen]) expect(c.traffic.text()).not.toContain("Dal file");
 });
+
+test("stanze segrete: dadi richiesti dal Master, tirati dal telefono, anche con risultato nascosto", async ({ newGame }) => {
+  const g = await newGame([{ typeId: "stanze-segrete", title: "Complesso dadi", theme: "retro80", config: CONFIG }], { playersPerTeam: 1 });
+  const { admin, a, b } = g;
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  const sh = admin.page.locator(".sh");
+  await sh.getByRole("button", { name: "Distribuisci", exact: true }).first().click();
+  await sh.getByRole("button", { name: "Inizia", exact: true }).click();
+  const dice = sh.locator("#sh-dice");
+
+  // Il Master sceglie un d20 e lo fa tirare a tutti: sui telefoni compare il pulsante.
+  await dice.getByRole("radio", { name: /d20/ }).click();
+  await dice.getByLabel("Motivo del lancio").fill("Forza");
+  await dice.getByRole("button", { name: "Fai tirare d20" }).click();
+  for (const c of [a, b]) await expect(c.page.getByTestId("dice-ask")).toContainText("Forza");
+
+  // Il telefono A tira: il dado rotola e poi mostra un numero da 1 a 20; B non vede il risultato di A.
+  await a.page.getByRole("button", { name: "Lancia il d20" }).click();
+  const stage = a.page.getByTestId("dice-stage");
+  await expect(stage).toHaveAttribute("data-state", "rolling");
+  await expect(stage).toHaveAttribute("data-state", "landed", { timeout: 4000 });
+  const got = Number(await stage.getAttribute("data-result"));
+  expect(got).toBeGreaterThanOrEqual(1);
+  expect(got).toBeLessThanOrEqual(20);
+  await expect(a.page.getByTestId("dice-ask")).toHaveCount(0);
+  await expect(b.page.getByTestId("dice-result")).toHaveCount(0);
+  // La regia vede lo stesso numero.
+  await expect(dice.getByTestId("dice-last")).toContainText(`: ${got}`);
+
+  // Tiro nascosto: il dado rotola sul telefono ma si ferma su «?», e il numero non viaggia sul socket.
+  await dice.getByRole("radio", { name: /d6/ }).click();
+  await dice.getByLabel("Nascondi il risultato al giocatore").check();
+  await dice.getByRole("button", { name: "Tira io per loro" }).click();
+  for (const c of [a, b]) {
+    await expect(c.page.getByTestId("dice-result").getByTestId("dice-stage")).toHaveAttribute("data-result", "?", { timeout: 4000 });
+    await expect(c.page.getByTestId("dice-result")).toContainText("Il Master vede il risultato");
+  }
+  const hiddenRolls = (await dice.locator(".sh-dice-list li").allInnerTexts()).filter((t) => t.includes("nascosto"));
+  expect(hiddenRolls.length).toBe(2);
+  expect(b.traffic.text()).not.toMatch(/"hidden":true,"result":[0-9]/);
+
+  // Lancio privato del Master: nessun telefono riceve nulla di nuovo.
+  const before = await a.page.getByTestId("dice-result").count();
+  await dice.getByRole("button", { name: "Tira per me (privato)" }).click();
+  await expect(dice.locator(".sh-dice-list li")).toHaveCount(5);
+  expect(await a.page.getByTestId("dice-result").count()).toBe(before);
+
+  // Richiesta annullata prima che il giocatore tiri.
+  await dice.getByRole("button", { name: "Fai tirare d6" }).click();
+  await expect(a.page.getByTestId("dice-ask")).toBeVisible();
+  // In attesa: il d20 di B (mai tirato) e i due d6 appena chiesti.
+  for (let left = 3; left > 0; left--) {
+    await expect(dice.locator(".sh-dice-list li.wait")).toHaveCount(left);
+    await dice.locator(".sh-dice-list li.wait").first().getByRole("button", { name: "Annulla" }).click();
+  }
+  for (const c of [a, b]) await expect(c.page.getByTestId("dice-ask")).toHaveCount(0);
+});

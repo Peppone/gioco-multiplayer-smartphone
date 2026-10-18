@@ -59,6 +59,14 @@ export interface PhoneEvent {
   cancelled: boolean;
 }
 
+export const DICE_SIDES = [4, 6, 8, 10, 12, 20] as const;
+
+/** Dadi del giocatore: da tirare (richiesti dal Master) e già tirati; `result` null = nascosto dal Master. */
+export interface PhoneDice {
+  pending: { id: number; sides: number; label: string }[];
+  rolled: { id: number; sides: number; label: string; hidden: boolean; result: number | null; at: number }[];
+}
+
 export interface Rules {
   /** Assenti finché la mappa non è stata mostrata. */
   rows?: number;
@@ -84,6 +92,7 @@ export interface PhoneView {
   abilities?: Ability[];
   compass?: Partial<Record<"move" | "peek", Record<Dir, ArrowState>>>;
   pending?: PendingRequest[];
+  dice?: PhoneDice;
   items?: PhoneItem[];
   sighting?: { cell: number; letter: string; until: number } | null;
   feedback?: { kind: "approved" | "refused" | "cancelled" | "letter" | "solved"; cell: number | null; at: number } | null;

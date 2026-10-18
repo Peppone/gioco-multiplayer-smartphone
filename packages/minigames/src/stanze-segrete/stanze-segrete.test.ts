@@ -678,3 +678,58 @@ describe("anti-leak", () => {
     expect(view(s, "a").cell).toBe(3);
   });
 });
+
+describe("dadi", () => {
+  it("il Master chiede un dado: il giocatore tira dal telefono e il risultato è tra 1 e le facce", () => {
+    let s = cmd(started(), { type: "dice-call", target: { players: ["a"] }, sides: 20, label: "Forza" });
+    expect(view(s, "a").dice.pending).toEqual([{ id: 1, sides: 20, label: "Forza" }]);
+    expect(view(s, "b").dice.pending).toEqual([]);
+    // Un altro giocatore non può tirare al posto suo.
+    expect(input(s, "b", { type: "roll", rollId: 1 })).toBe(s);
+    s = input(s, "a", { type: "roll", rollId: 1 }, 2000);
+    const rolled = view(s, "a").dice.rolled[0];
+    expect(rolled.result).toBeGreaterThanOrEqual(1);
+    expect(rolled.result).toBeLessThanOrEqual(20);
+    expect(view(s, "a").dice.pending).toEqual([]);
+    // Non si ritira lo stesso dado.
+    expect(input(s, "a", { type: "roll", rollId: 1 }, 3000)).toBe(s);
+  });
+
+  it("tiri nascosti: il numero non arriva né al giocatore né agli altri, ma il Master lo vede", () => {
+    let s = cmd(started(), { type: "dice-roll", target: { players: ["a"] }, sides: 6, hidden: true });
+    expect(view(s, "a").dice.rolled[0]).toMatchObject({ hidden: true, result: null });
+    expect(view(s, "b").dice.rolled).toEqual([]);
+    const host = (game.hostView(s) as any).info.dice[0];
+    expect(host.result).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(view(s, "a"))).not.toContain(`"result":${host.result}`);
+    s = cmd(started(), { type: "dice-call", target: "all", sides: 8, hidden: true });
+    s = input(s, "a", { type: "roll", rollId: 1 });
+    expect(view(s, "a").dice.rolled[0].result).toBeNull();
+  });
+
+  it("lancio privato del Master: nessun telefono lo vede", () => {
+    const s = cmd(started(), { type: "dice-roll", sides: 12 });
+    for (const id of ["a", "b", "c"]) expect(view(s, id).dice).toEqual({ pending: [], rolled: [] });
+    expect((game.hostView(s) as any).info.dice).toHaveLength(1);
+    expect(JSON.stringify(game.screenView(s))).not.toContain("dice");
+  });
+
+  it("tutti i dadi validi, i risultati restano nell'intervallo, i facce non valide sono rifiutate", () => {
+    for (const sides of [4, 6, 8, 10, 12, 20] as const) {
+      let s = started();
+      for (let i = 0; i < 40; i++) s = cmd(s, { type: "dice-roll", sides });
+      for (const r of (game.hostView(s) as any).info.dice) {
+        expect(r.result).toBeGreaterThanOrEqual(1);
+        expect(r.result).toBeLessThanOrEqual(sides);
+      }
+    }
+    expect(game.commandSchema.safeParse({ type: "dice-roll", sides: 7 }).success).toBe(false);
+  });
+
+  it("annullare una richiesta in attesa; un dado già tirato non si annulla", () => {
+    let s = cmd(started(), { type: "dice-call", target: { players: ["a"] }, sides: 4 });
+    expect(cmd(s, { type: "dice-cancel", rollId: 1 }).dice).toHaveLength(0);
+    s = input(s, "a", { type: "roll", rollId: 1 });
+    expect(cmd(s, { type: "dice-cancel", rollId: 1 })).toBe(s);
+  });
+});

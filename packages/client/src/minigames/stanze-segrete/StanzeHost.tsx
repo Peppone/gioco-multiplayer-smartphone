@@ -3,7 +3,8 @@ import { useSfx } from "../../audio/useAudio";
 import { useRemaining } from "../Countdown";
 import type { HostLibrary, HostProps } from "../types";
 import "./host.css";
-import { DIRS, DIR_ARROW, DIR_LABEL, type Dir, type Outcome, playerColor } from "./types";
+import { Die, RollingDie } from "./Dice";
+import { DICE_SIDES, DIRS, DIR_ARROW, DIR_LABEL, type Dir, type Outcome, playerColor } from "./types";
 
 interface HostGrant {
   id: string;
@@ -69,6 +70,17 @@ interface HostEvent {
   accepted: Record<string, number | null>;
   cancelled: boolean;
 }
+interface HostDice {
+  id: number;
+  sides: number;
+  playerId: string | null;
+  label: string;
+  hidden: boolean;
+  by: "master" | "player";
+  askedAt: number;
+  result: number | null;
+  rolledAt: number | null;
+}
 interface HostInfo {
   phase: "setup" | "play" | "reveal" | "done";
   rows: number;
@@ -95,6 +107,7 @@ interface HostInfo {
   requests: HostRequest[];
   messages: HostMessage[];
   events: HostEvent[];
+  dice: HostDice[];
   log: { at: number; text: string }[];
 }
 
@@ -937,6 +950,95 @@ function NoticeBar({ n, onMail }: { n: ReturnType<typeof useNotices>; onMail: ()
   );
 }
 
+// ------------------------------------------------------------------ Dadi
+
+/** Il Master sceglie il dado e a chi darlo: lo fa tirare ai giocatori, tira per loro o tira in privato. */
+function DiceTray({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
+  const [sides, setSides] = useState<number>(20);
+  const [label, setLabel] = useState("");
+  const [hidden, setHidden] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [room, setRoom] = useState("");
+  // I lanci già presenti all'apertura non si rianimano; quelli nuovi sì, una volta sola.
+  const seen = useRef<Set<number> | null>(null);
+  if (seen.current === null) seen.current = new Set(info.dice.filter((r) => r.result !== null).map((r) => r.id));
+
+  const target = (): unknown => {
+    if (room !== "") return { cell: Number(room) };
+    if (picked.size === 0 || picked.size === info.roster.length) return "all";
+    return { players: [...picked] };
+  };
+  const toggle = (id: string) => {
+    const n = new Set(picked);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
+    setPicked(n);
+    setRoom("");
+  };
+  const extra = { sides, ...(label.trim() && { label: label.trim() }), hidden };
+  const rolled = info.dice.filter((r) => r.result !== null);
+  const last = rolled.reduce<HostDice | null>((a, r) => (a === null || (r.rolledAt ?? 0) >= (a.rolledAt ?? 0) ? r : a), null);
+  const who = (r: HostDice) => (r.playerId === null ? "Tu (privato)" : nameOf(r.playerId));
+
+  return (
+    <div className="sh-dice">
+      <div className="chips">
+        <button className={`chip ${picked.size === 0 && room === "" ? "on" : ""}`} onClick={() => { setPicked(new Set()); setRoom(""); }}>Tutti</button>
+        {info.roster.map((p) => (
+          <button key={p.id} className={`chip ${picked.has(p.id) ? "on" : ""}`} aria-pressed={picked.has(p.id)} onClick={() => toggle(p.id)}>{p.nickname}</button>
+        ))}
+        <select value={room} onChange={(e) => { setRoom(e.target.value); setPicked(new Set()); }} aria-label="Dado a chi è in una stanza">
+          <option value="">Una stanza…</option>
+          {info.rooms.map((_, c) => <option key={c} value={c}>Chi è nella {roomName(c)}</option>)}
+        </select>
+      </div>
+      <div className="sh-dice-pick" role="radiogroup" aria-label="Dado">
+        {DICE_SIDES.map((n) => (
+          <button key={n} role="radio" aria-checked={sides === n} className={`sh-die-btn ${sides === n ? "on" : ""}`} data-sides={n} onClick={() => setSides(n)}>
+            <Die sides={n} size={3} />
+            <small>d{n}</small>
+          </button>
+        ))}
+      </div>
+      <div className="row">
+        <input value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40} placeholder="Motivo (facoltativo): es. Forza" aria-label="Motivo del lancio" />
+        <label><input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} /> Nascondi il risultato al giocatore</label>
+      </div>
+      <div className="row">
+        <button className="primary" onClick={() => void run({ type: "dice-call", target: target(), ...extra })}>Fai tirare d{sides}</button>
+        <button onClick={() => void run({ type: "dice-roll", target: target(), ...extra })}>Tira io per loro</button>
+        <button onClick={() => void run({ type: "dice-roll", sides, ...(label.trim() && { label: label.trim() }) })}>Tira per me (privato)</button>
+      </div>
+      {last && (
+        <div className="sh-dice-last" data-testid="dice-last">
+          <RollingDie key={last.id} sides={last.sides} result={last.result} play={!seen.current.has(last.id)} size={6} onLanded={() => seen.current?.add(last.id)} />
+          <p>{who(last)} · d{last.sides}{last.label && ` «${last.label}»`}: <span className="sh-dice-res">{last.result}</span></p>
+          {last.hidden && <small className="muted">Nascosto al giocatore</small>}
+        </div>
+      )}
+      <ul className="sh-dice-list" aria-label="Lanci">
+        {info.dice.length === 0 && <li className="muted">Nessun lancio.</li>}
+        {[...info.dice].reverse().map((r) => (
+          <li key={r.id} className={r.result === null ? "wait" : ""} data-roll={r.id}>
+            <Die sides={r.sides} size={2.2} />
+            <span>{who(r)}{r.label && ` · ${r.label}`}</span>
+            {r.result === null ? (
+              <>
+                <span className="muted">aspetta di tirare…</span>
+                <button onClick={() => void run({ type: "dice-cancel", rollId: r.id })}>Annulla</button>
+              </>
+            ) : (
+              <span className="sh-dice-res">{r.result}</span>
+            )}
+            {r.hidden && <span className="sh-dice-tag">👁‍🗨 nascosto</span>}
+            <small className="muted">{hhmm(r.rolledAt ?? r.askedAt)}</small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ Host
 
 /** Cosa serve di una configurazione salvata per caricarla in partita (il resto: mappa, lettere, punti, resta com'è). */
@@ -1069,6 +1171,13 @@ export function StanzeHost({ info: raw, run, clock, theme, library }: HostProps)
         <h3>Richieste {info.requests.length > 0 && <b className="sh-count">{info.requests.length}</b>}</h3>
         <Requests info={info} run={run} />
       </section>
+
+      {editable && (
+        <section className="sh-sec" id="sh-dice">
+          <h3>🎲 Dadi</h3>
+          <DiceTray info={info} run={run} nameOf={nameOf} />
+        </section>
+      )}
 
       <section className="sh-sec">
         <h3>Mappa</h3>

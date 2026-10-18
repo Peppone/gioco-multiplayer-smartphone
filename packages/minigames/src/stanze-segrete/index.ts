@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { MinigameType, ParticipantInfo, RoundMessage } from "@gioco/shared";
-import { makeRng, shuffle } from "../knight-duel/rng.js";
+import { deriveSeed, makeRng, randInt, shuffle } from "../knight-duel/rng.js";
 import { rankByPoints } from "../util.js";
 import { type StanzeConfig, SAMPLE_CONFIG, stanzeConfigSchema } from "./config.js";
 import { MAX_TIMERS, type TimerState, elapsedMs, formatDuration, lapsAt, newTimer, pauseTimer, resetTimer, startTimer } from "./timers.js";
@@ -23,6 +23,13 @@ const KEEP_MESSAGES = 300;
 const KEEP_LOG = 200;
 const HOST_MESSAGES = 120;
 const HOST_LOG = 60;
+const KEEP_DICE = 100;
+const HOST_DICE = 40;
+const PHONE_DICE = 6;
+
+/** I dadi disponibili (numero di facce). */
+export const DICE_SIDES = [4, 6, 8, 10, 12, 20] as const;
+export type DieSides = (typeof DICE_SIDES)[number];
 
 export type PlayerId = string;
 export type Action = "move" | "peek" | "sight" | "message" | "guess" | `custom:${string}`;
@@ -86,6 +93,23 @@ export interface GameEvent {
   cancelled: boolean;
 }
 
+/**
+ * Un lancio di dado. Il risultato lo decide il server (seme + numero del lancio): il telefono non può influenzarlo.
+ * Finché `result` è null il lancio è una richiesta del Master in attesa che il giocatore tiri.
+ * `playerId` null = lancio privato del Master. `hidden`: il giocatore vede il dado rotolare ma non il numero.
+ */
+export interface DiceRoll {
+  id: number;
+  sides: DieSides;
+  playerId: PlayerId | null;
+  label: string;
+  hidden: boolean;
+  by: "master" | "player";
+  askedAt: number;
+  result: number | null;
+  rolledAt: number | null;
+}
+
 export interface Feedback {
   kind: "approved" | "refused" | "cancelled" | "letter" | "solved";
   cell: CellId | null;
@@ -138,6 +162,8 @@ export interface StanzeState {
   requests: Request[];
   messages: Message[];
   events: GameEvent[];
+  dice: DiceRoll[];
+  nextDiceId: number;
   /** Contatore unico per messaggi ed eventi. */
   nextMessageId: number;
   nextRequestId: number;
@@ -162,6 +188,7 @@ const targetSchema = z.union([
 ]);
 type Target = z.infer<typeof targetSchema>;
 const cellSchema = z.number().int().min(0).max(24);
+const dieSchema = z.union([z.literal(4), z.literal(6), z.literal(8), z.literal(10), z.literal(12), z.literal(20)]);
 
 const inputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("move"), direction: dirSchema }),
@@ -174,6 +201,7 @@ const inputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("cancel"), requestId: z.number().int() }),
   z.object({ type: z.literal("ack"), messageId: z.number().int() }),
   z.object({ type: z.literal("accept-event"), eventId: z.number().int() }),
+  z.object({ type: z.literal("roll"), rollId: z.number().int() }),
 ]);
 
 const commandSchema = z.discriminatedUnion("type", [
@@ -240,6 +268,11 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("timer-pause"), timerId: z.string().min(1) }),
   z.object({ type: z.literal("timer-reset"), timerId: z.string().min(1) }),
   z.object({ type: z.literal("timer-remove"), timerId: z.string().min(1) }),
+  // Il Master chiede ai giocatori di tirare un dado (tirano loro dal telefono) o tira lui; `hidden` nasconde il numero al giocatore.
+  z.object({ type: z.literal("dice-call"), target: targetSchema, sides: dieSchema, label: z.string().trim().max(40).optional(), hidden: z.boolean().optional() }),
+  // Senza `target` è un lancio privato del Master: lo vede solo lui.
+  z.object({ type: z.literal("dice-roll"), target: targetSchema.optional(), sides: dieSchema, label: z.string().trim().max(40).optional(), hidden: z.boolean().optional() }),
+  z.object({ type: z.literal("dice-cancel"), rollId: z.number().int() }),
   z.object({ type: z.literal("show-map"), visible: z.boolean() }),
   z.object({ type: z.literal("public-reveal") }),
   z.object({ type: z.literal("end") }),
@@ -316,6 +349,18 @@ function grantMatchesRequest(action: Action): (r: Request) => boolean {
   if (action === "move" || action === "peek" || action === "guess") return (r) => r.kind === action;
   if (action.startsWith("custom:")) return (r) => r.kind === "custom" && `custom:${r.actionId}` === action;
   return () => false;
+}
+
+// ---- Dadi ----
+
+/** Esito di un lancio: dipende solo dal seme della partita e dal numero del lancio, quindi è riproducibile nei test. */
+const dieResult = (s: StanzeState, rollId: number, sides: number) => randInt(makeRng(deriveSeed(s.seed, 5000 + rollId)), sides) + 1;
+
+const keepDice = (rolls: DiceRoll[]) => rolls.slice(-KEEP_DICE);
+
+function logRoll(s: StanzeState, r: DiceRoll, now: number): StanzeState {
+  const who = r.playerId === null ? "Master" : nick(s, r.playerId);
+  return addLog(s, now, `🎲 d${r.sides}${r.label ? ` «${r.label}»` : ""} — ${who}: ${r.result}${r.hidden ? " (nascosto al giocatore)" : ""}`);
 }
 
 // ---- Input dei giocatori ----
@@ -398,6 +443,13 @@ function onInput(state: StanzeState, playerId: PlayerId, input: Input, meta: { r
       const grant = activeGrant(s, playerId, "guess", now);
       if (!grant) return s;
       return request(useGrant(s, grant), playerId, "guess", { word: normWord(input.word) }, now);
+    }
+
+    case "roll": {
+      const r = s.dice.find((x) => x.id === input.rollId);
+      if (!r || r.playerId !== playerId || r.result !== null) return s;
+      const done: DiceRoll = { ...r, result: dieResult(s, r.id, r.sides), rolledAt: now };
+      return logRoll({ ...s, dice: s.dice.map((x) => (x === r ? done : x)) }, done, now);
     }
 
     case "custom": {
@@ -713,6 +765,30 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       const next = cmd.type === "timer-start" ? startTimer(t, now) : cmd.type === "timer-pause" ? pauseTimer(t, now) : resetTimer(t);
       return next === t ? s : { ...s, timers: s.timers.map((x) => (x === t ? next : x)) };
     }
+    case "dice-call":
+    case "dice-roll": {
+      const ids = cmd.target === undefined ? [null] : expand(s, cmd.target);
+      if (ids.length === 0) return s;
+      const label = cmd.label ?? "";
+      const hidden = cmd.hidden === true;
+      let next = s;
+      let id = s.nextDiceId;
+      const fresh: DiceRoll[] = ids.map((playerId) => {
+        const base = { id: id++, sides: cmd.sides, playerId, label, hidden, askedAt: now };
+        // «dice-call»: aspetta il giocatore. «dice-roll»: tira subito il Master (per sé o per il giocatore).
+        return cmd.type === "dice-call"
+          ? { ...base, by: "player" as const, result: null, rolledAt: null }
+          : { ...base, by: "master" as const, result: dieResult(s, base.id, cmd.sides), rolledAt: now };
+      });
+      next = { ...next, nextDiceId: id, dice: keepDice([...next.dice, ...fresh]) };
+      if (cmd.type === "dice-roll") return fresh.reduce((acc, r) => logRoll(acc, r, now), next);
+      return addLog(next, now, `🎲 d${cmd.sides}${label ? ` «${label}»` : ""} richiesto a ${ids.map((i) => nick(s, i!)).join(", ")}${hidden ? " (risultato nascosto)" : ""}`);
+    }
+    case "dice-cancel": {
+      const r = s.dice.find((x) => x.id === cmd.rollId);
+      if (!r || r.result !== null) return s;
+      return { ...s, dice: s.dice.filter((x) => x !== r) };
+    }
     case "show-map":
       return s.mapShown === cmd.visible ? s : addLog({ ...s, mapShown: cmd.visible }, now, cmd.visible ? "Mappa mostrata ai giocatori" : "Mappa nascosta");
     case "public-reveal":
@@ -839,6 +915,8 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       requests: [],
       messages: [],
       events: [],
+      dice: [],
+      nextDiceId: 1,
       nextMessageId: 1,
       nextRequestId: 1,
       nextGrantId: 1,
@@ -936,6 +1014,14 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         expiresAt: g.expiresAt,
       })),
       compass,
+      // Dadi del giocatore: quelli da tirare e gli ultimi tirati. Se il Master li ha nascosti il numero non arriva al telefono.
+      dice: {
+        pending: s.dice.filter((r) => r.playerId === playerId && r.result === null).map((r) => ({ id: r.id, sides: r.sides, label: r.label })),
+        rolled: s.dice
+          .filter((r) => r.playerId === playerId && r.result !== null)
+          .slice(-PHONE_DICE)
+          .map((r) => ({ id: r.id, sides: r.sides, label: r.label, hidden: r.hidden, result: r.hidden ? null : r.result, at: r.rolledAt! })),
+      },
       pending: s.requests.filter((r) => r.playerId === playerId).map((r) => ({ id: r.id, kind: r.kind, direction: r.direction ?? null, actionId: r.actionId ?? null, word: r.word ?? null })),
       // Gli oggetti della stanza: si sa solo che c'è qualcosa; nome, icona e testo solo se il Master li ha palesati a questo giocatore.
       // Il riferimento è un numero (mai l'id): un id come «scopa» direbbe già di che oggetto si tratta.
@@ -988,6 +1074,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         // La vista del GM resta leggera anche con molta posta: gli ultimi messaggi e le ultime righe del diario.
         messages: s.messages.slice(-HOST_MESSAGES),
         events: s.events,
+        dice: s.dice.slice(-HOST_DICE),
         log: s.log.slice(-HOST_LOG),
       },
       actions: [

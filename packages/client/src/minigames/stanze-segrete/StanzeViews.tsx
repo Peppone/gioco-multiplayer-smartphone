@@ -5,6 +5,7 @@ import { useSfx } from "../../audio/useAudio";
 import { Countdown, useRemaining } from "../Countdown";
 import type { ControllerProps, ViewProps } from "../types";
 import "./stanze.css";
+import { Die, RollingDie } from "./Dice";
 import { rulesSections } from "./rulesText";
 import {
   type Ability,
@@ -272,6 +273,45 @@ function Items({ items }: { items: PhoneItem[] }) {
   );
 }
 
+/** Il dado tirato più di recente (animato se è nuovo) e, sotto, i risultati precedenti. */
+function RollResult({ r, seen }: { r: NonNullable<PhoneView["dice"]>["rolled"][number]; seen: Set<number> }) {
+  const [play] = useState(() => !seen.has(r.id));
+  useEffect(() => {
+    seen.add(r.id);
+  }, [r.id, seen]);
+  return (
+    <div className="ss-dice" data-testid="dice-result">
+      <RollingDie sides={r.sides} result={r.result} play={play} onLanded={() => navigator.vibrate?.(r.hidden ? 40 : [40, 40, 80])} />
+      {r.label && <p className="ss-dice-label">{r.label}</p>}
+      {r.hidden ? <p className="ss-dice-hidden">Il Master vede il risultato.</p> : <p className="ss-dice-result">d{r.sides}: <b>{r.result}</b></p>}
+    </div>
+  );
+}
+
+function DiceCards({ dice, send, seen }: { dice: NonNullable<PhoneView["dice"]>; send: ControllerProps["send"]; seen: Set<number> }) {
+  const ask = dice.pending[0];
+  const last = dice.rolled[dice.rolled.length - 1];
+  const before = dice.rolled.slice(0, -1).reverse();
+  return (
+    <>
+      {ask && (
+        <div className="ss-dice ask dice-wait" role="group" aria-label="Dado da tirare" data-testid="dice-ask">
+          <h3>🎲 Il Master ti fa tirare un dado{dice.pending.length > 1 ? ` (${dice.pending.length})` : ""}</h3>
+          <Die sides={ask.sides} size={6.5} />
+          {ask.label && <p className="ss-dice-label">{ask.label}</p>}
+          <button className="primary ss-dice-roll" onClick={() => send({ type: "roll", rollId: ask.id })}>Lancia il d{ask.sides}</button>
+        </div>
+      )}
+      {last && <RollResult key={last.id} r={last} seen={seen} />}
+      {before.length > 0 && (
+        <ul className="ss-dice-history" aria-label="Lanci precedenti">
+          {before.map((r) => <li key={r.id}>d{r.sides}: {r.result ?? "?"}</li>)}
+        </ul>
+      )}
+    </>
+  );
+}
+
 function GuessForm({ onSend }: { onSend: (word: string) => void }) {
   const [word, setWord] = useState("");
   return (
@@ -282,7 +322,7 @@ function GuessForm({ onSend }: { onSend: (word: string) => void }) {
   );
 }
 
-function GameTab({ v, send, clock }: { v: PhoneView; send: ControllerProps["send"]; clock: ControllerProps["clock"] }) {
+function GameTab({ v, send, clock, seenDice }: { v: PhoneView; send: ControllerProps["send"]; clock: ControllerProps["clock"]; seenDice: Set<number> }) {
   const abilities = v.abilities ?? [];
   const pending = v.pending ?? [];
   const has = (a: string) => abilities.find((x) => x.action === a);
@@ -307,6 +347,7 @@ function GameTab({ v, send, clock }: { v: PhoneView; send: ControllerProps["send
       {v.solved && <p className="ss-banner good">Soluzione convalidata 🔑</p>}
       <MiniMap v={v} />
       {v.feedback && <Feedback f={v.feedback} clock={clock} />}
+      {v.dice && <DiceCards dice={v.dice} send={send} seen={seenDice} />}
       <Items items={v.items ?? []} />
       {v.sighting && <LetterBox s={v.sighting} clock={clock} sightSec={v.rules?.sightSec ?? 8} />}
       {pending.map((r) => <PendingLine key={r.id} r={r} v={v} onCancel={() => send({ type: "cancel", requestId: r.id })} />)}
@@ -331,7 +372,7 @@ function GameTab({ v, send, clock }: { v: PhoneView; send: ControllerProps["send
         ))}
         {has("guess") && <GuessForm onSend={(word) => send({ type: "guess", word })} />}
       </div>
-      {abilities.length === 0 && pending.length === 0 && !v.sighting && <p className="muted ss-wait">Aspetta il Game Master.</p>}
+      {abilities.length === 0 && pending.length === 0 && !v.sighting && !v.dice?.pending.length && !v.dice?.rolled.length && <p className="muted ss-wait">Aspetta il Game Master.</p>}
     </div>
   );
 }
@@ -468,11 +509,25 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
   const unread = (v.messages ?? []).filter((m) => !m.mine && m.readAt === null).length;
   const prevUnread = useRef(0);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  // Dadi già tirati all'apertura: non si rianimano (si animano solo i lanci nuovi, una volta sola).
+  const seenDice = useRef<Set<number> | null>(null);
+  if (seenDice.current === null) seenDice.current = new Set((v.dice?.rolled ?? []).map((r) => r.id));
+  const askKey = (v.dice?.pending ?? []).map((r) => r.id).join();
+  const prevAsk = useRef(askKey);
 
   useEffect(() => {
     if (events.length > 0) sfx("buzz");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventKey]);
+  // Il Master chiede un dado: suono e vibrazione quando ne compare uno nuovo.
+  useEffect(() => {
+    const fresh = askKey.split(",").filter((id) => id && !prevAsk.current.split(",").includes(id));
+    prevAsk.current = askKey;
+    if (fresh.length === 0) return;
+    sfx("notify");
+    navigator.vibrate?.([100, 60, 100]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askKey]);
   useEffect(() => {
     if (unread > prevUnread.current) navigator.vibrate?.(120);
     prevUnread.current = unread;
@@ -484,7 +539,7 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
   return (
     <div className="ss-phone" ref={setAnchor}>
       <div className="ss-body">
-        {tab === "game" && <GameTab v={v} send={send} clock={clock} />}
+        {tab === "game" && <GameTab v={v} send={send} clock={clock} seenDice={seenDice.current} />}
         {tab === "master" && <MasterTab v={v} send={send} clock={clock} />}
         {tab === "events" && <EventsTab events={v.history ?? []} />}
         {tab === "rules" && <RulesTab v={v} />}
@@ -492,6 +547,11 @@ export function StanzeController({ view, send, clock, theme }: ControllerProps) 
       {showMail && events.length === 0 && (
         <Overlay anchor={anchor}>
           <button className="ss-mail-alert" onClick={() => setTab("master")}>✉️ Nuovo messaggio dal Master: leggi</button>
+        </Overlay>
+      )}
+      {askKey !== "" && tab !== "game" && events.length === 0 && (
+        <Overlay anchor={anchor}>
+          <button className={`ss-dice-alert ${showMail ? "second" : ""}`} onClick={() => setTab("game")}>🎲 Il Master ti fa tirare un dado: lancia</button>
         </Overlay>
       )}
       <nav className="ss-tabs" aria-label="Sezioni">

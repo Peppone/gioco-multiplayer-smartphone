@@ -46,6 +46,13 @@ export function rulesSections(r: Rules): RulesSection[] {
       ],
     },
     {
+      title: "Dadi",
+      paragraphs: [
+        "Il Game Master può farti tirare un dado (da 4 a 20 facce): compare il pulsante «Lancia», lo tocchi e il dado rotola. Il numero lo decide il server, non il telefono.",
+        "A volte il Game Master tira per te o nasconde il risultato: il dado rotola lo stesso, ma il numero lo vede solo lui.",
+      ],
+    },
+    {
       title: "Messaggi",
       paragraphs: [
         "Leggi sempre i messaggi del Game Master. Se te lo consente puoi rispondere sotto il messaggio.",
