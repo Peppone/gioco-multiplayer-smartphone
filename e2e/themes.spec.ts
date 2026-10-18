@@ -70,6 +70,31 @@ test.describe("theme pack", () => {
   });
 });
 
+test("con still=1 la scena nasce già nello stato finale, senza il primo fotogramma della transizione", async ({ page }) => {
+  // Se la scena partisse dallo stato iniziale (es. manga: ingrandita 1,3 e ruotata) e si assestasse solo al
+  // fotogramma dopo, chi misura subito vedrebbe un falso overflow. Si registra lo stile nel momento dell'inserimento.
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __stage: string[] }).__stage = seen;
+    const STAGE = "main.screen > div, main.controller > div";
+    new MutationObserver((records) => {
+      for (const r of records)
+        for (const n of r.addedNodes) {
+          if (!(n instanceof HTMLElement)) continue;
+          // React inserisce l'albero intero in un colpo: la scena può essere il nodo aggiunto o un suo discendente.
+          for (const el of [...(n.matches(STAGE) ? [n] : []), ...n.querySelectorAll<HTMLElement>(STAGE)]) seen.push(el.style.transform || "none");
+        }
+    }).observe(document, { childList: true, subtree: true });
+  });
+  for (const theme of [...THEMES, "boom"]) {
+    await page.goto(`/preview?theme=${theme}&scene=quiz-question&still=1`);
+    await expect(page.locator(".phone-frame main.controller > div").first()).toBeAttached();
+    const transforms = await page.evaluate(() => (window as unknown as { __stage: string[] }).__stage);
+    expect(transforms.length, theme).toBeGreaterThan(0);
+    for (const t of transforms) expect(t, `trasformazione della scena nel tema ${theme}`).toBe("none");
+  }
+});
+
 test("il telefono resta leggero: il codice di regia e schermo non viene caricato su /play", async ({ page }) => {
   const scripts: string[] = [];
   page.on("response", (r) => {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AnimatePresence, type TargetAndTransition, type Transition, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, MotionGlobalConfig, type TargetAndTransition, type Transition, motion, useReducedMotion } from "framer-motion";
 import type { ThemeId } from "@gioco/shared";
 
 interface ThemeMotion {
@@ -61,7 +61,9 @@ export function Stage({ theme, id, children }: { theme: ThemeId; id: string; chi
   const m = reduce ? REDUCED : MOTION[theme];
   return (
     <AnimatePresence mode="wait">
-      <motion.div key={id} initial={m.initial} animate={m.animate} exit={m.exit} transition={m.transition}>
+      {/* Con ?still=1 (animazioni saltate) si nasce già nello stato finale: altrimenti il primo fotogramma mostra lo
+          stato iniziale (es. ingrandito e ruotato nel tema manga) e chi misura in quell'istante vede un falso overflow. */}
+      <motion.div key={id} initial={MotionGlobalConfig.skipAnimations ? false : m.initial} animate={m.animate} exit={m.exit} transition={m.transition}>
         {children}
       </motion.div>
     </AnimatePresence>
