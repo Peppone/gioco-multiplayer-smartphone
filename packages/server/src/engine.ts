@@ -310,7 +310,10 @@ export class Engine {
     if (l.roundIndex + 1 >= l.rounds.length) return this.endMatch(l);
 
     const round = l.rounds[l.roundIndex + 1]!;
-    const max = this.plugin(round).maxPlayers;
+    const { maxPlayers: max, minPlayers: min } = this.plugin(round);
+    if (min !== undefined && l.roster.length < min) {
+      return fail(`${round.title}: servono almeno ${min} giocatori, in serata ce ne sono ${l.roster.length}.`);
+    }
     if (max !== undefined && l.roster.length > max) {
       return fail(`${round.title}: massimo ${max} giocatori, in serata ce ne sono ${l.roster.length}.`);
     }

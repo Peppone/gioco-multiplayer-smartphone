@@ -1,3 +1,4 @@
+import { minigames } from "@gioco/minigames";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type World, buildWorld } from "./test-world.js";
 
@@ -48,6 +49,16 @@ describe("Engine: avvio", () => {
     expect(w.engine.screenState().phase).toBe("idle");
     expect(w.engine.playerState(w.ids.ada!)).toMatchObject({ phase: "idle", inRoster: false });
     expect(close()).toMatchObject({ ok: false }); // nessuna partita
+  });
+
+  it("rifiuta il round se i giocatori sono meno del minimo del minigioco, con un messaggio chiaro", () => {
+    const inst = w.admin.library.createInstance({ typeId: "stanze-col-botto", title: "Botto", config: minigames["stanze-col-botto"]!.sampleConfig });
+    if (!inst.ok) throw new Error(inst.error);
+    const match = w.admin.createMatch(w.event.id, { name: "Poche persone" });
+    if (!match.ok) throw new Error(match.error);
+    w.admin.library.addRound(match.value.id, inst.value.id);
+    w.engine.startMatch(match.value.id);
+    expect(next()).toEqual({ ok: false, error: "Botto: servono almeno 6 giocatori, in serata ce ne sono 4." });
   });
 
   it("una partita già avviata non si riavvia", () => {

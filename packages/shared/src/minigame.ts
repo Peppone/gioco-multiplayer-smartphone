@@ -1,6 +1,6 @@
 import type { ZodType } from "zod";
 
-export type ThemeId = "gameshow" | "pixel" | "manga" | "retro80";
+export type ThemeId = "gameshow" | "pixel" | "manga" | "retro80" | "boom";
 
 export interface ParticipantInfo {
   id: string;
@@ -133,6 +133,8 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
   master?: true;
   /** Numero massimo di giocatori del round: l'engine rifiuta l'avvio se la serata ne ha di più. */
   maxPlayers?: number;
+  /** Numero minimo di giocatori del round: l'engine rifiuta l'avvio se la serata ne ha di meno. */
+  minPlayers?: number;
   /** Messaggi ed eventi del round (id crescenti), che l'engine salva nel database dopo ogni cambio di stato. */
   messages?(state: State): RoundMessage[];
   /**

@@ -394,6 +394,7 @@ export const paroleMannare: MinigameType<ParoleMannareConfig, ParoleMannareState
   configSchema: paroleMannareConfigSchema as unknown as z.ZodType<ParoleMannareConfig>,
   inputSchema,
   commandSchema,
+  minPlayers: 4,
   maxPlayers: 12,
   sampleConfig: {
     words: DEFAULT_WORDS,
