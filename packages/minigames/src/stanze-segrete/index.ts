@@ -215,6 +215,7 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("set-outcome"), playerId: z.string().min(1), outcome: z.enum(["in-gioco", "fuggito", "eliminato"]) }),
   z.object({ type: z.literal("start") }),
   z.object({ type: z.literal("item-add"), name: text(30), icon: z.string().trim().min(1).max(8).optional(), text: z.string().trim().max(600).optional(), note: z.string().trim().max(400).optional(), cellId: cellSchema.nullable().optional(), enabled: z.boolean().optional() }),
+  z.object({ type: z.literal("item-edit"), itemId: z.string().min(1), name: text(30).optional(), icon: z.string().trim().min(1).max(8).optional(), text: z.string().trim().max(600).optional(), note: z.string().trim().max(400).optional() }),
   z.object({ type: z.literal("item-remove"), itemId: z.string().min(1) }),
   z.object({ type: z.literal("place-item"), itemId: z.string().min(1), cellId: cellSchema.nullable() }),
   z.object({ type: z.literal("enable-item"), itemId: z.string().min(1), enabled: z.boolean() }),
@@ -603,6 +604,15 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
       const cell = cmd.cellId ?? null;
       const item: ItemState = { id, cell, enabled: cmd.enabled ?? false, revealedTo: [] };
       return addLog({ ...s, nextItemRef: ref + 1, itemDefs: [...s.itemDefs, def], items: [...s.items, item] }, now, `Nuovo oggetto: ${def.name}${cell === null ? "" : ` in ${roomName(cell)}`}`);
+    }
+    case "item-edit": {
+      const it = s.items.find((x) => x.id === cmd.itemId);
+      if (!it) return s;
+      const old = defOf(s, it.id);
+      const def: ItemDef = { ...old, name: cmd.name ?? old.name, icon: cmd.icon ?? old.icon, text: cmd.text ?? old.text, note: cmd.note ?? old.note };
+      if (def.name === old.name && def.icon === old.icon && def.text === old.text && def.note === old.note) return s;
+      // Chi conosce già l'oggetto vede subito la descrizione aggiornata; il registro non riporta i testi (sono dati dei giocatori).
+      return addLog({ ...s, itemDefs: s.itemDefs.map((d) => (d.id === it.id ? def : d)) }, now, `Oggetto modificato: ${def.name}`);
     }
     case "item-remove": {
       const it = s.items.find((x) => x.id === cmd.itemId);

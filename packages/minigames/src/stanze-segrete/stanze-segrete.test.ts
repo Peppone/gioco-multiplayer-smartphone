@@ -461,6 +461,21 @@ describe("oggetti", () => {
     expect(game.hostView(s).info).toMatchObject({ items: expect.arrayContaining([expect.objectContaining({ id: "x6", cell: 0, name: "Una torcia" })]) });
   });
 
+  it("il master modifica un oggetto esistente: chi lo conosce vede subito il testo nuovo, gli altri niente", () => {
+    let s = cmd(withItems(), { type: "reveal-item", itemId: "scopa", to: { players: ["b"] } });
+    const before = JSON.stringify(view(s, "c"));
+    s = cmd(s, { type: "item-edit", itemId: "scopa", name: "Una scopa rotta", text: "Il manico è spezzato", note: "Nasconde un biglietto" });
+    expect(view(s, "b").items.find((i: any) => i.ref === 0)).toMatchObject({ known: true, name: "Una scopa rotta", text: "Il manico è spezzato" });
+    expect(JSON.stringify(view(s, "c"))).toBe(before); // chi non lo conosce non nota nulla
+    expect((game.hostView(s).info as any).items.find((i: any) => i.id === "scopa")).toMatchObject({ name: "Una scopa rotta", note: "Nasconde un biglietto" });
+    expect(s.log.at(-1)?.text).not.toContain("spezzato"); // il registro non porta i testi
+    // si può svuotare il testo, i campi omessi restano, nessun cambiamento o oggetto inesistente: stato invariato
+    const cleared = cmd(s, { type: "item-edit", itemId: "scopa", text: "" });
+    expect(cleared.itemDefs.find((d) => d.id === "scopa")).toMatchObject({ name: "Una scopa rotta", text: "" });
+    expect(cmd(s, { type: "item-edit", itemId: "scopa", name: "Una scopa rotta" })).toBe(s);
+    expect(cmd(s, { type: "item-edit", itemId: "inesistente", name: "X" })).toBe(s);
+  });
+
   it("il master elimina un oggetto; i riferimenti degli altri non cambiano; limite e stanza non valida", () => {
     let s = cmd(withItems(), { type: "enable-item", itemId: "libro", enabled: true });
     s = cmd(s, { type: "place-item", itemId: "libro", cellId: 4 });
