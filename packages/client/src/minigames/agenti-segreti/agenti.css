@@ -1,0 +1,140 @@
+/* Agenti Segreti: schermo condiviso e telefono. Colori del tema e delle squadre (--as-red, --as-blue, dalla vista). */
+
+.as-screen, .as-ctrl { display: grid; gap: .6rem; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.as-screen { text-align: center; justify-items: center; }
+.as-screen > * { max-width: 100%; }
+.as-timer { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.2rem; white-space: nowrap; }
+.as-timer[data-paused="true"] { opacity: .7; }
+.as-screen .as-timer { font-size: 2.2rem; }
+
+/* Etichetta della squadra */
+.as-tag { display: inline-block; padding: .05rem .5rem; border-radius: var(--radius); color: var(--on-opt, #fff); font-weight: 800; }
+.as-tag[data-side="red"] { background: var(--as-red); }
+.as-tag[data-side="blue"] { background: var(--as-blue); }
+
+.as-topbar { display: flex; gap: 1rem; align-items: center; justify-content: space-between; width: 100%; font-size: 1.5rem; flex-wrap: wrap; }
+.as-side { padding: .2rem .9rem; border-radius: var(--radius); background: var(--panel); border: var(--border-w, 2px) solid; }
+.as-side[data-side="red"] { border-color: var(--as-red); }
+.as-side[data-side="blue"] { border-color: var(--as-blue); }
+.as-side[data-active="true"] { box-shadow: 0 0 0 4px var(--accent); }
+.as-clue-line { margin: 0; font-size: 1rem; line-height: 1.25; overflow-wrap: anywhere; }
+.as-screen .as-clue-line { font-size: 2rem; }
+.as-clue-word { font-family: var(--font-display); font-weight: 800; text-transform: uppercase; }
+.as-clue-count { font-size: 1.2em; }
+.as-last { margin: 0; font-size: .85rem; }
+.as-screen .as-last { font-size: 1.3rem; }
+.as-warning { margin: 0; padding: .3rem 1rem; border-radius: var(--radius); background: var(--bad); color: var(--on-opt, #fff); font-weight: 800; }
+
+/* ---- La griglia ---- */
+.as-grid { display: grid; grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr)); gap: .25rem; width: 100%; }
+.as-screen .as-grid { gap: .6rem; width: min(100%, 64rem); }
+.as-card {
+  position: relative; display: grid; place-items: center; min-width: 0; min-height: 2.5rem; padding: .15rem 2px;
+  border-radius: var(--radius); border: var(--border-w, 2px) solid var(--border-c); background: var(--panel); color: var(--fg);
+  font: inherit; line-height: 1.05; touch-action: manipulation; overflow: hidden;
+  /* La carta è il contenitore del suo testo: `cqi` è la sua larghezza interna. */
+  container-type: inline-size;
+}
+.as-screen .as-card { min-height: 5.2rem; padding: .3rem; }
+button.as-card { cursor: pointer; }
+/*
+ * Il testo si adatta alla carta: larghezza interna divisa per le lettere (`--n`, dalla vista) per la larghezza media
+ * di una lettera del font del tema (`--as-char`, in em), tra un minimo leggibile e un massimo.
+ */
+.as-ctrl, .as-host { --as-char: .84; --as-min: .42rem; --as-max: .82rem; }
+.as-screen { --as-char: .84; --as-min: .9rem; --as-max: 1.6rem; }
+.as-word { white-space: nowrap; font-weight: 800; font-size: clamp(var(--as-min), calc(100cqi / (var(--n, 6) * var(--as-char))), var(--as-max)); }
+.as-screen .as-word { text-transform: uppercase; }
+[data-theme="retro80"] .as-ctrl, [data-theme="retro80"].as-ctrl { --as-char: .8; }
+[data-theme="retro80"] .as-screen, [data-theme="retro80"].as-screen { --as-char: .92; }
+[data-theme="manga"] .as-ctrl, [data-theme="manga"].as-ctrl { --as-char: .5; }
+[data-theme="manga"] .as-screen, [data-theme="manga"].as-screen { --as-char: .58; }
+/* Il font del tema pixel è largo quanto è alto: le parole lunghe vanno su due righe (`--n2` lettere per riga). */
+[data-theme="pixel"] .as-word { white-space: normal; overflow-wrap: anywhere; line-height: 1.25; font-size: clamp(var(--as-min), calc(100cqi / (var(--n2, 4) * var(--as-char))), var(--as-max)); }
+[data-theme="pixel"] .as-ctrl, [data-theme="pixel"].as-ctrl { --as-char: 1.05; --as-min: .4rem; --as-max: .6rem; }
+[data-theme="pixel"] .as-screen, [data-theme="pixel"].as-screen { --as-char: 1.1; --as-max: 1.1rem; }
+
+/* Mappa del Capo-spia: carte coperte con bordo e sfondo tenue del colore */
+.as-card[data-revealed="false"][data-kind="red"] { border-color: var(--as-red); background: color-mix(in srgb, var(--as-red) 30%, var(--panel)); }
+.as-card[data-revealed="false"][data-kind="blue"] { border-color: var(--as-blue); background: color-mix(in srgb, var(--as-blue) 30%, var(--panel)); }
+.as-card[data-revealed="false"][data-kind="civilian"] { border-color: var(--team-grey); background: color-mix(in srgb, var(--team-grey) 22%, var(--panel)); }
+/* L'assassino è nero in ogni tema (unico colore fisso: deve sembrare minaccioso anche su sfondo scuro). */
+.as-card[data-revealed="false"][data-kind="assassin"] { border-color: #111; background: color-mix(in srgb, #111 55%, var(--panel)); color: #fff; }
+
+/* Carte scoperte: il colore pieno */
+.as-card[data-revealed="true"] { color: var(--on-opt, #fff); animation: as-flip .45s ease-out; }
+.as-card[data-revealed="true"][data-kind="red"] { background: var(--as-red); border-color: var(--as-red); }
+.as-card[data-revealed="true"][data-kind="blue"] { background: var(--as-blue); border-color: var(--as-blue); }
+.as-card[data-revealed="true"][data-kind="civilian"] { background: var(--team-grey); border-color: var(--team-grey); }
+.as-card[data-revealed="true"][data-kind="assassin"] { background: #111; border-color: #111; color: #fff; animation-duration: 1.2s; }
+.as-ctrl[data-role="spymaster"] .as-card[data-revealed="true"] .as-word { text-decoration: line-through; opacity: .75; }
+.as-card[data-last] { box-shadow: 0 0 0 3px var(--accent); }
+.as-card[data-mine] { box-shadow: 0 0 0 3px var(--fg); }
+@keyframes as-flip { from { transform: rotateY(90deg); } to { transform: rotateY(0); } }
+
+/* A fine partita (mappa intera) le carte coperte hanno il colore attenuato */
+.as-screen[data-phase="reveal"] .as-card[data-revealed="false"][data-kind], .as-ctrl[data-phase="reveal"] .as-card[data-revealed="false"][data-kind] { opacity: .8; }
+.as-screen[data-assassin] .as-card[data-kind="assassin"][data-revealed="true"] { animation: as-boom 1.4s ease-out; }
+@keyframes as-boom { 0% { transform: scale(.4) rotate(-8deg); } 40% { transform: scale(1.25) rotate(4deg); } 100% { transform: none; } }
+
+/* Mappa nascosta: tutte le carte coperte uguali */
+.as-grid[data-hidden] .as-card[data-revealed="false"] { background: var(--panel-2); }
+
+/* Pallini dei voti */
+.as-dots { position: absolute; inset: auto .1rem .1rem auto; display: flex; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 1px; max-width: 100%; }
+.as-dots i { font-style: normal; font-size: .45rem; font-weight: 800; line-height: 1; padding: .1rem .15rem; border-radius: 1rem; color: var(--on-opt, #fff); background: var(--primary); }
+.as-dots i[data-side="red"] { background: var(--as-red); }
+.as-dots i[data-side="blue"] { background: var(--as-blue); }
+.as-dots i[data-me] { outline: 1px solid var(--fg); }
+.as-screen .as-dots i { font-size: .9rem; padding: .15rem .35rem; }
+.as-card[data-revealed="false"]:has(.as-dots) .as-word { transform: translateY(-.3rem); }
+
+/* Cronologia degli indizi */
+.as-history { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .4rem; justify-content: center; font-size: 1.1rem; }
+.as-history li { padding: .1rem .6rem; border-radius: var(--radius); background: var(--panel); border-left: .4rem solid; }
+.as-history li[data-side="red"] { border-left-color: var(--as-red); }
+.as-history li[data-side="blue"] { border-left-color: var(--as-blue); }
+.as-history li[data-rejected] { text-decoration: line-through; opacity: .6; }
+
+/* Squadre prima della partita */
+.as-setup { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; width: min(100%, 60rem); }
+.as-setup-team { padding: .8rem 1rem; border-radius: var(--radius); background: var(--panel); border: var(--border-w, 2px) solid; font-size: 1.4rem; }
+.as-setup-team[data-side="red"] { border-color: var(--as-red); }
+.as-setup-team[data-side="blue"] { border-color: var(--as-blue); }
+.as-setup-team h3 { margin: 0 0 .3rem; }
+.as-setup-team ul { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: .3rem .8rem; justify-content: center; }
+.as-outcome h2 { margin: 0; }
+.as-outcome p { margin: .2rem 0 0; }
+
+/* ---- Telefono ---- */
+.as-ctrl { gap: .35rem; }
+.as-head { display: flex; flex-wrap: wrap; gap: .2rem .4rem; align-items: center; justify-content: space-between; font-size: .85rem; }
+.as-head .gf-info { padding: .3rem .6rem; }
+.as-left { opacity: .85; }
+.as-status { margin: 0; font-weight: 700; }
+.as-wait { display: grid; gap: .4rem; }
+.as-map { display: grid; gap: .3rem; }
+.as-hide { padding: .25rem .5rem; font-size: .8rem; }
+.as-vote-row { display: flex; gap: .4rem; }
+.as-vote-row button { flex: 1; padding: .6rem .3rem; font-weight: 800; touch-action: manipulation; }
+.as-clue-form { display: grid; gap: .35rem; }
+.as-clue-row { display: flex; gap: .35rem; }
+.as-clue-row input { flex: 1; padding: .45rem; font-size: 1rem; min-width: 0; }
+.as-clue-row button { padding: .45rem .8rem; }
+.as-counts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .25rem; }
+.as-counts button { padding: .35rem 0; font-weight: 800; min-width: 0; touch-action: manipulation; }
+.as-clue-form .error { margin: 0; }
+
+/* ---- Regia ---- */
+.as-host { display: grid; gap: .6rem; }
+.as-host-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: .8rem; }
+.as-host-team { padding: .5rem .8rem; border-radius: var(--radius); border: 2px solid; }
+.as-host-team[data-side="red"] { border-color: var(--as-red); }
+.as-host-team[data-side="blue"] { border-color: var(--as-blue); }
+.as-host-team h3 { margin: 0 0 .3rem; }
+.as-host-team ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .25rem; }
+.as-host-team li { display: flex; justify-content: space-between; align-items: center; gap: .4rem; }
+.as-host-grid { max-width: 36rem; }
+.as-host-grid .as-word { font-size: .7rem; }
+/* Nel tema pixel ogni lettera è larga: testi di servizio più piccoli, perché il telefono non scorra. */
+[data-theme="pixel"] .as-clue-form .error, [data-theme="pixel"] .as-head { font-size: .6rem; }

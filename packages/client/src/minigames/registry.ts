@@ -6,6 +6,7 @@ import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews"
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
 import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/ReazioneViews";
 import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
+import { AgentiController, AgentiScreen } from "./agenti-segreti/AgentiViews";
 import { OndaController, OndaScreen } from "./lunghezza-onda/OndaViews";
 import { ParoleController, ParoleScreen } from "./parole-mannare/ParoleViews";
 import { BottoController, BottoScreen } from "./stanze-col-botto/BottoViews";
@@ -55,6 +56,11 @@ export const minigameViews: Record<string, MinigameViews> = {
   "shadow-tournament": { Screen: ShadowTournamentScreen, Controller: ShadowTournamentController },
   "parole-mannare": { Screen: ParoleScreen, Controller: ParoleController },
   "lunghezza-onda": { Screen: OndaScreen, Controller: OndaController },
+  "agenti-segreti": {
+    Screen: AgentiScreen,
+    Controller: AgentiController,
+    Host: lazy(() => import("./agenti-segreti/AgentiHost").then((m) => ({ default: m.AgentiHost }))),
+  },
   "stanze-col-botto": {
     Screen: BottoScreen,
     Controller: BottoController,
