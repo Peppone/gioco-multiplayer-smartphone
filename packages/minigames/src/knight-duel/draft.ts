@@ -10,7 +10,7 @@ import {
   memberView,
   publicVoteView,
   resolveVote,
-} from "./team-vote.js";
+} from "../team-vote.js";
 
 /**
  * Draft a priorità: si offrono N carte; il vincitore del minigioco ne sceglie una (voto di team),

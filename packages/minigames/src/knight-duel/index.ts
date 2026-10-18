@@ -14,7 +14,7 @@ import { type Card, type HandCard, cardIndex, describeCard, expandDeck, DEFAULT_
 import { type DuelConfig, type DuelMode, duelConfigSchema, duelLibrarySchema, duelModeSchema } from "./config.js";
 import { type DraftState, draftCast, draftConfirm, draftPublicView, draftResult, draftTick, draftViewFor, startDraft } from "./draft.js";
 import { deriveSeed, makeRng, shuffle } from "./rng.js";
-import { type TeamVote, castVote, confirmVote, createVote, isVoteDone, memberView, publicVoteView, resolveVote } from "./team-vote.js";
+import { type TeamVote, castVote, confirmVote, createVote, isVoteDone, memberView, publicVoteView, resolveVote } from "../team-vote.js";
 
 export * from "./battle.js";
 export * from "./cards.js";

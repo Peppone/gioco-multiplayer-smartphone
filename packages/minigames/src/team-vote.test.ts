@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeRng } from "./rng.js";
+import { makeRng } from "./knight-duel/rng.js";
 import { castVote, confirmVote, createVote, isVoteDone, memberView, publicVoteView, resolveVote, tally } from "./team-vote.js";
 
 const rng = () => makeRng(1);
@@ -68,6 +68,15 @@ describe("esito: maggioranza, parità, nessun voto", () => {
     const out = ids(v);
     expect(out.picked).toEqual(["c"]);
     expect(out.tieBroken).toBe(true);
+  });
+
+  it("con onTie «none» una parità non si spareggia: non esce nulla, ma la maggioranza vale ancora", () => {
+    let v = vote();
+    v = castVote(v, "p1", "c");
+    v = castVote(v, "p2", "a");
+    expect(resolveVote(v, { mode: "random" }, rng(), { onTie: "none" })).toEqual({ picked: [], source: "votes", tieBroken: false });
+    v = castVote(v, "p3", "a");
+    expect(resolveVote(v, { mode: "random" }, rng(), { onTie: "none" }).picked).toEqual(["a"]);
   });
 
   it("se il primo votante cambia idea, conta l'ordine dei voti ancora attivi", () => {

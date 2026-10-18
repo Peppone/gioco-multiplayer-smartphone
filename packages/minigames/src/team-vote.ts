@@ -1,4 +1,4 @@
-import { randInt } from "./rng.js";
+import { randInt } from "./knight-duel/rng.js";
 
 /**
  * Voto di team con timer, riusabile per ogni decisione collettiva (draft, battaglia, in futuro altro).
@@ -99,14 +99,19 @@ export interface VoteOutcome {
   tieBroken: boolean;
 }
 
-/** Esito del voto. Con `rng` (seme) i fallback casuali sono deterministici. */
-export function resolveVote(vote: TeamVote, fallback: VoteFallback, rng: () => number): VoteOutcome {
+/**
+ * Esito del voto. Con `rng` (seme) i fallback casuali sono deterministici.
+ * Con `onTie: "none"` una parità per l'ultimo posto non si spareggia con l'ordine di voto: non esce nulla
+ * (per le scelte in cui un pareggio deciso da chi ha votato prima sarebbe ingiusto, come in Agenti Segreti).
+ */
+export function resolveVote(vote: TeamVote, fallback: VoteFallback, rng: () => number, opts: { onTie?: "first-voted" | "none" } = {}): VoteOutcome {
   const ranked = tally(vote);
   if (ranked.length > 0) {
     const picked = ranked.slice(0, vote.max);
     const last = picked[picked.length - 1]!;
     // Parità per l'ultimo posto: un'opzione esclusa aveva lo stesso numero di voti ed è stata votata dopo.
     const tieBroken = ranked.slice(vote.max).some((t) => t.count === last.count);
+    if (tieBroken && opts.onTie === "none") return { picked: [], source: "votes", tieBroken: false };
     return { picked: picked.map((t) => t.option), source: "votes", tieBroken };
   }
   if (fallback.mode === "none" || vote.options.length === 0) return { picked: [], source: "fallback", tieBroken: false };
