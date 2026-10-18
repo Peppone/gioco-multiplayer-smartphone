@@ -61,3 +61,20 @@ describe("stress test di Stanze col botto", () => {
     expect(report.matches[0]!.run.reachedEnd).toBe(false);
   }, 120_000);
 });
+
+// Agenti Segreti: due squadre con un Capo-spia ciascuna, indizi (anche rifiutati) e voti di squadra; da 4 a 30 giocatori.
+describe("stress test di Agenti Segreti", () => {
+  it("30 giocatori con latenza e orologi sfasati: nessun errore, stessa griglia su tutti i telefoni, mappa solo ai Capi-spia", async () => {
+    const report = await runStress({ players: 30, scenario: "agenti", latencyMs: [50, 250], thinkMs: [200, 1200], seed: 10 });
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`);
+    expect(failed, `controlli falliti:\n${failed.join("\n")}`).toEqual([]);
+    expect(report.fanoutMs.p95).toBeLessThan(1_500);
+  }, 200_000);
+
+  it("con 3 giocatori l'avvio del round viene rifiutato con un messaggio chiaro", async () => {
+    const report = await runStress({ players: 3, scenario: "agenti", latencyMs: [20, 80], thinkMs: [100, 300], seed: 11 });
+    const warnings = report.matches.flatMap((m) => m.run.warnings);
+    expect(warnings.some((w) => w.includes("servono almeno 4 giocatori, in serata ce ne sono 3"))).toBe(true);
+    expect(report.matches[0]!.run.reachedEnd).toBe(false);
+  }, 120_000);
+});

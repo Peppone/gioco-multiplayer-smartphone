@@ -6,6 +6,7 @@
 //   pnpm stress --players 12 --scenario parole         → Parole Mannare: Sindaco simulato a raffica di gettoni (massimo 12 giocatori)
 //   pnpm stress --players 30 --scenario botto          → Stanze col botto: partita intera in due stanze (da 6 a 30 giocatori)
 //   pnpm stress --players 30 --scenario shadow         → Shadow Tournament: torneo intero con tempi brevi
+//   pnpm stress --players 30 --scenario agenti         → Agenti Segreti: Capi-spia e agenti simulati (da 4 a 30 giocatori)
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
 import { pathToFileURL } from "node:url";
@@ -13,7 +14,7 @@ import type { GameAdminState } from "@gioco/shared";
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { bottoMatch, classicMatch, duelMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
+import { agentiMatch, bottoMatch, classicMatch, duelMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
@@ -22,7 +23,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "agenti" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -99,6 +100,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
     if (opts.scenario === "shadow") jobs.push({ name: "Shadow Tournament", matchId: (await shadowMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "parole") jobs.push({ name: "Parole Mannare", matchId: (await paroleMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "botto") jobs.push({ name: "Stanze col botto", matchId: (await bottoMatch(api, setup.eventId)).matchId });
+    if (opts.scenario === "agenti") jobs.push({ name: "Agenti Segreti", matchId: (await agentiMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "stanze") jobs.push({ name: "Stanze Segrete (con Game Master)", matchId: (await stanzeMatch(api, setup.eventId)).matchId });
 
     for (const job of jobs) {
@@ -109,6 +111,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       if (run.finalState) checkMatch(job.name, run.finalState, bots.length, check);
       if (opts.scenario === "parole" && run.reachedEnd) checkParole(bots, check);
       if (opts.scenario === "botto" && run.reachedEnd) checkBotto(bots, check);
+      if (opts.scenario === "agenti" && run.reachedEnd) checkAgenti(bots, check);
       if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
 
@@ -211,6 +214,32 @@ function checkBotto(bots: Bot[], check: (n: string, ok: boolean, d?: string) => 
   check("Botto: stanze bilanciate a fine partita", Math.abs(sizes[0]! - sizes[1]!) <= 1, sizes.join("/"));
 }
 
+/**
+ * Agenti Segreti: tutti i telefoni vedono lo stesso esito e la stessa mappa finale, la mappa torna con le regole
+ * (9/8 agenti, 7 civili, 1 assassino), solo due Capi-spia, e nessun telefono ha mai ricevuto ciò che non doveva.
+ */
+function checkAgenti(bots: Bot[], check: (n: string, ok: boolean, d?: string) => void): void {
+  type V = { phase: string; starting: string; cards: { word: string; revealed: boolean; kind?: string }[]; outcome: { winner: string; reason: string } | null; me: { role: string; map?: string[] } | null };
+  const views = bots.map((b) => b.lastViews.get("agenti-segreti") as V | undefined);
+  check("Agenti: tutti i telefoni hanno ricevuto la vista del round", views.every((v) => v !== undefined));
+  const known = views.filter((v): v is V => v !== undefined);
+  if (known.length === 0) return;
+  const v = known[0]!;
+  const same = (pick: (x: V) => unknown) => known.every((x) => JSON.stringify(pick(x)) === JSON.stringify(pick(v)));
+  check("Agenti: i telefoni sono arrivati alla fine", known.every((x) => x.phase === "reveal" || x.phase === "done"), known.map((x) => x.phase).join(","));
+  check("Agenti: stesso esito e stessa griglia su tutti i telefoni", same((x) => [x.outcome, x.cards]) && !!v.outcome);
+  const kinds = v.cards.map((c) => c.kind);
+  const count = (k: string) => kinds.filter((x) => x === k).length;
+  const second = v.starting === "red" ? "blue" : "red";
+  check("Agenti: mappa con 9 e 8 agenti, 7 civili e 1 assassino", v.cards.length === 25 && count(v.starting) === 9 && count(second) === 8 && count("civilian") === 7 && count("assassin") === 1, kinds.join(","));
+  const spies = known.filter((x) => x.me?.role === "spymaster");
+  check("Agenti: due Capi-spia, con la stessa mappa che si vede alla fine", spies.length === 2 && spies.every((x) => JSON.stringify(x.me!.map) === JSON.stringify(kinds)), `${spies.length} Capi-spia`);
+  const assassin = v.cards.findIndex((c) => c.kind === "assassin");
+  check("Agenti: l'esito torna con la griglia", !!v.outcome && (v.outcome.reason !== "assassin" || v.cards[assassin]!.revealed));
+  const leaks = bots.flatMap((b) => b.stats.leaks);
+  check("Agenti: nessun telefono ha ricevuto colori delle carte coperte o la mappa senza essere Capo-spia", leaks.length === 0, leaks.slice(0, 3).join("; "));
+}
+
 /** Controlli sulla classifica finale di una partita. */
 function checkMatch(name: string, s: GameAdminState, bots: number, check: (n: string, ok: boolean, d?: string) => void): void {
   const lb = s.leaderboards;
@@ -245,8 +274,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto o all");
+  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "agenti", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto, agenti o all");
     process.exit(2);
   }
   const url = arg("url");

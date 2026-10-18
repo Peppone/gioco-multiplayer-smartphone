@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyMinigame, MinigameContext } from "@gioco/shared";
 import { minigames, roundMinigames } from "../../../packages/minigames/src/index.js";
 import { createKnightDuel, duelModeSchema, DEFAULT_DECK } from "../../../packages/minigames/src/knight-duel/index.js";
-import { GHOST_HUNT_BOT_CODES, decide, makeRnd } from "./strategy.js";
+import { GHOST_HUNT_BOT_CODES, decide, makeRnd, privacyProblem } from "./strategy.js";
 
 const ctx: MinigameContext = {
   players: [
@@ -247,5 +247,59 @@ describe("strategia dei bot: Stanze col botto", () => {
     expect(s.shares.length).toBeGreaterThan(0);
     for (const e of s.exchanges as { moved: { from: number }[] }[]) expect(e.moved.length).toBe(e.moved.filter((m) => m.from === 0).length * 2);
     expect(s.players.filter((p: string) => s.room[p] === 0).length).toBe(6);
+  });
+});
+
+describe("strategia dei bot: Agenti Segreti", () => {
+  const game = minigames["agenti-segreti"]!;
+  const cfg = game.configSchema.parse({ ...game.sampleConfig, maxTurns: 30 });
+
+  /** Fa giocare il vero plugin ai soli bot (nessuna rete) fino alla fine, controllando ogni vista ricevuta. */
+  function play(n: number, seed: number) {
+    const players = Array.from({ length: n }, (_, i) => ({ id: `q${i}`, nickname: `Q${i}`, teamId: null }));
+    let s = game.onHostCommand(game.init(cfg, { players, teams: [], seed }, 0), { type: "deal" }, 1);
+    const rnds = new Map(players.map((p, i) => [p.id, makeRnd(seed * 100 + i)]));
+    const lastKey = new Map<string, string>();
+    const leaks: string[] = [];
+    let rejected = 0;
+    let now = 1;
+    let steps = 0;
+    while (s.phase !== "reveal" && steps++ < 4000) {
+      let acted = false;
+      for (const p of players) {
+        const view = game.viewFor(s, p.id, null);
+        const leak = privacyProblem("agenti-segreti", view);
+        if (leak) leaks.push(leak);
+        const d = decide("agenti-segreti", view, rnds.get(p.id)!);
+        if (!d || lastKey.get(p.id) === d.key) continue;
+        lastKey.set(p.id, d.key);
+        for (const input of d.inputs) {
+          const parsed = game.inputSchema.safeParse(input);
+          expect(parsed.success, JSON.stringify(input)).toBe(true);
+          if (parsed.success) s = game.onInput(s, p.id, parsed.data, { receivedAt: ++now, claimedTime: now, rtt: 20 });
+          if (s.clueError) rejected++;
+          acted = true;
+        }
+      }
+      if (!acted) {
+        now += 20_000; // nessuno ha altro da fare: passa il tempo, come in una partita vera
+        s = game.onTick(s, now);
+      }
+    }
+    return { s, leaks, rejected };
+  }
+
+  it("i bot portano a termine la partita con input sempre validi, da 4 a 30 giocatori, senza viste che rivelano la mappa", () => {
+    let rejected = 0;
+    for (const [n, seed] of [[4, 1], [5, 2], [9, 3], [16, 4], [30, 5]] as const) {
+      const r = play(n, seed);
+      expect(r.s.phase, `${n} giocatori`).toBe("reveal");
+      expect(r.s.outcome).not.toBeNull();
+      expect(r.leaks).toEqual([]);
+      expect(r.s.cards.some((c: { revealed: boolean }) => c.revealed), "qualche carta scoperta").toBe(true);
+      rejected += r.rejected;
+    }
+    // i Capi-spia simulati provano anche indizi vietati
+    expect(rejected).toBeGreaterThan(0);
   });
 });

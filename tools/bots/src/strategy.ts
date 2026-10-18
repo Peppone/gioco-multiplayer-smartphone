@@ -79,6 +79,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "stanze-col-botto":
       return decideBotto(v, rnd);
 
+    case "agenti-segreti":
+      return decideAgenti(v, rnd);
+
     default:
       return null;
   }
@@ -168,6 +171,46 @@ function decideBotto(v: View, rnd: Rnd): Decision | null {
     default:
       return null;
   }
+}
+
+/**
+ * Agenti Segreti: il Capo-spia di turno dà un indizio con un numero a caso; una volta su cinque prova una parola della
+ * griglia (il server la rifiuta e lui ne scrive una valida, una parola inventata con «zq» che non somiglia a nessuna
+ * carta). Gli agenti di turno votano per lo più la stessa carta coperta (una maggioranza c'è quasi sempre), dopo la
+ * prima scoperta ogni tanto «Passa», e confermano. La `key` cambia a ogni carta scoperta e a ogni turno.
+ */
+function decideAgenti(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me) return null;
+  const cards = (v.cards ?? []) as { word: string; revealed: boolean }[];
+  const covered = cards.flatMap((c, i) => (c.revealed ? [] : [i]));
+  if (me.canClue) {
+    const retry = !!me.clueError;
+    const word = !retry && rnd() < 0.2 ? cards[pick(covered, rnd)]!.word : `Zq${"bcdfglmnprstvz"[v.turnNumber % 14]}${"aeiou"[Math.floor(rnd() * 5)]}`;
+    const count = v.rules.allowZeroInfinity && rnd() < 0.15 ? pick([0, "inf"], rnd) : 1 + Math.floor(rnd() * 3);
+    return { key: `as-c-${v.turnNumber}-${retry ? "r" : "f"}`, inputs: [{ type: "clue", word, count }] };
+  }
+  if (!me.canVote || me.confirmed || me.myPick !== null || covered.length === 0) return null;
+  const revealed = cards.length - covered.length;
+  const key = `as-v-${v.turnNumber}-${revealed}`;
+  if (v.canPass && rnd() < 0.25) return { key, inputs: [{ type: "pick", option: "pass" }, { type: "confirm" }] };
+  // La carta «della squadra» cambia a ogni voto, uguale per tutti i bot (stesso turno, stesse carte scoperte).
+  const focal = covered[(v.turnNumber * 7 + revealed * 3) % covered.length]!;
+  return { key, inputs: [{ type: "pick", option: rnd() < 0.8 ? focal : pick(covered, rnd) }, { type: "confirm" }] };
+}
+
+/**
+ * Controllo di privacy su ogni vista ricevuta da un telefono: il motivo se contiene ciò che quel telefono non dovrebbe
+ * vedere, altrimenti `null`. Per ora solo Agenti Segreti: niente colori delle carte coperte prima della rivelazione,
+ * niente mappa a chi non è Capo-spia.
+ */
+export function privacyProblem(typeId: string, view: unknown): string | null {
+  if (typeId !== "agenti-segreti") return null;
+  const v = view as View;
+  const over = v.phase === "reveal" || v.phase === "done";
+  if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
+  if (v.me && v.me.role !== "spymaster" && "map" in v.me) return `mappa a un ${v.me.role}`;
+  return null;
 }
 
 /**

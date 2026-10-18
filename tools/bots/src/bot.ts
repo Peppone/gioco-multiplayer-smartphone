@@ -1,6 +1,6 @@
 import { type Socket, io } from "socket.io-client";
 import { ClientEvent, ClockSync, type GamePlayerState, type JoinResult, ServerEvent, makeSample } from "@gioco/shared";
-import { decide, makeRnd } from "./strategy.js";
+import { decide, makeRnd, privacyProblem } from "./strategy.js";
 
 export interface BotOptions {
   url: string;
@@ -19,13 +19,15 @@ export interface BotStats {
   inputs: number;
   errors: string[];
   disconnects: number;
+  /** Viste che contenevano ciò che questo telefono non dovrebbe vedere (vedi `privacyProblem`). */
+  leaks: string[];
 }
 
 const between = (r: () => number, [lo, hi]: [number, number]) => lo + r() * (hi - lo);
 
 /** Un telefono simulato: entra con un profilo, sincronizza l'orologio, e gioca seguendo le viste che riceve. */
 export class Bot {
-  readonly stats: BotStats = { states: 0, inputs: 0, errors: [], disconnects: 0 };
+  readonly stats: BotStats = { states: 0, inputs: 0, errors: [], disconnects: 0, leaks: [] };
   playerId = "";
   token = "";
   state: GamePlayerState | null = null;
@@ -114,7 +116,9 @@ export class Bot {
     this.stats.states++;
     if (!s.frame || !s.inRoster) return;
     this.lastViews.set(s.frame.typeId, s.frame.view);
-    const d =decide(s.frame.typeId, s.frame.view, this.rnd);
+    const leak = privacyProblem(s.frame.typeId, s.frame.view);
+    if (leak) this.stats.leaks.push(leak);
+    const d = decide(s.frame.typeId, s.frame.view, this.rnd);
     if (!d || d.key === this.lastKey) return;
     this.lastKey = d.key;
     const thinkMs = between(this.rnd, this.opts.thinkMs);

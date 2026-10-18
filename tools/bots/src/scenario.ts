@@ -123,3 +123,15 @@ export async function bottoMatch(api: AdminApi, eventId: string): Promise<{ matc
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };
 }
+
+/** Partita con il solo round «Agenti Segreti»: tempi brevi e al massimo 16 turni, così i bot arrivano alla fine in fretta. */
+export async function agentiMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Agenti Segreti" });
+  const inst = await api.post("/instances", {
+    typeId: "agenti-segreti",
+    title: "Agenti di prova",
+    config: { clueSeconds: 15, guessSeconds: 15, maxTurns: 16 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}
