@@ -1,7 +1,8 @@
 # Piano: «Lunghezza d'Onda» (indizi su uno spettro, in stile Wavelength)
 
-> Stato: **in corso**: P1 (logica), P2 (anti-leak) e P3 (viste, regole in app, anteprima `lo-*` con
-> `e2e/onda-preview.spec.ts`) fatti; da P4 in poi da fare.
+> Stato: **implementato** (P1–P6), da provare con persone. Guida d'uso in [LUNGHEZZA-ONDA.md](LUNGHEZZA-ONDA.md).
+> P4: `e2e/lunghezza-onda.spec.ts` (le due modalità, con i frame inviati e ricevuti); P5: `pnpm stress --scenario onda`
+> (una partita per modalità, conti rifatti con `scoring.ts` e controllo di privacy su ogni vista dei bot).
 > Scostamenti dal piano: `confirm` porta la posizione (imposta e conferma in un solo invio); i punti sono due campi
 > piatti `unitPoints` e `counterPoints` (come in Parole Mannare); gli estremi degli spettri arrivano a 40 caratteri;
 > i punti vanno in `score_entries` con una voce per giocatore a fine round, non una per turno.

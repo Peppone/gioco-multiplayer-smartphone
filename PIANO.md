@@ -284,6 +284,13 @@ Ispirato a *Two Rooms and a Boom* ma **senza carte**: il telefono è la carta pe
 - **Abbinamento alle stanze** a caso, con QR di stanza (`/play?stanza=CODICE`, scanner di Caccia ai Fantasmi riusato) o dalla regia.
 - **Test**: unit e anti-leak del plugin, anteprima Playwright (`scb-*` nei 5 temi), e2e di partite complete e stress (`pnpm stress --players 30 --scenario botto`).
 
+### 📡 Lunghezza d'Onda (`lunghezza-onda`, tema `gameshow`): indizi su uno spettro
+Ispirato a *Wavelength*: a turno un **Sensitivo** vede sul telefono dove cade un bersaglio nascosto su uno spettro tra due estremi e scrive un indizio; gli altri trascinano un **quadrante** a semicerchio sul telefono e la TV apre il coperchio (fasce da 4, 3 e 2 punti). Due modalità: **tutti contro tutti** (ognuno per sé, il Sensitivo prende la media) e **a squadre** (mediana della squadra dal vivo sulla TV, scommessa sinistra/destra delle altre squadre, recupero). Da 3 a 30 giocatori. Regole, decisioni e piano in [docs/PIANO-LUNGHEZZA-ONDA.md](docs/PIANO-LUNGHEZZA-ONDA.md); guida in [docs/LUNGHEZZA-ONDA.md](docs/LUNGHEZZA-ONDA.md).
+- **Calcoli puri** in `scoring.ts` (fasce, mediana, maggioranza, scommesse): lo stress rifà i conti di ogni turno e li confronta con la cronologia.
+- **Invii del quadrante**: in «tutti» uno solo al rilascio, a squadre al massimo ogni 250 ms durante il trascinamento (i compagni vedono la posizione dal vivo).
+- **Privacy**: bersaglio solo al Sensitivo (da quando ha scelto lo spettro) e alla regia; in «tutti» niente posizioni altrui prima della rivelazione.
+- **Test**: unit e anti-leak del plugin, anteprima Playwright (`lo-*` nei 5 temi, trascinamento del quadrante), e2e di partite complete nelle due modalità (frame inviati e ricevuti) e stress (`pnpm stress --players 30 --scenario onda`).
+
 ### 🕶 Agenti Segreti (`agenti-segreti`, tema `retro80`): parole e indizi a squadre
 Ispirato a *Codenames*: la TV mostra la griglia di 25 parole (16 con 4×4), i due **Capi-spia** vedono sul telefono la mappa segreta (agenti delle due squadre, civili, assassino) e scrivono l'indizio (una parola e un numero, 0 e ∞ compresi); la squadra **vota dal telefono** una carta alla volta, con i voti pubblici come pallini sulla TV. Da 4 a 30 giocatori. Regole, decisioni e piano in [docs/PIANO-AGENTI-SEGRETI.md](docs/PIANO-AGENTI-SEGRETI.md); guida in [docs/AGENTI-SEGRETI.md](docs/AGENTI-SEGRETI.md).
 - **Voto di squadra** con il modulo comune `team-vote` (spostato fuori dal duello) e la nuova opzione `onTie: "none"`: con un pareggio non si scopre nulla e il turno passa.
@@ -353,6 +360,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
 | Extra: Parole Mannare | ✅ (da provare con persone) | Deduzione sociale a voce con gettoni trascinabili; guida `docs/PAROLE-MANNARE.md` |
 | Extra: Stanze col botto | ✅ (da provare con persone) | Deduzione sociale in due stanze (6–30 giocatori) con leader, ostaggi, mostra/scambia carte e regia cieca; tema `boom`; guida `docs/STANZE-COL-BOTTO.md`; personaggi avanzati (T8) da fare |
+| Extra: Lunghezza d'Onda | ✅ (da provare con persone) | Indizi su uno spettro (3–30 giocatori) con quadrante da trascinare, modalità tutti contro tutti e a squadre (mediana, scommessa, recupero); guida `docs/LUNGHEZZA-ONDA.md` |
 | Extra: Agenti Segreti | ✅ (da provare con persone) | Parole e indizi a squadre (4–30 giocatori) con mappa segreta ai Capi-spia, indizio controllato dal server, voto di squadra dal telefono e regia cieca; guida `docs/AGENTI-SEGRETI.md` |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 
