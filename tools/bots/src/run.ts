@@ -4,6 +4,7 @@
 //   pnpm stress --players 20 --scenario duel
 //   pnpm stress --players 10 --scenario stanze         → Stanze Segrete con un Game Master simulato (massimo 10 giocatori)
 //   pnpm stress --players 12 --scenario parole         → Parole Mannare: Sindaco simulato a raffica di gettoni (massimo 12 giocatori)
+//   pnpm stress --players 30 --scenario botto          → Stanze col botto: partita intera in due stanze (da 6 a 30 giocatori)
 //   pnpm stress --players 30 --scenario shadow         → Shadow Tournament: torneo intero con tempi brevi
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
@@ -12,7 +13,7 @@ import type { GameAdminState } from "@gioco/shared";
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { classicMatch, duelMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
+import { bottoMatch, classicMatch, duelMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
@@ -21,7 +22,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -97,6 +98,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
 
     if (opts.scenario === "shadow") jobs.push({ name: "Shadow Tournament", matchId: (await shadowMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "parole") jobs.push({ name: "Parole Mannare", matchId: (await paroleMatch(api, setup.eventId)).matchId });
+    if (opts.scenario === "botto") jobs.push({ name: "Stanze col botto", matchId: (await bottoMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "stanze") jobs.push({ name: "Stanze Segrete (con Game Master)", matchId: (await stanzeMatch(api, setup.eventId)).matchId });
 
     for (const job of jobs) {
@@ -106,6 +108,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       log(`  ${run.reachedEnd ? "conclusa" : "NON conclusa"} in ${(run.durationMs / 1000).toFixed(1)}s, ${run.commands.length} comandi`);
       if (run.finalState) checkMatch(job.name, run.finalState, bots.length, check);
       if (opts.scenario === "parole" && run.reachedEnd) checkParole(bots, check);
+      if (opts.scenario === "botto" && run.reachedEnd) checkBotto(bots, check);
       if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
 
@@ -183,6 +186,31 @@ function checkParole(bots: Bot[], check: (n: string, ok: boolean, d?: string) =>
   check("Parole: numero di Lupi come da regola", wolves === v.rules.werewolves && (v.roles ?? []).filter((r) => r.role === "seer").length === 1, `${wolves} Lupi`);
 }
 
+/** Stanze col botto: tutti i telefoni vedono lo stesso esito, le carte tornano con le regole e l'esito con le stanze. */
+function checkBotto(bots: Bot[], check: (n: string, ok: boolean, d?: string) => void): void {
+  type Card = { team: string; character: string };
+  type V = { phase: string; me: { id: string; card: Card | null } | null; cards?: { id: string; room: number | null; card: Card }[]; outcome?: { winner: string; sameRoom: boolean } | null };
+  const views = bots.map((b) => b.lastViews.get("stanze-col-botto") as V | undefined);
+  check("Botto: tutti i telefoni hanno ricevuto la vista del round", views.every((v) => v !== undefined));
+  const known = views.filter((v): v is V => v !== undefined);
+  if (known.length === 0) return;
+  const v = known[0]!;
+  const same = (pick: (x: V) => unknown) => known.every((x) => JSON.stringify(pick(x)) === JSON.stringify(pick(v)));
+  check("Botto: i telefoni sono arrivati alla rivelazione", known.every((x) => x.phase === "reveal" || x.phase === "done"), known.map((x) => x.phase).join(","));
+  const cards = v.cards ?? [];
+  const count = (c: string) => cards.filter((x) => x.card.character === c).length;
+  const n = bots.length;
+  check("Botto: una carta per giocatore, un Presidente e un Bombarolo", cards.length === n && count("president") === 1 && count("bomber") === 1, `${cards.length} carte`);
+  check("Botto: Giocatore d'azzardo solo con i dispari", count("gambler") === n % 2, String(count("gambler")));
+  check("Botto: squadre Blu e Rossa pari", cards.filter((x) => x.card.team === "blue").length === cards.filter((x) => x.card.team === "red").length);
+  check("Botto: ogni telefono ha la propria carta uguale a quella rivelata", known.every((x) => JSON.stringify(cards.find((c) => c.id === x.me?.id)?.card) === JSON.stringify(x.me?.card)));
+  check("Botto: stesso esito e stesse carte su tutti i telefoni", same((x) => [x.outcome, x.cards]) && !!v.outcome);
+  const room = (c: string) => cards.find((x) => x.card.character === c)?.room;
+  check("Botto: l'esito corrisponde alle stanze del Presidente e del Bombarolo", !!v.outcome && v.outcome.sameRoom === (room("president") === room("bomber")) && v.outcome.winner === (v.outcome.sameRoom ? "red" : "blue"));
+  const sizes = [0, 1].map((r) => cards.filter((x) => x.room === r).length);
+  check("Botto: stanze bilanciate a fine partita", Math.abs(sizes[0]! - sizes[1]!) <= 1, sizes.join("/"));
+}
+
 /** Controlli sulla classifica finale di una partita. */
 function checkMatch(name: string, s: GameAdminState, bots: number, check: (n: string, ok: boolean, d?: string) => void): void {
   const lb = s.leaderboards;
@@ -217,8 +245,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "shadow", "parole", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze, shadow, parole o all");
+  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto o all");
     process.exit(2);
   }
   const url = arg("url");

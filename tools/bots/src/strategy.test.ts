@@ -196,3 +196,56 @@ describe("strategia dei bot: Parole Mannare", () => {
     expect(logs.some((l: { undone: boolean }[]) => l.some((e) => e.undone))).toBe(true);
   });
 });
+
+describe("strategia dei bot: Stanze col botto", () => {
+  const game = minigames["stanze-col-botto"]!;
+  const cfg = game.configSchema.parse({ ...game.sampleConfig, colorShare: "never" });
+
+  /** Fa giocare il vero plugin ai soli bot (nessuna rete) fino alla rivelazione. */
+  function play(n: number, seed: number) {
+    const players = Array.from({ length: n }, (_, i) => ({ id: `q${i}`, nickname: `Q${i}`, teamId: null }));
+    let s = game.init(cfg, { players, teams: [], seed }, 0);
+    s = game.onHostCommand(s, { type: "deal" }, 1);
+    s = game.onHostCommand(s, { type: "start-round" }, 2);
+    const rnds = new Map(players.map((p, i) => [p.id, makeRnd(seed * 100 + i)]));
+    const lastKey = new Map<string, string>();
+    let now = 2;
+    let steps = 0;
+    while (s.phase !== "reveal" && steps++ < 4000) {
+      let acted = false;
+      for (const p of players) {
+        const d = decide("stanze-col-botto", game.viewFor(s, p.id, null), rnds.get(p.id)!);
+        if (!d || lastKey.get(p.id) === d.key) continue;
+        lastKey.set(p.id, d.key);
+        for (const input of d.inputs) {
+          const parsed = game.inputSchema.safeParse(input);
+          expect(parsed.success, JSON.stringify(input)).toBe(true);
+          if (parsed.success) s = game.onInput(s, p.id, parsed.data, { receivedAt: ++now, claimedTime: now, rtt: 20 });
+          acted = true;
+        }
+      }
+      if (!acted) {
+        now += 5_000; // nessuno ha altro da fare: passa il tempo, come in una partita vera
+        s = game.onTick(s, now);
+      }
+    }
+    return s;
+  }
+
+  it("i bot portano a termine la partita (voto, mostra, scambi, ostaggi, previsione) con input sempre validi, da 6 a 30 giocatori", () => {
+    for (const [n, seed] of [[6, 1], [7, 2], [11, 3], [16, 4], [25, 5], [30, 6]] as const) {
+      const s = play(n, seed);
+      expect(s.phase, `${n} giocatori`).toBe("reveal");
+      expect(s.outcome).not.toBeNull();
+      expect(s.exchanges).toHaveLength(3);
+    }
+  });
+
+  it("i bot eleggono i leader, si mostrano le carte e ogni scambio sposta il numero giusto di ostaggi", () => {
+    const s = play(12, 9);
+    expect(s.rooms.every((r: { leader: string | null }) => r.leader !== null)).toBe(true);
+    expect(s.shares.length).toBeGreaterThan(0);
+    for (const e of s.exchanges as { moved: { from: number }[] }[]) expect(e.moved.length).toBe(e.moved.filter((m) => m.from === 0).length * 2);
+    expect(s.players.filter((p: string) => s.room[p] === 0).length).toBe(6);
+  });
+});

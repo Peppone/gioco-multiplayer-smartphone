@@ -83,6 +83,15 @@ export class AutoHost {
     const waiting = answered !== undefined && total !== undefined && answered < total && sinceChangeMs < 6_000;
     if (waiting) return null;
 
+    // Stanze col botto: i round e gli scambi vanno avanti da soli (tempo e leader); la regia avvia il primo e, se i leader tardano, il successivo.
+    if (s.frame?.typeId === "stanze-col-botto") {
+      if (inner.phase === "deal") return { type: "plugin", command: { type: "start-round" } };
+      if (inner.phase === "exchange" && sinceChangeMs > 20_000) {
+        warnings.push("emergenza: la regia ha avviato il round perché i leader non hanno premuto");
+        return { type: "plugin", command: { type: "start-round" } };
+      }
+    }
+
     const enabled = s.host.actions.filter((a) => a.enabled);
     const base = (id: string) => id.replace(/^child:/, "");
     for (const wanted of PRIORITY) {
@@ -129,7 +138,7 @@ export class AutoHost {
         run.commands.push(cmd.type === "engine" ? `engine:${cmd.action}` : cmd.type === "plugin" ? `plugin:${String(cmd.command.type)}` : cmd.type);
         if (!ack.ok) run.warnings.push(`comando rifiutato (${run.commands.at(-1)}): ${ack.error}`);
         // Troppi giocatori per il round: riprovare non serve, la regia vera si fermerebbe qui.
-        if (!ack.ok && /massimo \d+ giocatori/.test(String(ack.error))) break;
+        if (!ack.ok && /(massimo|servono almeno) \d+ giocatori/.test(String(ack.error))) break;
         changedAt = Date.now();
         await this.waitState(300);
       } else {

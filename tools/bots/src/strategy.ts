@@ -76,6 +76,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "parole-mannare":
       return decideParole(v, rnd);
 
+    case "stanze-col-botto":
+      return decideBotto(v, rnd);
+
     default:
       return null;
   }
@@ -112,6 +115,56 @@ function decideParole(v: View, rnd: Rnd): Decision | null {
       if (!me.canVote || me.targets.length === 0) return null;
       return { key: `pm-v${v.phase}-${(v.runoff ?? []).map((c: { id: string }) => c.id).join(",")}`, inputs: [{ type: "vote", targetId: pick(me.targets as { id: string }[], rnd).id }] };
     }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Stanze col botto: nel round tutti votano il leader (per lo più il primo della stanza, così una maggioranza c'è), ogni
+ * tanto mostrano la carta, propongono uno scambio o passano la leadership, e rispondono alle proposte; i leader scelgono
+ * e confermano gli ostaggi e premono «Avvia il round». Le azioni del round partono una volta sola, finché non si è votato.
+ */
+function decideBotto(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me || me.room === null) return null;
+  const roomPeople = (v.rooms[me.room] ?? []) as { id: string }[];
+  const mates = roomPeople.filter((p) => p.id !== me.id);
+  const focal = roomPeople.map((p) => p.id).sort()[0];
+  const incoming = (me.incoming ?? []) as { seq: number }[];
+  if (incoming.length > 0) return { key: `scb-ans${incoming[0]!.seq}`, inputs: [{ type: "share-answer", seq: incoming[0]!.seq, accept: rnd() < 0.7 }] };
+  if (me.abdicationFrom) return { key: `scb-abd-ans-${v.round}-${me.abdicationFrom.id}`, inputs: [{ type: "abdicate-answer", accept: rnd() < 0.7 }] };
+  switch (v.phase) {
+    case "round": {
+      if (me.canVote && me.myVote === null && focal) {
+        const target = rnd() < 0.75 ? focal : pick(mates, rnd).id;
+        const inputs: unknown[] = [{ type: "vote-leader", targetId: target }];
+        if (me.canShare && mates.length > 0) {
+          if (rnd() < 0.5) inputs.push({ type: "reveal", kind: "card", targetId: pick(mates, rnd).id });
+          if (rnd() < 0.3) inputs.push({ type: "reveal", kind: "card", targetId: null });
+          if (rnd() < 0.3) inputs.push({ type: "share-offer", kind: "card", targetId: pick(mates, rnd).id });
+        }
+        return { key: `scb-r${v.round}`, inputs };
+      }
+      if (me.isLeader && me.canAbdicate && mates.length > 0 && rnd() < 0.05) return { key: `scb-abd-${v.round}`, inputs: [{ type: "abdicate", targetId: pick(mates, rnd).id }] };
+      return null;
+    }
+    case "lock":
+      return me.canAppoint && me.myVote === null && focal ? { key: `scb-lock${v.round}`, inputs: [{ type: "vote-leader", targetId: focal }] } : null;
+    case "hostages": {
+      if (!me.canPickHostages && !me.canConfirmHostages) return null;
+      const picks = (me.hostagePicks ?? []) as string[];
+      if (picks.length < v.hostagesNeeded) {
+        const chosen = [...picks];
+        for (const p of [...mates].sort(() => rnd() - 0.5)) if (chosen.length < v.hostagesNeeded && !chosen.includes(p.id)) chosen.push(p.id);
+        return { key: `scb-pick${v.round}`, inputs: [{ type: "pick-hostages", playerIds: chosen }] };
+      }
+      return me.canConfirmHostages ? { key: `scb-conf${v.round}`, inputs: [{ type: "confirm-hostages" }] } : null;
+    }
+    case "exchange":
+      return me.canStart ? { key: `scb-start${v.round}`, inputs: [{ type: "start-round" }] } : null;
+    case "gamble":
+      return me.canGamble ? { key: "scb-gamble", inputs: [{ type: "gamble", team: rnd() < 0.5 ? "blue" : "red" }] } : null;
     default:
       return null;
   }

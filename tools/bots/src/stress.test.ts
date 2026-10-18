@@ -44,3 +44,20 @@ describe("stress test di Parole Mannare", () => {
     expect(report.matches[0]!.run.reachedEnd).toBe(false);
   }, 120_000);
 });
+
+// Stanze col botto: due stanze, voto del leader, mostra e scambia, ostaggi; da 6 a 30 giocatori.
+describe("stress test di Stanze col botto", () => {
+  it("30 giocatori con latenza e orologi sfasati: nessun errore, stesso esito su tutti i telefoni", async () => {
+    const report = await runStress({ players: 30, scenario: "botto", latencyMs: [50, 250], thinkMs: [200, 1200], seed: 8 });
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`);
+    expect(failed, `controlli falliti:\n${failed.join("\n")}`).toEqual([]);
+    expect(report.fanoutMs.p95).toBeLessThan(1_500);
+  }, 200_000);
+
+  it("con 5 giocatori l'avvio del round viene rifiutato con un messaggio chiaro", async () => {
+    const report = await runStress({ players: 5, scenario: "botto", latencyMs: [20, 80], thinkMs: [100, 300], seed: 9 });
+    const warnings = report.matches.flatMap((m) => m.run.warnings);
+    expect(warnings.some((w) => w.includes("servono almeno 6 giocatori, in serata ce ne sono 5"))).toBe(true);
+    expect(report.matches[0]!.run.reachedEnd).toBe(false);
+  }, 120_000);
+});

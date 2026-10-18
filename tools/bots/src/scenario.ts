@@ -110,3 +110,16 @@ export async function paroleMatch(api: AdminApi, eventId: string): Promise<{ mat
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };
 }
+
+/** Partita con il solo round «Stanze col botto»: tre round brevi e attese ridotte, così i bot arrivano alla rivelazione in fretta. */
+export async function bottoMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: "Stanze col botto" });
+  const round = { seconds: 12, hostages6to10: 1, hostages11to21: 2, hostages22plus: 3 };
+  const inst = await api.post("/instances", {
+    typeId: "stanze-col-botto",
+    title: "Botto di prova",
+    config: { roundMode: "custom", customRounds: [round, round, round], lockSeconds: 6, hostageSeconds: 8, startAfterFirstSeconds: 2, startAfterExchangeSeconds: 5, gambleSeconds: 6 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}
