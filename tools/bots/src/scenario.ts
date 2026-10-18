@@ -135,3 +135,15 @@ export async function agentiMatch(api: AdminApi, eventId: string): Promise<{ mat
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };
 }
+
+/** Partita con un round di «Lunghezza d'Onda» nella modalità indicata: tempi brevi, pochi turni. */
+export async function ondaMatch(api: AdminApi, eventId: string, mode: "tutti" | "squadre"): Promise<{ matchId: string }> {
+  const match = await api.post(`/events/${eventId}/matches`, { name: `Lunghezza d'Onda (${mode})` });
+  const inst = await api.post("/instances", {
+    typeId: "lunghezza-onda",
+    title: `Onda di prova (${mode})`,
+    config: { mode, turns: mode === "tutti" ? 4 : 6, targetScore: 8, pickSeconds: 5, clueSeconds: 8, guessSeconds: 10, counterSeconds: 6 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id };
+}

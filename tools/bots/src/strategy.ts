@@ -82,6 +82,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "agenti-segreti":
       return decideAgenti(v, rnd);
 
+    case "lunghezza-onda":
+      return decideOnda(v, rnd);
+
     default:
       return null;
   }
@@ -200,13 +203,47 @@ function decideAgenti(v: View, rnd: Rnd): Decision | null {
 }
 
 /**
+ * Lunghezza d'Onda: il Sensitivo sceglie uno spettro a caso e scrive un indizio; chi indovina «trascina» il quadrante
+ * (una raffica di 4–8 `dial`, come un dito che si muove, anche in «tutti» dove il client vero ne manda uno solo: è il
+ * caso peggiore per il server) e conferma; chi scommette sceglie sinistra o destra. Un'azione per turno e per fase.
+ */
+function decideOnda(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me) return null;
+  const turn = v.turn.number as number;
+  if (v.phase === "pick" && me.role === "psychic" && me.options) return { key: `lo-p-${turn}`, inputs: [{ type: "pick", index: Math.floor(rnd() * me.options.length) }] };
+  if (v.phase === "clue" && me.role === "psychic") return { key: `lo-c-${turn}`, inputs: [{ type: "clue", text: `Indizio ${turn}` }] };
+  if (v.phase === "guess" && me.role === "guesser" && !me.confirmed) {
+    let pos = 10 + rnd() * 80;
+    const inputs: unknown[] = [];
+    for (let i = 4 + Math.floor(rnd() * 5); i > 0; i--) {
+      pos = Math.min(100, Math.max(0, pos + (rnd() - 0.5) * 20));
+      inputs.push({ type: "dial", pos: Math.round(pos * 2) / 2 });
+    }
+    inputs.push({ type: "confirm", pos: Math.round(pos * 2) / 2 });
+    return { key: `lo-g-${turn}-${v.turn.clue}`, inputs };
+  }
+  if (v.phase === "counter" && me.role === "counter" && me.myCounter === null) return { key: `lo-x-${turn}`, inputs: [{ type: "counter", dir: rnd() < 0.5 ? "left" : "right" }] };
+  return null;
+}
+
+/**
  * Controllo di privacy su ogni vista ricevuta da un telefono: il motivo se contiene ciò che quel telefono non dovrebbe
- * vedere, altrimenti `null`. Per ora solo Agenti Segreti: niente colori delle carte coperte prima della rivelazione,
- * niente mappa a chi non è Capo-spia.
+ * vedere, altrimenti `null`. Agenti Segreti: niente colori delle carte coperte prima della rivelazione, niente mappa a
+ * chi non è Capo-spia. Lunghezza d'Onda: il bersaglio solo al Sensitivo (da `clue`) prima della rivelazione, e in
+ * «tutti contro tutti» niente posizioni altrui.
  */
 export function privacyProblem(typeId: string, view: unknown): string | null {
-  if (typeId !== "agenti-segreti") return null;
   const v = view as View;
+  if (typeId === "lunghezza-onda") {
+    const early = ["pick", "clue", "guess", "counter"].includes(v.phase);
+    if (!early) return null;
+    if (v.result) return `risultato del turno in ${v.phase}`;
+    if (v.me && "target" in v.me && (v.me.role !== "psychic" || v.phase === "pick")) return `bersaglio a un ${v.me.role} in ${v.phase}`;
+    if (v.mode === "tutti" && v.teamDials !== null) return `posizioni altrui in ${v.phase}`;
+    return null;
+  }
+  if (typeId !== "agenti-segreti") return null;
   const over = v.phase === "reveal" || v.phase === "done";
   if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
   if (v.me && v.me.role !== "spymaster" && "map" in v.me) return `mappa a un ${v.me.role}`;

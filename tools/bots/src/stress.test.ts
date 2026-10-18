@@ -78,3 +78,20 @@ describe("stress test di Agenti Segreti", () => {
     expect(report.matches[0]!.run.reachedEnd).toBe(false);
   }, 120_000);
 });
+
+// Lunghezza d'Onda: Sensitivi, quadranti trascinati a raffica e scommesse; una partita per modalità.
+describe("stress test di Lunghezza d'Onda", () => {
+  it("30 giocatori con latenza e orologi sfasati, tutti contro tutti e a squadre: punti coerenti con scoring.ts", async () => {
+    const report = await runStress({ players: 30, scenario: "onda", latencyMs: [50, 250], thinkMs: [200, 1200], seed: 12 });
+    const failed = report.checks.filter((c) => !c.ok).map((c) => `${c.name}${c.detail ? ` (${c.detail})` : ""}`);
+    expect(failed, `controlli falliti:\n${failed.join("\n")}`).toEqual([]);
+    expect(report.fanoutMs.p95).toBeLessThan(1_500);
+  }, 300_000);
+
+  it("con 2 giocatori l'avvio del round viene rifiutato con un messaggio chiaro", async () => {
+    const report = await runStress({ players: 2, scenario: "onda", latencyMs: [20, 80], thinkMs: [100, 300], seed: 13 });
+    const warnings = report.matches.flatMap((m) => m.run.warnings);
+    expect(warnings.some((w) => w.includes("servono almeno 3 giocatori, in serata ce ne sono 2"))).toBe(true);
+    expect(report.matches[0]!.run.reachedEnd).toBe(false);
+  }, 120_000);
+});

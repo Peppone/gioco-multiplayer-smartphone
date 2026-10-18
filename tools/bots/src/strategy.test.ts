@@ -303,3 +303,55 @@ describe("strategia dei bot: Agenti Segreti", () => {
     expect(rejected).toBeGreaterThan(0);
   });
 });
+
+describe("strategia dei bot: Lunghezza d'Onda", () => {
+  const game = minigames["lunghezza-onda"]!;
+
+  /** Fa giocare il vero plugin ai soli bot (nessuna rete), con la regia che preme «Avanti», fino alla classifica. */
+  function play(mode: "tutti" | "squadre", n: number, seed: number) {
+    const cfg = game.configSchema.parse({ ...game.sampleConfig, mode, turns: 5 });
+    const players = Array.from({ length: n }, (_, i) => ({ id: `q${i}`, nickname: `Q${i}`, teamId: null }));
+    let s = game.init(cfg, { players, teams: [], seed }, 0);
+    const rnds = new Map(players.map((p, i) => [p.id, makeRnd(seed * 100 + i)]));
+    const lastKey = new Map<string, string>();
+    const leaks: string[] = [];
+    let now = 0;
+    let steps = 0;
+    while (s.phase !== "final" && steps++ < 4000) {
+      if (s.phase === "reveal") {
+        s = game.onHostCommand(s, { type: "next" }, ++now);
+        continue;
+      }
+      let acted = false;
+      for (const p of players) {
+        const view = game.viewFor(s, p.id, null);
+        const leak = privacyProblem("lunghezza-onda", view);
+        if (leak) leaks.push(leak);
+        const d = decide("lunghezza-onda", view, rnds.get(p.id)!);
+        if (!d || lastKey.get(p.id) === d.key) continue;
+        lastKey.set(p.id, d.key);
+        for (const input of d.inputs) {
+          const parsed = game.inputSchema.safeParse(input);
+          expect(parsed.success, JSON.stringify(input)).toBe(true);
+          if (parsed.success) s = game.onInput(s, p.id, parsed.data, { receivedAt: ++now, claimedTime: now, rtt: 20 });
+          acted = true;
+        }
+      }
+      if (!acted) {
+        now += 30_000; // nessuno ha altro da fare: passa il tempo
+        s = game.onTick(s, now);
+      }
+    }
+    return { s, leaks };
+  }
+
+  it("i bot giocano tutti i turni nelle due modalità, con input sempre validi e senza viste che rivelano il bersaglio", () => {
+    for (const [mode, n, seed] of [["tutti", 3, 1], ["tutti", 12, 2], ["squadre", 4, 3], ["squadre", 30, 4]] as const) {
+      const { s, leaks } = play(mode, n, seed);
+      expect(s.phase, `${mode} con ${n}`).toBe("final");
+      expect(leaks).toEqual([]);
+      expect(s.history.length, `${mode} con ${n}: turni giocati`).toBeGreaterThan(0);
+      if (mode === "squadre") expect(s.history.some((r: { counters: { dir: string | null }[] }) => r.counters.some((c) => c.dir !== null))).toBe(true);
+    }
+  });
+});
