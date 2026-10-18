@@ -3,6 +3,7 @@ import { ClockSync, type Leaderboards, REACTIONS, type ThemeId } from "@gioco/sh
 import { type SoundName, audio } from "../audio/audio";
 import { minigameViews } from "../minigames/registry";
 import { BOTTO_SCENES, type BottoSceneId, bottoScene } from "../minigames/stanze-col-botto/previewData";
+import { ONDA_SCENES, type OndaSceneId, ondaScene } from "../minigames/lunghezza-onda/previewData";
 import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
 import { Leaderboard } from "../ui/Leaderboard";
@@ -67,6 +68,7 @@ type Scene =
   | ShadowSceneId
   | ParoleSceneId
   | BottoSceneId
+  | OndaSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -97,6 +99,7 @@ const SCENES: { id: Scene; label: string }[] = [
   ...SHADOW_SCENES,
   ...PAROLE_SCENES,
   ...BOTTO_SCENES,
+  ...ONDA_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -246,6 +249,16 @@ function sceneViews(scene: Scene, now: number) {
     case "scb-gamble":
     case "scb-reveal":
       return bottoScene(scene, now);
+    case "lo-pick":
+    case "lo-clue":
+    case "lo-guess":
+    case "lo-guess-psychic":
+    case "lo-guess-team":
+    case "lo-counter":
+    case "lo-reveal":
+    case "lo-reveal-team":
+    case "lo-final":
+      return ondaScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }

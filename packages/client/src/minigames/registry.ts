@@ -6,6 +6,7 @@ import { createDuelController, createDuelScreen } from "./knight-duel/DuelViews"
 import { QuizController, QuizScreen } from "./quiz/QuizViews";
 import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/ReazioneViews";
 import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
+import { OndaController, OndaScreen } from "./lunghezza-onda/OndaViews";
 import { ParoleController, ParoleScreen } from "./parole-mannare/ParoleViews";
 import { BottoController, BottoScreen } from "./stanze-col-botto/BottoViews";
 import { ShadowTournamentController, ShadowTournamentScreen } from "./shadow-tournament/ShadowTournamentViews";
@@ -53,6 +54,7 @@ export const minigameViews: Record<string, MinigameViews> = {
   scalata: { Screen: ScalataScreen, Controller: ScalataController },
   "shadow-tournament": { Screen: ShadowTournamentScreen, Controller: ShadowTournamentController },
   "parole-mannare": { Screen: ParoleScreen, Controller: ParoleController },
+  "lunghezza-onda": { Screen: OndaScreen, Controller: OndaController },
   "stanze-col-botto": {
     Screen: BottoScreen,
     Controller: BottoController,

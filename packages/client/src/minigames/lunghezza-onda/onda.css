@@ -1,0 +1,69 @@
+/* Lunghezza d'Onda: schermo condiviso e telefono. Solo variabili del tema, niente colori fissi. */
+
+.lo-screen, .lo-ctrl { display: grid; gap: .8rem; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.lo-screen { text-align: center; justify-items: center; }
+.lo-screen > * { max-width: 100%; }
+.lo-timer { font-weight: 800; font-variant-numeric: tabular-nums; font-size: 1.3rem; white-space: nowrap; }
+.lo-timer[data-paused="true"] { opacity: .7; }
+.lo-screen .lo-timer { font-size: 2.4rem; }
+.lo-topbar { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; width: 100%; font-size: 1.5rem; }
+.lo-scores { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
+.lo-score { padding: .2rem .8rem; border-radius: var(--radius); border: var(--border-w, 2px) solid; background: var(--panel); }
+.lo-score[data-active="true"] { box-shadow: 0 0 0 3px var(--accent); }
+.lo-team-tag { display: inline-block; margin-left: .4rem; padding: .05rem .5rem; border-radius: var(--radius); color: var(--on-opt, #fff); font-size: .75em; vertical-align: middle; }
+.lo-clue { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; line-height: 1.15; overflow-wrap: anywhere; }
+.lo-screen .lo-clue { font-size: 2.6rem; }
+.lo-info { margin: 0; font-size: 1.8rem; font-weight: 700; }
+
+/* ---- Il quadrante ---- */
+.lo-dial { width: 100%; display: grid; gap: .2rem; }
+.lo-screen .lo-dial { width: min(100%, 34rem); }
+.lo-dial svg { width: 100%; height: auto; display: block; overflow: visible; }
+.lo-dial[data-interactive="true"] svg { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: pointer; }
+.lo-face { fill: var(--panel); stroke: var(--border-c); stroke-width: 1.5; }
+.lo-band { stroke: var(--bg); stroke-width: .6; }
+.lo-band[data-zone="2"] { fill: var(--opt-2); }
+.lo-band[data-zone="3"] { fill: var(--opt-1); }
+.lo-band[data-zone="4"] { fill: var(--accent); }
+.lo-cover { fill: var(--panel-2); stroke: var(--border-c); stroke-width: 1.5; }
+.lo-needle { stroke: var(--fg); stroke-width: 2.6; stroke-linecap: round; }
+.lo-needle-ghost { stroke-dasharray: 4 3; stroke-width: 1.8; opacity: .7; }
+.lo-hub { fill: var(--fg); }
+.lo-dot circle { fill: var(--primary); stroke: var(--bg); stroke-width: 1; }
+.lo-dot[data-confirmed="false"] circle { opacity: .55; }
+.lo-dot[data-mine="true"] circle { stroke: var(--fg); stroke-width: 2; }
+.lo-dot text { fill: var(--on-opt, #fff); font-size: 6px; font-weight: 800; pointer-events: none; }
+.lo-ends { display: flex; justify-content: space-between; gap: .5rem; font-weight: 800; font-size: .8rem; line-height: 1.15; }
+.lo-end { min-width: 0; overflow-wrap: anywhere; }
+.lo-end[data-side="right"] { text-align: right; }
+.lo-screen .lo-ends { font-size: 1.6rem; }
+
+/* ---- Risultati ---- */
+.lo-results { display: grid; gap: .3rem; }
+.lo-best { list-style: none; padding: 0; margin: 0; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; font-size: 1.8rem; }
+.lo-best li { padding: .3rem .9rem; border-radius: var(--radius); background: var(--panel); }
+.lo-best li[data-zone="4"] { background: var(--accent); color: var(--on-opt, #fff); }
+.lo-counter-row { margin: 0; font-size: 1.5rem; }
+.lo-counter-row[data-correct="false"] { opacity: .7; }
+.lo-standings { list-style: none; padding: 0; margin: 0 auto; display: grid; gap: .4rem; width: min(100%, 36rem); counter-reset: lo; }
+.lo-standings li { display: flex; justify-content: space-between; gap: 1rem; padding: .4rem 1rem; border-radius: var(--radius); background: var(--panel); border: var(--border-w, 2px) solid var(--border-c); font-size: 1.6rem; }
+.lo-standings li::before { counter-increment: lo; content: counter(lo) "."; opacity: .7; }
+.lo-standings li b { margin-left: auto; }
+
+/* ---- Telefono ---- */
+.lo-ctrl { gap: .4rem; }
+.lo-ctrl small { line-height: 1.15; }
+.lo-head { display: flex; gap: .5rem; align-items: center; justify-content: space-between; }
+.lo-head .gf-info { padding: .3rem .6rem; }
+.lo-turn { font-size: .85rem; opacity: .85; }
+.lo-options, .lo-guess, .lo-counter, .lo-secret, .lo-clue-form { display: grid; gap: .35rem; }
+.lo-option { padding: .9rem; font-size: 1.1rem; overflow-wrap: anywhere; }
+.lo-nudge { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.lo-nudge button { min-width: 3rem; padding: .2rem .8rem; font-size: 1.3rem; touch-action: manipulation; }
+.lo-pos { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 3ch; }
+.lo-confirm { padding: .6rem; font-weight: 800; touch-action: manipulation; }
+.lo-hide { justify-self: center; padding: .35rem .8rem; font-size: .85rem; }
+.lo-counter-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.lo-counter-buttons button { padding: .9rem .3rem; font-weight: 800; touch-action: manipulation; }
+.lo-counter p { margin: 0; font-weight: 800; }
+.lo-clue-form input { padding: .6rem; font-size: 1rem; min-width: 0; }
