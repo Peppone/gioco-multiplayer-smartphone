@@ -284,6 +284,14 @@ Ispirato a *Two Rooms and a Boom* ma **senza carte**: il telefono è la carta pe
 - **Abbinamento alle stanze** a caso, con QR di stanza (`/play?stanza=CODICE`, scanner di Caccia ai Fantasmi riusato) o dalla regia.
 - **Test**: unit e anti-leak del plugin, anteprima Playwright (`scb-*` nei 5 temi), e2e di partite complete e stress (`pnpm stress --players 30 --scenario botto`).
 
+### 🕶 Agenti Segreti (`agenti-segreti`, tema `retro80`): parole e indizi a squadre
+Ispirato a *Codenames*: la TV mostra la griglia di 25 parole (16 con 4×4), i due **Capi-spia** vedono sul telefono la mappa segreta (agenti delle due squadre, civili, assassino) e scrivono l'indizio (una parola e un numero, 0 e ∞ compresi); la squadra **vota dal telefono** una carta alla volta, con i voti pubblici come pallini sulla TV. Da 4 a 30 giocatori. Regole, decisioni e piano in [docs/PIANO-AGENTI-SEGRETI.md](docs/PIANO-AGENTI-SEGRETI.md); guida in [docs/AGENTI-SEGRETI.md](docs/AGENTI-SEGRETI.md).
+- **Voto di squadra** con il modulo comune `team-vote` (spostato fuori dal duello) e la nuova opzione `onTie: "none"`: con un pareggio non si scopre nulla e il turno passa.
+- **Controllo automatico dell'indizio**: rifiutate le parole della griglia ancora coperte e quelle con una parte in comune di almeno 4 lettere; i casi sottili restano alla regia («Indizio non valido»).
+- **Privacy**: le carte coperte di TV e agenti non hanno la chiave `kind`; la mappa solo ai Capi-spia e solo da «Distribuisci»; regia cieca come in Stanze col botto.
+- **Telefono in una schermata**: il testo delle carte si adatta alla larghezza con le container query (nel tema pixel le parole lunghe vanno su due righe); il test di anteprima prova tutte le 300 parole d'esempio nei 5 temi.
+- **Test**: unit e anti-leak del plugin, anteprima Playwright (`as-*` nei 5 temi), e2e di partite complete (con i frame WebSocket) e stress (`pnpm stress --players 30 --scenario agenti`, con un controllo di privacy su ogni vista ricevuta dai bot).
+
 ### 👻 Caccia ai Fantasmi (`caccia-fantasmi`, tema `retro80`): gioco fisico con QR
 Re della collina con ruoli nascosti, da giocare muovendosi nella location.
 
@@ -345,6 +353,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | F8 Packaging e prova sul campo | ✅ (prova sul campo da fare) | Pacchetto portabile per Windows, guida per l'host, stress test con 30 bot, salvataggio e ripresa della partita |
 | Extra: Parole Mannare | ✅ (da provare con persone) | Deduzione sociale a voce con gettoni trascinabili; guida `docs/PAROLE-MANNARE.md` |
 | Extra: Stanze col botto | ✅ (da provare con persone) | Deduzione sociale in due stanze (6–30 giocatori) con leader, ostaggi, mostra/scambia carte e regia cieca; tema `boom`; guida `docs/STANZE-COL-BOTTO.md`; personaggi avanzati (T8) da fare |
+| Extra: Agenti Segreti | ✅ (da provare con persone) | Parole e indizi a squadre (4–30 giocatori) con mappa segreta ai Capi-spia, indizio controllato dal server, voto di squadra dal telefono e regia cieca; guida `docs/AGENTI-SEGRETI.md` |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 
 **Scostamenti dal piano originale (concordati)**

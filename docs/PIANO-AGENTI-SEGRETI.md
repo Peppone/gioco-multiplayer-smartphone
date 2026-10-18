@@ -1,7 +1,8 @@
 # Piano: «Agenti Segreti» (parole e indizi a squadre, in stile Codenames)
 
-> Stato: **confermato**, da implementare (le decisioni del §2 sono state approvate dall'utente). I punti che dipendono dal codice
-> esistente (squadre, punti, voto di squadra, invio delle viste, form dell'editor) sono stati **verificati** (§9).
+> Stato: **implementato** (P0–P6), da provare con persone. Le decisioni del §2 sono state approvate dall'utente; i punti
+> che dipendono dal codice esistente sono stati **verificati** (§9); gli scostamenti decisi durante l'implementazione
+> sono nel §10. Guida d'uso in [AGENTI-SEGRETI.md](AGENTI-SEGRETI.md).
 > Da leggere insieme a [PIANO.md](../PIANO.md) e [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md).
 
 ## 1. Obiettivo
@@ -306,3 +307,17 @@ Ogni passo si chiude con test verdi e una piccola demo; commit semantici separat
 | `.refine` sulla configurazione ammesso | ✅ | `library-service.ts`, altri plugin |
 | Regia cieca con `set-blind` | ✅ modello da copiare | `stanze-col-botto/index.ts` |
 | Stress con `--scenario` nuovo | ✅ va aggiunto `agenti` all'elenco e una funzione in `scenario.ts` | `tools/bots/src/run.ts` |
+
+## 10. Scostamenti decisi durante l'implementazione
+
+| Punto | Piano | Implementato | Perché |
+|---|---|---|---|
+| Mappa in `setup` | Il Capo-spia la riceve appena nominato | Nessuno riceve la griglia prima di «Distribuisci» | Più semplice e più sicuro: chi smette di essere Capo-spia in `setup` non l'ha mai vista |
+| Capo-spia «già stato» | Evitato nella serata | Evitato nei round precedenti della **partita** | L'engine passa ai round solo `ctx.seen` della partita: i Capi-spia ci vanno con un prefisso (`@capo-spia:`) accanto alle parole uscite |
+| Turni senza limite | `maxTurns: 0` = nessun limite | Al massimo 50 turni | Una serie di turni saltati non deve durare per sempre (e il contratto di `registry.test.ts` vuole un round che finisce) |
+| Comandi della regia | Nessun «termina» | Aggiunto `end` («Termina la partita»): vince chi ha meno agenti da trovare | Serve alla regia per chiudere una partita che si trascina |
+| «Annulla scoperta» | Un livello | Un livello, valido anche dopo l'assassino; non più dopo un nuovo indizio | Dopo un nuovo indizio il gioco è andato avanti e annullare confonderebbe |
+| Indizio | Una parola, trattino e apostrofo | Come da piano, e rifiutati anche numeri e simboli (con il motivo) | Le cifre nell'indizio aggirerebbero il numero |
+| «Nascondi» | Pulsante sotto la mappa | Nella barra in alto del telefono | Il telefono del Capo-spia sta in una schermata anche con il modulo dell'indizio |
+| Testo delle carte | Font più piccolo per le parole lunghe | Corpo calcolato dalla larghezza della carta (container query, `cardText.ts`); nel tema pixel due righe | Un'unica regola per tutti i temi; il test prova tutte le 300 parole d'esempio |
+| Stress | Nessun errore, punti coerenti | In più: ogni vista ricevuta da ogni bot passa un controllo di privacy (`privacyProblem`) | Lo stress con 30 telefoni è il modo più ampio di cercare fughe della mappa |
