@@ -3,6 +3,7 @@ import { buzzer } from "./buzzer/index.js";
 import { ghostHunt } from "./caccia-fantasmi/index.js";
 import { indovinaCanzone } from "./indovina-canzone/index.js";
 import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.js";
+import { paroleMannare } from "./parole-mannare/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
 import { reazioneACatena, wordListSchema } from "./reazione-a-catena/index.js";
 import { stanzeSegrete } from "./stanze-segrete/index.js";
@@ -13,7 +14,7 @@ import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
 
-export { buzzer, ghostHunt, indovinaCanzone, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeSegrete, stima, veroFalso, zombieHunt };
+export { buzzer, ghostHunt, indovinaCanzone, paroleMannare, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -42,6 +43,7 @@ export const minigames: Record<string, AnyMinigame> = {
   [reazioneACatena.id]: reazioneACatena,
   [scalata.id]: scalata,
   [shadowTournament.id]: shadowTournament,
+  [paroleMannare.id]: paroleMannare,
 };
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */
