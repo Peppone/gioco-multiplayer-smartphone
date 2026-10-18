@@ -33,18 +33,28 @@ export const unique = (base: string) => `${base}${Date.now().toString(36).slice(
  * (risposta corretta, risposta segreta) non transitano mai verso schermo e telefoni.
  * Va collegato prima che la pagina si connetta.
  */
-export function captureSocketTraffic(page: Page): { text: () => string } {
+export function captureSocketTraffic(page: Page): Traffic {
   const frames: string[] = [];
+  const sent: { at: number; payload: string }[] = [];
+  const text = (p: string | Buffer) => (typeof p === "string" ? p : p.toString("utf8"));
   page.on("websocket", (ws) => {
-    ws.on("framereceived", (f) => frames.push(typeof f.payload === "string" ? f.payload : f.payload.toString("utf8")));
+    ws.on("framereceived", (f) => frames.push(text(f.payload)));
+    ws.on("framesent", (f) => sent.push({ at: Date.now(), payload: text(f.payload) }));
   });
-  return { text: () => frames.join("\n") };
+  return { text: () => frames.join("\n"), sent: () => [...sent] };
+}
+
+export interface Traffic {
+  /** Frame ricevuti dalla pagina, uno per riga. */
+  text: () => string;
+  /** Frame inviati dalla pagina, con l'istante di invio: per controllare quanti input parte e quanto spesso. */
+  sent: () => { at: number; payload: string }[];
 }
 
 export interface Client {
   context: BrowserContext;
   page: Page;
-  traffic: { text: () => string };
+  traffic: Traffic;
 }
 
 async function open(browser: Browser, options: Parameters<Browser["newContext"]>[0], path: string, init?: (c: BrowserContext) => Promise<void>): Promise<Client> {
