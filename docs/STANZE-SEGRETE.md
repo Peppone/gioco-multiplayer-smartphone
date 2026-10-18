@@ -43,9 +43,13 @@ L'interfaccia è una colonna unica, pensata per il telefono.
 - **Menu del giocatore**: **tocca un giocatore sulla mappa** e si apre un menu con tutte le azioni per lui. Da PC è un pannello laterale a destra (la pagina si sposta per non coprire la mappa), da telefono un foglio dal basso; si chiude con ✕ o Esc. Dentro: spostamento (scelta della stanza o «Scegli sulla mappa»; «Togli dalla mappa»), esito, interruttori delle capacità con durata/usi e frecce da bloccare, «Mostra una lettera», un **evento solo per lui**, i **suoi oggetti** (palesa quelli della sua stanza solo a lui) e la conversazione privata.
 - **Giocatori**: una scheda per ognuno con l'esito (in gioco / fuggito / eliminato), gli interruttori delle
   capacità, le **frecce da bloccare** per muoversi e sbirciare, «Mostra una lettera» e la conversazione privata.
-- **🎒 Oggetti**: il catalogo dell'istanza (di esempio: una scopa, una lettera con un messaggio, un libro, degli occhiali futuristici, una cassetta degli attrezzi; ne puoi creare altri nell'editor, con icona, testo leggibile e nota per te). Per ogni oggetto scegli la **stanza** e, se vuoi, lo rendi **percepibile**; poi lo **palesi** ai presenti o a singoli giocatori.
-- **Posta**: i messaggi dei giocatori (non letti in evidenza) e il modulo per scrivere a un giocatore, a una stanza
-  o a tutti, con «Consenti risposta».
+- **🎒 Oggetti**: il catalogo dell'istanza (di esempio: una scopa, una lettera con un messaggio, un libro, degli occhiali futuristici, una cassetta degli attrezzi; ne puoi creare altri nell'editor, con icona, testo leggibile e nota per te). Per ogni oggetto scegli la **stanza** e, se vuoi, lo rendi **percepibile**; poi lo **palesi** ai presenti o a singoli giocatori. **✏️ Modifica** (su ogni oggetto, anche quelli dell'istanza) cambia icona, nome, testo leggibile e nota: chi lo conosce già vede subito il testo aggiornato, gli altri non notano nulla. La modifica vale solo per questa partita, non cambia l'istanza nella libreria.
+- **Posta (chat)**: una conversazione per giocatore più gli **📢 Annunci** (messaggi a tutti o a una stanza), con non letti
+  e anteprima dell'ultimo messaggio, le più recenti in alto. Si apre una conversazione toccandola: si legge tutto il
+  filo (tuo e del giocatore, con «letto da N/M»), i non letti si segnano da soli e si risponde lì sotto con «Consenti
+  risposta» (Invio invia, Maiusc+Invio va a capo); «← Chat» torna all'elenco.
+- **Barra degli avvisi**: sempre in alto, mostra richieste e posta da leggere e i cronometri scaduti (si chiudono toccandoli);
+  ogni voce porta alla sua sezione. Il numero di cose da fare compare anche nel titolo della scheda.
 - **⚡ Eventi**: testo (o evento pronto), destinatari (Tutti / scelta / occupanti di una stanza / tutti tranne…),
   *Invia*. L'elenco mostra «Accettato da N di M», chi manca e *Annulla*.
 - **Diario** della partita (spostamenti, occhiate, soluzioni, eventi), visibile solo al GM.

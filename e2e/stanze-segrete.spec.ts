@@ -103,6 +103,11 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await expect(gameClock.locator(".sh-clock")).toHaveText(/^[0-9][0-9]:[0-9][0-9]$/);
   await expect(gameClock.locator("[data-laps]")).not.toHaveText("0", { timeout: 12_000 }); // ogni 5 s
   await expect(gameClock).toContainText("intervallo scaduto");
+  // L'avviso arriva anche nella barra fissa in alto, e si chiude toccandolo.
+  const bar = m.getByTestId("notice-bar");
+  await expect(bar).toContainText("intervallo scaduto");
+  expect(await bar.evaluate((e) => getComputedStyle(e).position)).toBe("sticky");
+  await bar.getByRole("button", { name: /intervallo scaduto/ }).first().click();
   await m.getByLabel("Nome del cronometro").fill("Gas nella Stanza 5");
   await m.getByLabel(/Intervallo in minuti/).fill("0.1"); // 6 secondi
   await m.getByRole("button", { name: "Aggiungi", exact: true }).click();
@@ -156,6 +161,12 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await m.locator(".sh-item", { hasText: "Una chiave arrugginita" }).getByRole("button", { name: `Palesa a ${n1}` }).click();
   await expect(p1.page.locator(".ss-item[data-known=true]")).toHaveCount(2);
   await expect(p1.page.locator(".ss-item[data-known=true]", { hasText: "chiave" })).toContainText("inciso un 7");
+  // Il GM modifica la descrizione: chi conosce l'oggetto la vede aggiornata subito.
+  const chiave = m.locator(".sh-item", { hasText: "Una chiave arrugginita" });
+  await chiave.locator("summary", { hasText: "Modifica" }).click();
+  await chiave.getByLabel("Testo leggibile di Una chiave arrugginita").fill("Sul manico è inciso un 9");
+  await chiave.getByRole("button", { name: "Salva le modifiche" }).click();
+  await expect(p1.page.locator(".ss-item[data-known=true]", { hasText: "chiave" })).toContainText("inciso un 9");
   m.once("dialog", (d) => void d.accept());
   await m.getByRole("button", { name: "Elimina Una chiave arrugginita" }).click();
   await expect(m.locator(".sh-item", { hasText: "Una chiave arrugginita" })).toHaveCount(0);
@@ -217,6 +228,23 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await p0.page.getByLabel("Rispondi").fill("Che rumore?");
   await p0.page.locator(".ss-thread").getByRole("button", { name: "Invia" }).click();
   await expect(m.locator(".sh-inbox")).toContainText("Che rumore?");
+  // Chat del GM: la conversazione con n0 ha il non letto; aprirla lo azzera e si risponde lì.
+  const thread = m.locator(`.sh-thread-open`).filter({ hasText: n0 });
+  await expect(thread.locator(".sh-count")).toHaveText("1");
+  await m.getByTestId("notice-bar").getByRole("button", { name: /Posta/ }).click(); // apre la chat col messaggio da leggere
+  const chat = m.locator(".sh-chat");
+  await expect(chat.locator("h4")).toHaveText(n0);
+  await expect(chat.locator(".sh-bubbles li.gm")).toContainText("Senti un rumore sopra di te");
+  await expect(chat.locator(".sh-bubbles li.pl")).toContainText("Che rumore?");
+  await chat.getByLabel("Testo del messaggio").fill("Guarda in alto");
+  await chat.getByRole("button", { name: "Invia", exact: true }).click();
+  await expect(chat.locator(".sh-bubbles li.gm").last()).toContainText("Guarda in alto");
+  await chat.getByRole("button", { name: "Torna alle conversazioni" }).click();
+  await expect(m.locator(".sh-thread-open").filter({ hasText: n0 }).locator(".sh-count")).toHaveCount(0);
+  // Dalla scheda del giocatore si salta alla sua chat, che mostra tutto il filo.
+  await card(n0).getByRole("button", { name: /Apri nella chat/ }).click();
+  await expect(m.locator(".sh-chat .sh-bubbles li")).toHaveCount(3);
+  await m.getByRole("button", { name: "Torna alle conversazioni" }).click();
   // gli altri non vedono la conversazione
   for (const other of [p1, p2, p3, screen]) expect(other.traffic.text()).not.toContain("Senti un rumore");
   expect(screen.traffic.text()).not.toContain("Che rumore?");

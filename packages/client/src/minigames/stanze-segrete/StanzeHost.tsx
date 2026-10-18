@@ -250,11 +250,13 @@ function grantCommand(target: unknown, action: string, o: GrantOpts): Record<str
 }
 
 /** Le azioni che il master può fare con un giocatore: nella scheda a fisarmonica e nel menu laterale. */
-function PlayerBody({ info, p, i, run, opts, clock, nameOf, extended, onPickRoom }: {
+function PlayerBody({ info, p, i, run, opts, clock, nameOf, extended, onPickRoom, onOpenChat }: {
   info: HostInfo; p: { id: string; nickname: string }; i: number; run: Run; opts: GrantOpts; clock: HostProps["clock"]; nameOf: Names;
   /** Nel menu laterale: anche spostamento, evento e oggetti della sua stanza. */
   extended?: boolean;
   onPickRoom?: () => void;
+  /** Apre la chat con questo giocatore nella sezione Posta. */
+  onOpenChat?: (playerId: string) => void;
 }) {
   const actions = ["move", "peek", "sight", "message", "guess", ...info.customActions.map((a) => `custom:${a.id}`)];
   const mine = info.grants.filter((g) => g.playerId === p.id);
@@ -317,8 +319,9 @@ function PlayerBody({ info, p, i, run, opts, clock, nameOf, extended, onPickRoom
         <button onClick={() => void run({ type: "show-letter", target: { players: [p.id] }, cellId: Number(letterCell), seconds: Math.max(1, Number(letterSec) || 5) })}>Mostra una lettera</button>
       </div>
       <ul className="sh-talk">
-        {talk.slice(-4).map((m) => <li key={m.id} className={m.from === "master" ? "gm" : "pl"}>{m.from === "master" ? "Tu" : p.nickname}: {m.text}</li>)}
+        {talk.map((m) => <li key={m.id} className={m.from === "master" ? "gm" : "pl"}>{m.from === "master" ? "Tu" : p.nickname}: {m.text}</li>)}
       </ul>
+      {onOpenChat && <button onClick={() => onOpenChat(p.id)}>Apri nella chat{talk.length > 0 ? ` (${talk.length})` : ""}</button>}
       <form className="row" onSubmit={(e) => { e.preventDefault(); if (msg.trim()) { void run({ type: "message", to: { player: p.id }, text: msg }); setMsg(""); } }}>
         <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder={`Messaggio a ${p.nickname}`} maxLength={info.messageMaxLength} />
         <button type="submit">Invia</button>
@@ -479,24 +482,22 @@ const clockText = (ms: number) => {
   return `${h > 0 ? `${h}:` : ""}${pad(Math.floor((t % 3600) / 60))}:${pad(t % 60)}`;
 };
 
-function TimerRow({ t, now, run, sfx }: { t: HostTimer; now: number; run: Run; sfx: (n: "buzz") => void }) {
+function TimerRow({ t, now, run }: { t: HostTimer; now: number; run: Run }) {
   const elapsed = t.accumulatedMs + (t.running ? Math.max(0, now - t.startedAt) : 0);
   const every = t.intervalSec ? t.intervalSec * 1000 : null;
   const into = every ? elapsed % every : 0;
-  // Un avviso quando scatta un nuovo intervallo: suono, vibrazione e la riga si evidenzia per qualche secondo.
+  // Quando scatta un nuovo intervallo la riga si evidenzia per qualche secondo (suono e barra degli avvisi: useNotices).
   const [flash, setFlash] = useState(false);
   const lastLaps = useRef(t.laps);
   useEffect(() => {
     if (t.laps > lastLaps.current) {
-      sfx("buzz");
-      navigator.vibrate?.([120, 60, 120]);
       setFlash(true);
       const id = setTimeout(() => setFlash(false), 6000);
       lastLaps.current = t.laps;
       return () => clearTimeout(id);
     }
     lastLaps.current = t.laps;
-  }, [t.laps, sfx]);
+  }, [t.laps]);
 
   return (
     <li className={`sh-timer ${t.running ? "running" : ""} ${flash ? "flash" : ""}`} data-timer={t.id}>
@@ -527,7 +528,7 @@ function TimerRow({ t, now, run, sfx }: { t: HostTimer; now: number; run: Run; s
 }
 
 /** Il tempo di gioco e i cronometri del Master (anche a intervalli fissi): solo per lui, non vanno a schermo né ai giocatori. */
-function Clocks({ info, run, clock, sfx }: { info: HostInfo; run: Run; clock: HostProps["clock"]; sfx: (n: "buzz") => void }) {
+function Clocks({ info, run, clock }: { info: HostInfo; run: Run; clock: HostProps["clock"] }) {
   const now = useServerNow(clock);
   const [label, setLabel] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -542,7 +543,7 @@ function Clocks({ info, run, clock, sfx }: { info: HostInfo; run: Run; clock: Ho
   return (
     <div className="sh-clocks">
       <ul className="sh-timers">
-        {info.timers.map((t) => <TimerRow key={t.id} t={t} now={now} run={run} sfx={sfx} />)}
+        {info.timers.map((t) => <TimerRow key={t.id} t={t} now={now} run={run} />)}
       </ul>
       <form className="row" onSubmit={add}>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Nuovo cronometro (es. Gas nella Stanza 5)" maxLength={30} aria-label="Nome del cronometro" />
@@ -603,6 +604,34 @@ function NewItem({ info, run }: { info: HostInfo; run: Run }) {
   );
 }
 
+/** Modifica di un oggetto già presente (anche di quelli dell'istanza): chi lo conosce vede subito il testo aggiornato. */
+function ItemEditor({ item, run }: { item: HostItem; run: Run }) {
+  const [icon, setIcon] = useState(item.icon);
+  const [name, setName] = useState(item.name);
+  const [text, setText] = useState(item.text);
+  const [note, setNote] = useState(item.note);
+  const dirty = icon !== item.icon || name !== item.name || text !== item.text || note !== item.note;
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !icon.trim() || !dirty) return;
+    void run({ type: "item-edit", itemId: item.id, name, icon, text, note });
+  };
+  return (
+    <details className="sh-edit-item">
+      <summary>✏️ Modifica</summary>
+      <form className="sh-compose" onSubmit={save}>
+        <div className="row">
+          <input value={icon} onChange={(e) => setIcon(e.target.value)} className="sh-num-in" maxLength={8} aria-label={`Icona di ${item.name}`} />
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={30} aria-label={`Nome di ${item.name}`} />
+        </div>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={600} placeholder="Testo leggibile (facoltativo)" aria-label={`Testo leggibile di ${item.name}`} />
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} placeholder="Nota solo per te (facoltativa)" aria-label={`Nota di ${item.name}`} />
+        <button type="submit" className="primary" disabled={!dirty || !name.trim() || !icon.trim()}>Salva le modifiche</button>
+      </form>
+    </details>
+  );
+}
+
 function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
   return (
     <>
@@ -621,6 +650,7 @@ function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names 
               </select>
             </div>
             {(it.note || it.text) && <small className="muted">{it.note}{it.note && it.text ? " · " : ""}{it.text && `Testo: «${it.text}»`}</small>}
+            <ItemEditor key={`${it.name}|${it.icon}|${it.text}|${it.note}`} item={it} run={run} />
             {it.cell !== null && (
               <>
                 <button className={`sh-toggle ${it.enabled ? "on" : ""}`} aria-pressed={it.enabled} onClick={() => void run({ type: "enable-item", itemId: it.id, enabled: !it.enabled })}>
@@ -648,55 +678,94 @@ function Items({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names 
 
 // ------------------------------------------------------------------ Posta
 
-function Mail({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names }) {
-  const [to, setTo] = useState("all");
+const ANNOUNCE = "ann";
+
+/** Conversazione a cui appartiene un messaggio: una per giocatore, più gli annunci (a tutti o a una stanza). */
+const threadOf = (m: HostMessage) => (m.from !== "master" ? m.from : m.toKind === "player" && m.toPlayer ? m.toPlayer : ANNOUNCE);
+
+/** Le chat del Game Master: una conversazione per giocatore (con non letti e anteprima) e gli annunci; si legge e si risponde nello stesso punto. */
+function Mail({ info, run, nameOf, open, setOpen }: { info: HostInfo; run: Run; nameOf: Names; open: string | null; setOpen: (key: string | null) => void }) {
   const [text, setText] = useState("");
   const [allowReply, setAllowReply] = useState(true);
-  const inbox = info.messages.filter((m) => m.from !== "master");
-  const unread = inbox.filter((m) => m.masterReadAt === null);
-  const target = (): unknown => (to === "all" ? "all" : to.startsWith("c:") ? { cell: Number(to.slice(2)) } : { player: to.slice(2) });
+  const [to, setTo] = useState("all");
+  const log = useRef<HTMLUListElement>(null);
+  const asked = useRef(new Set<number>());
+
+  const threads = [ANNOUNCE, ...info.roster.map((p) => p.id)].map((key) => {
+    const msgs = info.messages.filter((m) => threadOf(m) === key);
+    return { key, msgs, last: msgs[msgs.length - 1] ?? null, unread: msgs.filter((m) => m.from !== "master" && m.masterReadAt === null).length };
+  }).sort((a, b) => (b.last?.at ?? 0) - (a.last?.at ?? 0));
+  const current = threads.find((t) => t.key === open) ?? null;
+  const title = (key: string) => (key === ANNOUNCE ? "📢 Annunci" : nameOf(key));
+
+  // Aprire una conversazione segna come letto ciò che c'è, e anche ciò che arriva mentre è aperta.
+  useEffect(() => {
+    for (const m of current?.msgs ?? []) {
+      if (m.from !== "master" && m.masterReadAt === null && !asked.current.has(m.id)) {
+        asked.current.add(m.id);
+        void run({ type: "read", messageId: m.id });
+      }
+    }
+    log.current?.scrollTo({ top: log.current.scrollHeight });
+  }, [current?.key, current?.msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const send = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
-    void run({ type: "message", to: target(), text, allowReply });
+    if (!current || !text.trim()) return;
+    const target = current.key !== ANNOUNCE ? { player: current.key } : to === "all" ? "all" : { cell: Number(to.slice(2)) };
+    void run({ type: "message", to: target, text, allowReply });
     setText("");
   };
+
+  if (!current) {
+    return (
+      <div className="sh-mail">
+        <ul className="sh-inbox">
+          {threads.map((t) => (
+            <li key={t.key} className={t.unread > 0 ? "unread" : ""}>
+              <button className="sh-thread-open" data-thread={t.key} onClick={() => setOpen(t.key)}>
+                <span className="row"><b>{title(t.key)}</b>{t.unread > 0 && <b className="sh-count">{t.unread}</b>}{t.last && <small className="muted sh-when">{hhmm(t.last.at)}</small>}</span>
+                <small className={t.last ? "sh-preview" : "muted"}>{t.last ? `${t.last.from === "master" ? "Tu: " : ""}${t.last.text}` : "Nessun messaggio"}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return (
-    <div className="sh-mail">
-      <h4>Posta in arrivo {unread.length > 0 && <b className="sh-count">{unread.length}</b>}</h4>
-      <ul className="sh-inbox">
-        {inbox.length === 0 && <li className="muted">Nessun messaggio dai giocatori.</li>}
-        {[...inbox].reverse().slice(0, 30).map((m) => (
-          <li key={m.id} className={m.masterReadAt === null ? "unread" : ""}>
-            <small className="muted">{hhmm(m.at)} · {nameOf(m.from)}{m.replyTo ? " (risposta)" : ""}</small>
+    <div className="sh-mail sh-chat" data-thread={current.key}>
+      <div className="row">
+        <button onClick={() => setOpen(null)} aria-label="Torna alle conversazioni">← Chat</button>
+        <h4>{title(current.key)}</h4>
+      </div>
+      <ul className="sh-bubbles" ref={log} aria-live="polite">
+        {current.msgs.length === 0 && <li className="muted">Nessun messaggio.</li>}
+        {current.msgs.map((m) => (
+          <li key={m.id} className={m.from === "master" ? "gm" : "pl"}>
+            <small className="muted">
+              {hhmm(m.at)}
+              {m.from === "master" && (m.toKind === "all" ? " · a tutti" : m.toKind === "room" ? ` · ${roomName(m.toCell!)}` : "")}
+              {m.from === "master" && ` · letto da ${Object.keys(m.readBy).length}/${m.recipients.length}`}
+              {m.replyTo ? " · risposta" : ""}
+            </small>
             <div>{m.text}</div>
-            <div className="row">
-              {m.masterReadAt === null && <button onClick={() => void run({ type: "read", messageId: m.id })}>Letto</button>}
-              <button onClick={() => { setTo(`p:${m.from}`); void run({ type: "read", messageId: m.id }); }}>Rispondi</button>
-            </div>
+            {m.from === "master" && m.allowReply && <button onClick={() => void run({ type: "close-reply", messageId: m.id })}>Chiudi le risposte</button>}
           </li>
         ))}
       </ul>
       <form className="sh-compose" onSubmit={send}>
-        <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Destinatario del messaggio">
-          <option value="all">Tutti i giocatori</option>
-          {info.roster.map((p) => <option key={p.id} value={`p:${p.id}`}>{p.nickname}</option>)}
-          {info.rooms.map((_, c) => <option key={c} value={`c:${c}`}>Occupanti della {roomName(c)}</option>)}
-        </select>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Messaggio segreto…" maxLength={info.messageMaxLength} rows={2} aria-label="Testo del messaggio" />
+        {current.key === ANNOUNCE && (
+          <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Destinatario del messaggio">
+            <option value="all">Tutti i giocatori</option>
+            {info.rooms.map((_, c) => <option key={c} value={`c:${c}`}>Occupanti della {roomName(c)}</option>)}
+          </select>
+        )}
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={current.key === ANNOUNCE ? "Messaggio segreto…" : `Messaggio a ${nameOf(current.key)}`} maxLength={info.messageMaxLength} rows={2} aria-label="Testo del messaggio"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} />
         <label className="check"><input type="checkbox" checked={allowReply} onChange={(e) => setAllowReply(e.target.checked)} /> Consenti risposta</label>
-        <button type="submit" className="primary">Invia il messaggio</button>
+        <button type="submit" className="primary">Invia</button>
       </form>
-      <h4>Inviati</h4>
-      <ul className="sh-sent">
-        {[...info.messages].reverse().filter((m) => m.from === "master").slice(0, 10).map((m) => (
-          <li key={m.id}>
-            <small className="muted">{hhmm(m.at)} · a {m.toKind === "all" ? "tutti" : m.toKind === "room" ? roomName(m.toCell!) : nameOf(m.toPlayer!)} · letto da {Object.keys(m.readBy).length}/{m.recipients.length}</small>
-            <div>{m.text}</div>
-            {m.allowReply && <button onClick={() => void run({ type: "close-reply", messageId: m.id })}>Chiudi le risposte</button>}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -763,11 +832,105 @@ function Events({ info, run, nameOf }: { info: HostInfo; run: Run; nameOf: Names
   );
 }
 
+// ------------------------------------------------------------------ Avvisi
+
+interface Alert { id: string; text: string }
+
+const requestText = (r: HostRequest, info: HostInfo) => {
+  if (r.kind === "move") return `${r.nickname} chiede di muoversi${r.direction ? ` ${DIR_ARROW[r.direction]}` : ""}`;
+  if (r.kind === "peek") return `${r.nickname} chiede di sbirciare${r.direction ? ` ${DIR_ARROW[r.direction]}` : ""}`;
+  if (r.kind === "guess") return `${r.nickname} propone la soluzione`;
+  return `${r.nickname}: ${info.customActions.find((a) => a.id === r.actionId)?.label ?? "azione libera"}`;
+};
+
+/**
+ * Avvisi per il Game Master: rileva ciò che è arrivato di nuovo (per id, non per quantità, così un arrivo
+ * contemporaneo a una risoluzione non si perde), suona e vibra in modo diverso per tipo, tiene l'ultimo
+ * riepilogo per qualche secondo e segna il numero di cose da fare nel titolo della scheda.
+ */
+function useNotices(info: HostInfo, sfx: (n: "notify" | "mail") => void) {
+  const inbox = info.messages.filter((m) => m.from !== "master" && m.masterReadAt === null);
+  const seenReq = useRef(new Set(info.requests.map((r) => r.id)));
+  const seenMsg = useRef(new Set(inbox.map((m) => m.id)));
+  const laps = useRef(new Map(info.timers.map((t) => [t.id, t.laps])));
+  const [latest, setLatest] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  useEffect(() => {
+    const fresh = info.requests.filter((r) => !seenReq.current.has(r.id));
+    seenReq.current = new Set(info.requests.map((r) => r.id));
+    if (fresh.length === 0) return;
+    sfx("notify");
+    navigator.vibrate?.(80);
+    setLatest(fresh.length > 1 ? `${fresh.length} nuove richieste` : requestText(fresh[0]!, info));
+  }, [info.requests]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const fresh = inbox.filter((m) => !seenMsg.current.has(m.id));
+    seenMsg.current = new Set(inbox.map((m) => m.id));
+    if (fresh.length === 0) return;
+    sfx("mail");
+    navigator.vibrate?.([60, 40, 60]);
+    const nick = info.roster.find((p) => p.id === fresh[0]!.from)?.nickname ?? "Un giocatore";
+    setLatest(fresh.length > 1 ? `${fresh.length} nuovi messaggi` : `✉️ Messaggio da ${nick}`);
+  }, [info.messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const due = info.timers.filter((t) => t.laps > (laps.current.get(t.id) ?? t.laps));
+    laps.current = new Map(info.timers.map((t) => [t.id, t.laps]));
+    if (due.length === 0) return;
+    sfx("notify");
+    navigator.vibrate?.([120, 60, 120]);
+    setAlerts((a) => [...a.filter((x) => !due.some((t) => t.id === x.id)), ...due.map((t) => ({ id: t.id, text: `⏱ ${t.label}: intervallo scaduto` }))]);
+  }, [info.timers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // L'ultimo riepilogo resta in vista qualche secondo, poi lascia solo i contatori.
+  useEffect(() => {
+    if (!latest) return;
+    const id = setTimeout(() => setLatest(null), 6000);
+    return () => clearTimeout(id);
+  }, [latest]);
+
+  const todo = info.requests.length + inbox.length + alerts.length;
+  useEffect(() => {
+    const base = document.title.replace(/^\(\d+\) /, "");
+    document.title = todo > 0 ? `(${todo}) ${base}` : base;
+    return () => { document.title = base; };
+  }, [todo]);
+
+  return { requests: info.requests.length, mail: inbox.length, latest, alerts, dismiss: (id: string) => setAlerts((a) => a.filter((x) => x.id !== id)) };
+}
+
+/** Barra fissa in alto: sempre in vista anche scorrendo la pagina; ogni voce porta alla sua sezione. */
+function NoticeBar({ n, onMail }: { n: ReturnType<typeof useNotices>; onMail: () => void }) {
+  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const quiet = n.requests === 0 && n.mail === 0 && n.alerts.length === 0;
+  return (
+    <div className={`sh-notify ${quiet ? "quiet" : ""}`} role="status" aria-live="polite" data-testid="notice-bar">
+      {quiet && <span className="muted">Nessun avviso</span>}
+      {n.requests > 0 && <button className="sh-chip-alert" onClick={() => go("sh-requests")}>Richieste <b className="sh-count">{n.requests}</b></button>}
+      {n.mail > 0 && <button className="sh-chip-alert" onClick={onMail}>✉️ Posta <b className="sh-count">{n.mail}</b></button>}
+      {n.alerts.map((a) => (
+        <button key={a.id} className="sh-chip-alert timer" onClick={() => { go("sh-clocks"); n.dismiss(a.id); }} aria-label={`${a.text}. Tocca per vederlo e chiudere l'avviso`}>{a.text}</button>
+      ))}
+      {n.latest && <span className="sh-latest" data-testid="notice-latest">{n.latest}</span>}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ Host
 
 export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   const info = raw as HostInfo;
   const sfx = useSfx(theme);
+  const notices = useNotices(info, sfx);
+  const [chat, setChat] = useState<string | null>(null);
+  const showChat = (key: string | null) => {
+    setChat(key);
+    setTimeout(() => document.getElementById("sh-mail")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
+  // Dalla barra degli avvisi si apre la conversazione col messaggio da leggere più vecchio.
+  const oldestUnread = info.messages.find((m) => m.from !== "master" && m.masterReadAt === null);
   const [sel, setSel] = useState<string | null>(null);
   const [selCell, setSelCell] = useState<number | null>(null);
   const [drawerId, setDrawerId] = useState<string | null>(null);
@@ -775,23 +938,13 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
   const index = (id: string) => Math.max(0, info.roster.findIndex((p) => p.id === id));
   const nameOf: Names = (id) => info.roster.find((p) => p.id === id)?.nickname ?? "?";
 
-  // Un suono quando arriva una nuova richiesta o un nuovo messaggio dai giocatori.
-  const incoming = info.requests.length + info.messages.filter((m) => m.from !== "master" && m.masterReadAt === null).length;
-  const prev = useRef(incoming);
-  useEffect(() => {
-    if (incoming > prev.current) {
-      sfx("buzz");
-      navigator.vibrate?.(80);
-    }
-    prev.current = incoming;
-  }, [incoming, sfx]);
-
   const unplaced = info.roster.filter((p) => info.positions[p.id] === null || info.positions[p.id] === undefined);
   const editable = info.phase === "setup" || info.phase === "play";
 
   const drawerPlayer = info.roster.find((p) => p.id === drawerId) ?? null;
   return (
     <div className={`sh ${drawerPlayer ? "has-drawer" : ""}`} data-phase={info.phase}>
+      <NoticeBar n={notices} onMail={() => showChat(oldestUnread ? threadOf(oldestUnread) : null)} />
       <section className="sh-sec">
         <h3 data-map={info.mapShown ? "shown" : "hidden"}>Fase: {info.phase === "setup" ? "preparazione" : info.phase === "play" ? "in gioco" : info.phase === "reveal" ? "rivelazione" : "conclusa"}</h3>
         <div className="row">
@@ -815,12 +968,12 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
         )}
       </section>
 
-      <section className="sh-sec">
+      <section className="sh-sec" id="sh-clocks">
         <h3>⏱ Tempo</h3>
-        <Clocks info={info} run={run} clock={clock} sfx={sfx} />
+        <Clocks info={info} run={run} clock={clock} />
       </section>
 
-      <section className="sh-sec">
+      <section className="sh-sec" id="sh-requests">
         <h3>Richieste {info.requests.length > 0 && <b className="sh-count">{info.requests.length}</b>}</h3>
         <Requests info={info} run={run} />
       </section>
@@ -849,7 +1002,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
 
       <section className="sh-sec">
         <h3>Giocatori</h3>
-        {info.roster.map((p, i) => <PlayerCard key={p.id} info={info} p={p} i={i} run={run} opts={opts} clock={clock} nameOf={nameOf} />)}
+        {info.roster.map((p, i) => <PlayerCard key={p.id} info={info} p={p} i={i} run={run} opts={opts} clock={clock} nameOf={nameOf} onOpenChat={showChat} />)}
       </section>
 
       <section className="sh-sec">
@@ -857,9 +1010,9 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
         <Items info={info} run={run} nameOf={nameOf} />
       </section>
 
-      <section className="sh-sec">
+      <section className="sh-sec" id="sh-mail">
         <h3>Posta</h3>
-        <Mail info={info} run={run} nameOf={nameOf} />
+        <Mail info={info} run={run} nameOf={nameOf} open={chat} setOpen={setChat} />
       </section>
 
       <section className="sh-sec">
@@ -885,6 +1038,7 @@ export function StanzeHost({ info: raw, run, clock, theme }: HostProps) {
           clock={clock}
           nameOf={nameOf}
           onPickRoom={() => setSel(drawerPlayer.id)}
+          onOpenChat={(id) => { setDrawerId(null); showChat(id); }}
         />
       )}
     </div>
