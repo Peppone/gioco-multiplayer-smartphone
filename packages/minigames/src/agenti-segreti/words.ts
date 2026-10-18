@@ -1,0 +1,36 @@
+/**
+ * Parole d'esempio di Agenti Segreti: 300 nomi comuni, scritte da noi (niente liste ufficiali del gioco da tavolo).
+ * Corte (al massimo 10 lettere) perché stiano su una carta da ~64 px del telefono; nessuna (da 4 lettere in su) è contenuta in un'altra.
+ */
+export const DEFAULT_WORDS: string[] = [
+  "Albero", "Ancora", "Angelo", "Anello", "Ape", "Aquila", "Arancia", "Arco", "Argento", "Asino",
+  "Satellite", "Atleta", "Auto", "Baffi", "Balena", "Banca", "Bandiera", "Barca", "Batteria", "Becco",
+  "Benzina", "Biberon", "Bici", "Biscotto", "Bomba", "Borsa", "Bosco", "Bottiglia", "Braccio", "Bruco",
+  "Bussola", "Cactus", "Caffè", "Calcio", "Camino", "Campana", "Candela", "Cane", "Canguro", "Cannone",
+  "Capitano", "Cappello", "Carota", "Carta", "Castello", "Cavallo", "Caverna", "Cervello", "Chiave", "Chiodo",
+  "Cigno", "Cinema", "Cintura", "Circo", "Cometa", "Coniglio", "Corona", "Corsa", "Coltello", "Cuore",
+  "Cuoco", "Delfino", "Dente", "Deserto", "Diamante", "Dinosauro", "Disco", "Dito", "Dottore", "Drago",
+  "Elefante", "Elica", "Fabbrica", "Falco", "Fantasma", "Farfalla", "Faro", "Fata", "Fattoria", "Ferro",
+  "Festa", "Fiamma", "Fiume", "Foglia", "Forchetta", "Formaggio", "Foresta", "Fragola", "Freccia", "Frigo",
+  "Fulmine", "Fumo", "Fungo", "Gabbia", "Gallina", "Gatto", "Gelato", "Ghiaccio", "Giacca", "Giardino",
+  "Gigante", "Giornale", "Giraffa", "Gomma", "Gonna", "Granchio", "Grotta", "Guanto", "Guerra", "Gufo",
+  "Isola", "Lampada", "Lana", "Lancia", "Latte", "Lavagna", "Leone", "Letto", "Libro", "Limone",
+  "Lingua", "Luna", "Lupo", "Macchina", "Mago", "Maschera", "Matita", "Medusa", "Miele", "Miniera",
+  "Missile", "Moneta", "Montagna", "Mosca", "Motore", "Mummia", "Museo", "Musica", "Nave", "Neve",
+  "Nido", "Ninja", "Nodo", "Notte", "Nuvola", "Occhio", "Oca", "Olio", "Ombrello", "Onda",
+  "Orchestra", "Orologio", "Orso", "Oro", "Ospedale", "Ostrica", "Pace", "Pagina", "Palazzo", "Palla",
+  "Pane", "Panda", "Papera", "Paracadute", "Parrucca", "Passaporto", "Pasta", "Patata", "Pattino", "Penna",
+  "Pepe", "Perla", "Pesce", "Pianeta", "Pianoforte", "Piede", "Pietra", "Pilota", "Pinguino", "Pioggia",
+  "Pipa", "Pirata", "Piramide", "Pistola", "Pizza", "Polpo", "Pompiere", "Ponte", "Porta", "Posta",
+  "Principe", "Prigione", "Prisma", "Pugile", "Pulce", "Radio", "Ragno", "Razzo", "Regina", "Rete",
+  "Robot", "Rosa", "Ruota", "Sale", "Salto", "Sapone", "Sasso", "Scala", "Scarpa", "Scheletro",
+  "Scimmia", "Scudo", "Scuola", "Sedia", "Segreto", "Semaforo", "Serpente", "Sirena", "Slitta", "Sole",
+  "Soldato", "Sorriso", "Spada", "Specchio", "Spia", "Sabbia", "Spugna", "Squalo", "Stadio", "Stella",
+  "Strega", "Strada", "Tamburo", "Tappeto", "Tartaruga", "Tavolo", "Taxi", "Teatro", "Telefono", "Tempesta",
+  "Tenda", "Tesoro", "Testa", "Tigre", "Torre", "Torta", "Treno", "Tromba", "Trono", "Tubo",
+  "Uovo", "Uragano", "Uva", "Vampiro", "Vaso", "Vela", "Veleno", "Vento", "Verme", "Vestito",
+  "Vetro", "Vulcano", "Zaino", "Zebra", "Zucca", "Zucchero", "Ago", "Aereo", "Pozzo", "Alieno",
+  "Ambulanza", "Anatra", "Antenna", "Armadio", "Violino", "Bagno", "Ballo", "Bambola", "Banana", "Barba",
+  "Baule", "Bersaglio", "Birra", "Bolla", "Bottone", "Buco", "Cammello", "Canale", "Canoa", "Cassa",
+  "Catena", "Cella", "Cenere", "Chitarra", "Cielo", "Ciliegia", "Cipolla", "Codice", "Colla", "Valigia",
+];
