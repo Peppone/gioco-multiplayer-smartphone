@@ -5,6 +5,7 @@ export * from "./media.js";
 export * from "./minigame.js";
 export * from "./clock.js";
 export * from "./protocol.js";
+export * from "./timeline.js";
 
 export const DEFAULT_PORT = 3000;
 

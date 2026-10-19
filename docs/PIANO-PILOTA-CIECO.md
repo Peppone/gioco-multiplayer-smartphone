@@ -1,6 +1,6 @@
 # Piano: «Pilota alla cieca» (labirinto a squadre con informazioni divise)
 
-> Stato: **da implementare**: è il **secondo dei tre** giochi pianificati, dopo [Artificieri](PIANO-ARTIFICIERI.md)
+> Stato: **implementato** (P1–P6 fatti, vedi §7; resta da provare con persone): è il **secondo dei tre** giochi pianificati, dopo [Artificieri](PIANO-ARTIFICIERI.md)
 > (di cui riusa il generatore di labirinti e il giudizio all'ora equa) e prima di
 > [Plancia di Comando](PIANO-PLANCIA-COMANDO.md) (a cui passa le misure dello stress, §7). Le decisioni del §2 sono
 > **confermate** dall'utente. I punti che dipendono dal codice esistente sono verificati nel §9.
@@ -236,12 +236,32 @@ Ogni passo si chiude con test verdi e una piccola demo; commit semantici separat
 
 | Passo | Contenuto | Verifica |
 |---|---|---|
-| **P1 Generatore e movimento** | `maze.ts` del gioco (cicli, pericoli, equità tra squadre) sopra il generatore comune di Artificieri, `move.ts`, `timeline.ts` | Per 5000 semi: livello sempre risolvibile, mine mai sul percorso più breve, percorsi tra squadre entro il 10%; stesso seme → stesso labirinto; porte e pattuglie: stessa risposta per lo stesso istante |
-| **P2 Logica del plugin** | Squadre, corsie, strati, fasi, passi con `stepMs` e blocchi, punti, `buildConfig` | Unit test: passo rifiutato durante il blocco e prima di `stepMs`; porta giudicata all'ora equa (stessa pressione con RTT diversi → stesso esito); mina → checkpoint e mina pubblica; chiave e uscita; ordine di arrivo; contratto di `registry.test.ts` |
-| **P3 Anti-leak** | Scorrimento dello stato | Nessuno strato segreto nella TV e nel pilota prima di `level-end`; ogni navigatore solo i propri strati; mai gli strati di un'altra squadra |
-| **P4 Viste** | TV a 1–4 corsie, croce del pilota, mappa del navigatore; scene `/preview` (`pc-*`) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640; 4 corsie 15×15 leggibili sulla TV; porte del navigatore che cambiano stato nel tempo (orologio di prova) |
-| **P5 End-to-end** | Due squadre: un pilota calpesta una mina, uno urta una porta chiusa, uno arriva; `level-end` | **Frame WebSocket**: nessuno strato segreto al pilota e alla TV; server pulito alla fine |
-| **P6 Bot, documenti, pacchetto** | Bot pilota che segue le indicazioni simulate (conosce gli strati dalla vista dei navigatori bot) con errori casuali; guida `docs/PILOTA-CIECO.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md` | `pnpm stress --players 30 --scenario pilota` (4 squadre «insieme»): tempi di aggiornamento con 4 piloti a raffica, **annotati nella guida** perché servono a dimensionare il raggruppamento degli invii di Plancia di Comando (P0 di quel piano); `pnpm test`, `pnpm test:e2e`, pacchetto |
+| **P1 Generatore e movimento** ✅ | `maze.ts` del gioco (cicli, pericoli, equità tra squadre) sopra il generatore comune di Artificieri, `move.ts`, `timeline.ts` | Per 5000 semi: livello sempre risolvibile, mine mai sul percorso più breve, percorsi tra squadre entro il 10%; stesso seme → stesso labirinto; porte e pattuglie: stessa risposta per lo stesso istante |
+| **P2 Logica del plugin** ✅ | Squadre, corsie, strati, fasi, passi con `stepMs` e blocchi, punti, `buildConfig` | Unit test: passo rifiutato durante il blocco e prima di `stepMs`; porta giudicata all'ora equa (stessa pressione con RTT diversi → stesso esito); mina → checkpoint e mina pubblica; chiave e uscita; ordine di arrivo; contratto di `registry.test.ts` |
+| **P3 Anti-leak** ✅ | Scorrimento dello stato | Nessuno strato segreto nella TV e nel pilota prima di `level-end`; ogni navigatore solo i propri strati; mai gli strati di un'altra squadra |
+| **P4 Viste** ✅ | TV a 1–4 corsie, croce del pilota, mappa del navigatore; scene `/preview` (`pc-*`) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640; 4 corsie 15×15 leggibili sulla TV; porte del navigatore che cambiano stato nel tempo (orologio di prova) |
+| **P5 End-to-end** ✅ | Due squadre: un pilota calpesta una mina, uno urta una porta chiusa, uno arriva; `level-end` | **Frame WebSocket**: nessuno strato segreto al pilota e alla TV; server pulito alla fine |
+| **P6 Bot, documenti, pacchetto** ✅ | Bot pilota che segue le indicazioni simulate (conosce gli strati dalla vista dei navigatori bot) con errori casuali; guida `docs/PILOTA-CIECO.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md` | `pnpm stress --players 30 --scenario pilota` (4 squadre «insieme»): tempi di aggiornamento con 4 piloti a raffica, **annotati nella guida** perché servono a dimensionare il raggruppamento degli invii di Plancia di Comando (P0 di quel piano); `pnpm test`, `pnpm test:e2e`, pacchetto |
+
+### Scostamenti decisi in P1–P6
+
+- **Equità tra le squadre**: i percorsi si cercano entro il **4%** di una lunghezza di riferimento (la **mediana** di alcuni livelli di prova),
+  non entro il 10% della prima squadra: così nessuna si discosta più del 10% dalla media (il test lo verifica su 2000 prove).
+  Un livello lunghissimo o cortissimo non può farsi inseguire dagli altri.
+- **Mine**: al massimo il 20% delle caselle (con la crescita per livello si superava e mancavano caselle libere).
+- **Generatore**: dimensioni 9/11/13 (+2 a livello, tetto 13 in «insieme» e 15 «a turno»); l'uscita è tra le 3 caselle più lontane dall'ingresso;
+  le chiavi sono a metà strada; i punti di controllo a un terzo e due terzi del percorso; la prima porta è sul percorso.
+- **«A turno» e «insieme» con più di 4 squadre** condividono lo stesso meccanismo: una **gara** (unità) è un insieme di corsie che corrono
+  insieme (tutte, fino a 4, oppure una); un livello è una sequenza di gare. I punti si assegnano quando tutte le gare del livello
+  sono fatte (l'ordine di arrivo è per tempo, anche fra gare successive).
+- **Pausa** anche in gara: alla ripresa si sposta di altrettanto `levelStartedAt` e i tempi delle corsie (blocchi, ultimo passo, arrivi),
+  così porte e pattuglie non saltano.
+- **Pattuglie** valutate a ogni tick sul pilota fermo (oltre che a ogni passo): una pattuglia che gli arriva addosso conta come una mina.
+- **Croce del pilota**: tenendo premuta una freccia il passo si ripete a ogni `stepMs` (più comodo di toccare a raffica).
+- **`ping` dei navigatori** (facoltativo nel piano): non implementato.
+- **Il generatore comune `maze.ts`** è quello creato per Artificieri; qui si aggiungono i cicli (`loops`) e le funzioni di strada che resta.
+- **Bot**: il pilota simulato legge mine e porte dalla vista della regia automatica, aspetta blocchi e porte con il tempo di riflessione (che
+  deve comprendere `stepMs`: un passo troppo presto è rifiutato in silenzio e il bot resterebbe fermo), e sbaglia il 5% dei passi.
 
 ## 8. Rischi residui
 

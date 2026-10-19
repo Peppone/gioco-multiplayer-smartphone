@@ -21,13 +21,16 @@ export interface BotStats {
   disconnects: number;
   /** Viste che contenevano ciò che questo telefono non dovrebbe vedere (vedi `privacyProblem`). */
   leaks: string[];
+  /** Dopo ogni invio: ms fino al primo stato ricevuto sul socket (solo server e rete, senza la latenza simulata in arrivo). */
+  inputToState: number[];
 }
 
 const between = (r: () => number, [lo, hi]: [number, number]) => lo + r() * (hi - lo);
 
 /** Un telefono simulato: entra con un profilo, sincronizza l'orologio, e gioca seguendo le viste che riceve. */
 export class Bot {
-  readonly stats: BotStats = { states: 0, inputs: 0, errors: [], disconnects: 0, leaks: [] };
+  readonly stats: BotStats = { states: 0, inputs: 0, errors: [], disconnects: 0, leaks: [], inputToState: [] };
+  private pendingEmitAt: number | null = null;
   playerId = "";
   token = "";
   state: GamePlayerState | null = null;
@@ -84,6 +87,12 @@ export class Bot {
     // Anche i messaggi in arrivo subiscono la latenza simulata, ma restano in ordine: un collegamento vero non li scambia.
     this.socket.on(ServerEvent.GamePlayer, (s: GamePlayerState) => {
       this.lastRawAt = Date.now();
+      if (this.pendingEmitAt !== null) {
+        // un input rifiutato (troppo presto, durante un blocco) non produce uno stato: solo i primi secondi contano
+        const dt = this.lastRawAt - this.pendingEmitAt;
+        if (dt < 3_000) this.stats.inputToState.push(dt);
+        this.pendingEmitAt = null;
+      }
       const at = Math.max(Date.now() + this.oneWay(), this.lastDeliveryAt);
       this.lastDeliveryAt = at;
       this.inbox.push({ at, s });
@@ -141,6 +150,7 @@ export class Bot {
       for (const input of d.inputs) {
         delay += this.oneWay();
         this.later(() => {
+          this.pendingEmitAt = Date.now();
           this.socket.emit(ClientEvent.GameInput, { input, clientTime: claimedTime });
           this.stats.inputs++;
         }, delay);

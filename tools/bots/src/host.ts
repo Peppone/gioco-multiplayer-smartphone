@@ -16,7 +16,7 @@ export interface MatchRun {
 /** Quanto ci mette lo stato nuovo ad arrivare a tutti i telefoni dopo un comando della regia (ms). */
 export const fanout: number[] = [];
 
-const PRIORITY = ["correct", "open", "start", "deal", "resume", "next", "continue", "end", "pick:0"];
+const PRIORITY = ["correct", "open", "start", "go", "deal", "resume", "next", "continue", "end", "pick:0"];
 
 /** Una regia automatica: conduce una partita intera cliccando i pulsanti giusti al momento giusto. */
 export class AutoHost {
@@ -37,6 +37,7 @@ export class AutoHost {
       this.state = s;
       // La regia vede tutto: l'artificiere simulato di Artificieri legge da qui le soluzioni.
       if (s.frame?.typeId === "artificieri") oracle.artificieri = s.host?.info ?? null;
+      if (s.frame?.typeId === "pilota-cieco") oracle.pilota = s.host?.info ?? null;
       this.version++;
       this.waiters.splice(0).forEach((w) => w());
     });

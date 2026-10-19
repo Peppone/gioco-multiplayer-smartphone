@@ -8,6 +8,7 @@ import { ReazioneController, ReazioneScreen } from "./reazione-a-catena/Reazione
 import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
 import { AgentiController, AgentiScreen } from "./agenti-segreti/AgentiViews";
 import { ArtificieriController, ArtificieriScreen } from "./artificieri/ArtificieriViews";
+import { PilotaController, PilotaScreen } from "./pilota-cieco/PilotaViews";
 import { OndaController, OndaScreen } from "./lunghezza-onda/OndaViews";
 import { ParoleController, ParoleScreen } from "./parole-mannare/ParoleViews";
 import { BottoController, BottoScreen } from "./stanze-col-botto/BottoViews";
@@ -66,6 +67,11 @@ export const minigameViews: Record<string, MinigameViews> = {
     Screen: ArtificieriScreen,
     Controller: ArtificieriController,
     Host: lazy(() => import("./artificieri/ArtificieriHost").then((m) => ({ default: m.ArtificieriHost }))),
+  },
+  "pilota-cieco": {
+    Screen: PilotaScreen,
+    Controller: PilotaController,
+    Host: lazy(() => import("./pilota-cieco/PilotaHost").then((m) => ({ default: m.PilotaHost }))),
   },
   "stanze-col-botto": {
     Screen: BottoScreen,

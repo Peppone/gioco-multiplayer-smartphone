@@ -177,3 +177,26 @@ export async function artificieriMatch(api: AdminApi, setup: EventSetup, playerI
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id, teams };
 }
+
+/**
+ * Partita con il solo round «Pilota alla cieca»: i giocatori vengono ridistribuiti in 4 squadre (o meno, con pochi
+ * giocatori) che corrono insieme sulla TV, con livelli brevi.
+ */
+export async function pilotaMatch(api: AdminApi, setup: EventSetup, playerIds: string[]): Promise<{ matchId: string; teams: number; levels: number }> {
+  const stamp = Date.now().toString(36);
+  const teams = playerIds.length < 4 ? 1 : Math.min(4, Math.max(2, Math.floor(playerIds.length / 3)));
+  const colors = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b"];
+  const teamIds: string[] = [];
+  for (let i = 0; i < teams; i++) teamIds.push((await api.post("/teams", { name: `Squadra ${i + 1} ${stamp}`, color: colors[i % colors.length], emblem: "🧭" })).id);
+  await api.put(`/events/${setup.eventId}/teams`, { teamIds });
+  for (const [i, id] of playerIds.entries()) await api.put(`/events/${setup.eventId}/players/${id}`, { teamId: teamIds[i % teams] });
+  const levels = 2;
+  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Pilota alla cieca" });
+  const inst = await api.post("/instances", {
+    typeId: "pilota-cieco",
+    title: "Labirinti di prova",
+    config: { mode: "insieme", levels, size: "piccolo", mineDensity: 8, doors: 3, keys: 1, patrols: true, levelSeconds: 90, stepMs: 300, penaltyMs: 1500 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id, teams, levels };
+}

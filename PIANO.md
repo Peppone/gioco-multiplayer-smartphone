@@ -322,10 +322,18 @@ Ispirato a *Keep Talking and Nobody Explodes*: una squadra alla volta, l'**artif
 - **Regole in app**: bottone «ℹ️ Regole» del telefono, testo in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
 - **Test**: unit (generatori su migliaia di semi, plugin, anti-leak, `maze.test.ts`), anteprima Playwright (`art-*` nei 5 temi), e2e di partite complete e stress (`pnpm stress --players 30 --scenario artificieri`, con artificieri simulati che leggono le soluzioni dalla vista della regia).
 
-### 🧩 Prossimi minigiochi (pianificati, da implementare in quest'ordine)
-Due giochi a squadre con **informazioni divise** tra TV e telefoni, dopo Artificieri: chi agisce non sa, chi sa non agisce, e l'unico canale è la voce. Le decisioni sono confermate con l'utente; i dettagli sono nei piani.
+### 🧭 Pilota alla cieca (`pilota-cieco`, tema `pixel`): labirinto a squadre con informazioni divise
+Una gara in cui **chi guida non vede i pericoli** e **chi vede i pericoli non guida**: il **pilota** guarda la TV e muove la pedina con la croce, ogni **navigatore** vede sul telefono un solo strato (mine, porte, chiavi, pattuglie). Fino a 4 squadre in contemporanea (TV divisa in corsie) o a turno; da 2 a 30 giocatori (`minPlayers: 2`). Regole, decisioni e piano in [docs/PIANO-PILOTA-CIECO.md](docs/PIANO-PILOTA-CIECO.md); guida in [docs/PILOTA-CIECO.md](docs/PILOTA-CIECO.md).
+- **Labirinti diversi ma equivalenti** per squadra (stesse quantità di pericoli, percorso più breve entro il 10% della media), generati dal seme sopra il generatore comune `maze.ts`; mine mai sul percorso più breve, quindi ogni livello si può vincere.
+- **Porte e pattuglie sono funzioni pure del tempo** (`packages/shared/src/timeline.ts`): il server le usa per giudicare i passi, i telefoni dei navigatori per mostrarle, senza traffico. I passi si giudicano all'**ora equa** (`fairTime`).
+- **Privacy**: la TV e il pilota non ricevono mai gli strati nella gara, un navigatore solo i propri (e della propria corsia); a fine gara (`level-end`) si scopre tutto di proposito. Coperto da `pilota-leak.test.ts`, e2e sui frame WebSocket e stress.
+- **Regole in app**: bottone «ℹ️ Regole» del telefono, testo in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
+- **Misure dello stress** (30 telefoni, 4 piloti a raffica): ~31 invii per passo, stato dopo un passo in mediana 3 ms e p95 4 ms; annotate in [docs/PILOTA-CIECO.md](docs/PILOTA-CIECO.md) per dimensionare il primo passo di Plancia di Comando.
+- **Test**: unit (generatore su migliaia di semi, equità, movimento, plugin, anti-leak), anteprima Playwright (`pc-*` nei 5 temi), e2e di partite con mina, porta e arrivo, e stress (`pnpm stress --players 30 --scenario pilota`).
 
-2. **🧭 Pilota alla cieca** (`pilota-cieco`, tema `pixel`): fino a 4 squadre in gara sulla TV divisa in corsie; il pilota muove la pedina, ogni navigatore vede sul telefono un solo strato di pericoli (mine, porte, chiave, pattuglie). Labirinti **diversi ma equivalenti** per squadra; porte e pattuglie funzioni pure del tempo, calcolate anche dai telefoni. Riusa il generatore di labirinti di Artificieri. Piano in [docs/PIANO-PILOTA-CIECO.md](docs/PIANO-PILOTA-CIECO.md).
+### 🧩 Prossimo minigioco (pianificato)
+Un ultimo gioco a squadre con **informazioni divise** tra i telefoni, dopo Artificieri e Pilota alla cieca. Le decisioni sono confermate con l'utente; i dettagli sono nel piano.
+
 3. **🚀 Plancia di Comando** (`plancia-comando`, tema `retro80`), in stile *Spaceteam*: ogni telefono è un pannello di comandi dai nomi assurdi e gli ordini arrivano ai compagni, che devono gridarli. **Primo passo obbligatorio**: raggruppare gli invii delle viste in `realtime.ts` e non rimandare viste identiche (oggi ogni cambio di stato rimanda tutte le viste a tutti), tarato con le misure dello stress di Pilota alla cieca. Piano in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md).
 
 ---
@@ -381,7 +389,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | Extra: Agenti Segreti | ✅ (da provare con persone) | Parole e indizi a squadre (4–30 giocatori) con mappa segreta ai Capi-spia, indizio controllato dal server, voto di squadra dal telefono e regia cieca; guida `docs/AGENTI-SEGRETI.md` |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 | Extra: Artificieri | ✅ (da provare con persone) | Disinnesco a squadre con informazioni divise (2–30 giocatori), 6 moduli, manuale diviso tra gli esperti, scommesse; tema `boom`; guida `docs/ARTIFICIERI.md` |
-| Extra: Pilota alla cieca | 📝 pianificato (2° di 3) | Piano `docs/PIANO-PILOTA-CIECO.md` |
+| Extra: Pilota alla cieca | ✅ (da provare con persone) | Gara a squadre in labirinto con strati di informazioni divisi tra i navigatori (2–30 giocatori), corsie in contemporanea o a turno; tema `pixel`; guida `docs/PILOTA-CIECO.md` |
 | Extra: Plancia di Comando | 📝 pianificato (3° di 3) | Piano `docs/PIANO-PLANCIA-COMANDO.md`; prima il raggruppamento degli invii in `realtime.ts` |
 
 **Scostamenti dal piano originale (concordati)**

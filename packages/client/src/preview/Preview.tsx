@@ -6,6 +6,7 @@ import { BOTTO_SCENES, type BottoSceneId, bottoScene } from "../minigames/stanze
 import { ONDA_SCENES, type OndaSceneId, ondaScene } from "../minigames/lunghezza-onda/previewData";
 import { AGENTI_SCENES, type AgentiSceneId, agentiScene } from "../minigames/agenti-segreti/previewData";
 import { ARTIFICIERI_SCENES, type ArtificieriSceneId, artificieriScene } from "../minigames/artificieri/previewData";
+import { PILOTA_SCENES, type PilotaSceneId, pilotaScene } from "../minigames/pilota-cieco/previewData";
 import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
 import { Leaderboard } from "../ui/Leaderboard";
@@ -73,6 +74,7 @@ type Scene =
   | OndaSceneId
   | AgentiSceneId
   | ArtificieriSceneId
+  | PilotaSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -106,6 +108,7 @@ const SCENES: { id: Scene; label: string }[] = [
   ...ONDA_SCENES,
   ...AGENTI_SCENES,
   ...ARTIFICIERI_SCENES,
+  ...PILOTA_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -288,6 +291,16 @@ function sceneViews(scene: Scene, now: number) {
     case "art-defused":
     case "art-final":
       return artificieriScene(scene, now);
+    case "pc-ready":
+    case "pc-run":
+    case "pc-nav":
+    case "pc-nav-doors":
+    case "pc-frozen":
+    case "pc-level-end":
+    case "pc-turn":
+    case "pc-watch":
+    case "pc-final":
+      return pilotaScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }

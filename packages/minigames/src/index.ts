@@ -7,6 +7,7 @@ import { indovinaCanzone } from "./indovina-canzone/index.js";
 import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.js";
 import { lunghezzaOnda } from "./lunghezza-onda/index.js";
 import { paroleMannare } from "./parole-mannare/index.js";
+import { pilotaCieco } from "./pilota-cieco/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
 import { reazioneACatena } from "./reazione-a-catena/index.js";
 import { stanzeColBotto } from "./stanze-col-botto/index.js";
@@ -20,7 +21,7 @@ import { zombieHunt } from "./zombie-hunt/index.js";
 import { wordListSchema } from "./word-list.js";
 
 export { normalizeWord } from "./agenti-segreti/clue.js";
-export { agentiSegreti, artificieri, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
+export { agentiSegreti, artificieri, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, pilotaCieco, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -54,6 +55,7 @@ export const minigames: Record<string, AnyMinigame> = {
   [lunghezzaOnda.id]: lunghezzaOnda,
   [agentiSegreti.id]: agentiSegreti,
   [artificieri.id]: artificieri,
+  [pilotaCieco.id]: pilotaCieco,
 };
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */

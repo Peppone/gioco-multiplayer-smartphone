@@ -1,3 +1,4 @@
+import { doorOpen } from "@gioco/shared";
 /**
  * Cosa fa un bot in ogni minigioco: guarda la vista che il server gli ha mandato e decide gli input da inviare.
  * Restituisce una `key` che identifica la situazione (domanda, fase, battaglia…): il bot agisce una volta per key.
@@ -13,7 +14,10 @@ export interface Decision {
  * Vista della regia di Artificieri, aggiornata dalla regia automatica: l'artificiere simulato «legge il manuale» da qui
  * (soluzioni e piani dei moduli), come farebbero gli esperti. I telefoni veri non l'hanno mai: è solo del simulatore.
  */
-export const oracle: { artificieri: any | null } = { artificieri: null };
+export const oracle: { artificieri: any | null; pilota: any | null } = { artificieri: null, pilota: null };
+
+/** Ora server usata dai bot che aspettano porte e blocchi (ms): quella vera, tranne nei test che simulano il tempo. */
+export const clock: { now: () => number } = { now: () => Date.now() };
 
 export type Rnd = () => number;
 
@@ -92,6 +96,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
 
     case "artificieri":
       return decideArtificieri(v, rnd);
+
+    case "pilota-cieco":
+      return decidePilota(v, rnd);
 
     case "lunghezza-onda":
       return decideOnda(v, rnd);
@@ -304,6 +311,7 @@ export function privacyProblem(typeId: string, view: unknown): string | null {
     return null;
   }
   if (typeId === "artificieri") return artificieriPrivacy(v);
+  if (typeId === "pilota-cieco") return pilotaPrivacy(v);
   if (typeId !== "agenti-segreti") return null;
   const over = v.phase === "reveal" || v.phase === "done";
   if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
@@ -311,11 +319,92 @@ export function privacyProblem(typeId: string, view: unknown): string | null {
   return null;
 }
 
+/** Probabilità che il pilota simulato faccia un passo a caso invece di seguire il percorso. */
+export const PILOTA_ERROR_RATE = 0.05;
+
+const PILOT_DIRS = [
+  { dir: "up", bit: 1, delta: (w: number) => -w },
+  { dir: "right", bit: 2, delta: () => 1 },
+  { dir: "down", bit: 4, delta: (w: number) => w },
+  { dir: "left", bit: 8, delta: () => -1 },
+] as const;
+
+/** Percorso più breve tra due celle (indici), evitando alcune caselle; `null` se non c'è. */
+function pilotPath(cells: number[], w: number, from: number, to: number, avoid: number[]): number[] | null {
+  const prev = new Map<number, number>([[from, -1]]);
+  const queue = [from];
+  for (let q = 0; q < queue.length && !prev.has(to); q++) {
+    const i = queue[q]!;
+    for (const d of PILOT_DIRS) {
+      const j = i + d.delta(w);
+      if ((cells[i]! & d.bit) === 0 || prev.has(j) || (avoid.includes(j) && j !== to)) continue;
+      prev.set(j, i);
+      queue.push(j);
+    }
+  }
+  if (!prev.has(to)) return null;
+  const out = [to];
+  while (out[0] !== from) out.unshift(prev.get(out[0]!)!);
+  return out;
+}
+
+/**
+ * Pilota alla cieca: il pilota simulato legge dalla regia automatica dove sono mine e porte (nessun bot sa «dirsele» a
+ * voce) e fa un passo per volta lungo il percorso verso la chiave e poi l'uscita, aspettando i blocchi e le porte chiuse
+ * con il tempo di riflessione; ogni tanto fa un passo a caso. Navigatori e spettatori non fanno nulla.
+ */
+function decidePilota(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me || me.role !== "pilot" || v.phase !== "run") return null;
+  const info = oracle.pilota;
+  const lane = info?.lanes.find((l: View) => l.teamId === me.teamId);
+  const sec = info?.secrets.find((s: View) => s.teamId === me.teamId);
+  if (!lane || !sec || lane.finishedAt !== null || info.levelStartedAt === null) return null;
+  const now = clock.now();
+  const target = sec.keys.find((k: number) => !lane.keysTaken.includes(k)) ?? lane.exit;
+  const path = pilotPath(lane.cells, lane.w, lane.pos, target, sec.mines);
+  if (!path || path.length < 2) return null;
+  const next = path[1]!;
+  // tra un passo e l'altro passano almeno `stepMs`: un passo più presto sarebbe rifiutato in silenzio e il bot resterebbe fermo
+  let wait = Math.max(v.settings.stepMs, lane.frozenUntil - now);
+  const door = sec.doors.find((d: View) => d.cell === next);
+  if (door) {
+    // aspetta il primo istante in cui la porta è aperta e lo resta per un po'
+    const elapsed = (t: number) => t - info.levelStartedAt;
+    let dt = 0;
+    while (dt < 10_000 && !(doorOpen(door, elapsed(now + Math.max(wait, dt))) && doorOpen(door, elapsed(now + Math.max(wait, dt) + 600)))) dt += 50;
+    wait = Math.max(wait, dt);
+  }
+  const key = `pc-${v.level}-${v.unit}-${lane.pos}-${lane.strikes}-${lane.frozenUntil}-${lane.keys.taken}`;
+  const open = PILOT_DIRS.filter((d) => (lane.cells[lane.pos] & d.bit) !== 0);
+  const dir = rnd() < PILOTA_ERROR_RATE && open.length > 0 ? pick([...open], rnd).dir : PILOT_DIRS.find((d) => lane.pos + d.delta(lane.w) === next)!.dir;
+  return { key, inputs: [{ type: "move", dir }], thinkMs: [wait + 40, wait + 160] };
+}
+
 /** Chiavi, a qualunque profondità. */
 function deepKeys(x: unknown, acc = new Set<string>()): Set<string> {
   if (Array.isArray(x)) x.forEach((y) => deepKeys(y, acc));
   else if (x && typeof x === "object") for (const [k, y] of Object.entries(x)) (acc.add(k), deepKeys(y, acc));
   return acc;
+}
+
+/**
+ * Pilota alla cieca: nessun telefono riceve i segreti delle corsie (`secrets`); gli strati (`layerData`) solo i navigatori,
+ * solo i propri; a fine gara (`level-end`) si scopre tutto, di proposito (`reveal`), prima mai.
+ */
+function pilotaPrivacy(v: View): string | null {
+  const keys = deepKeys(v);
+  if (keys.has("secrets")) return "segreti sul telefono";
+  if (keys.has("reveal") && v.phase !== "level-end") return `strati scoperti in ${v.phase}`;
+  const me = v.me;
+  if (!me) return null;
+  if ("layerData" in me) {
+    if (me.role !== "navigator") return `strati a un ${me.role}`;
+    const owned = [...me.layers].sort().join(",");
+    const given = Object.keys(me.layerData).sort().join(",");
+    if (owned !== given) return `strati diversi dai propri (${given} contro ${owned})`;
+  }
+  return null;
 }
 
 /**

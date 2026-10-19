@@ -29,20 +29,22 @@ const RANDOM_TEAM_MAX = 5;
  * Squadre del round: i team della serata che hanno giocatori (per nome); i giocatori senza team non giocano
  * la bomba, ma possono scommettere. Se nessun team ha giocatori, l'app li divide a caso in squadre da 3–5.
  */
-export function formTeams(players: ParticipantInfo[], teams: TeamInfo[], rng: () => number): TeamEntry[] {
+export function formTeams(players: ParticipantInfo[], teams: TeamInfo[], rng: () => number, groupCount: (n: number) => number = defaultGroupCount): TeamEntry[] {
   const withPlayers = teams
     .filter((t) => players.some((p) => p.teamId === t.id))
     .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
   const groups =
     withPlayers.length > 0
       ? withPlayers.map((t, i) => ({ id: t.id, name: t.name, color: t.color ?? PALETTE[i % PALETTE.length]!, members: players.filter((p) => p.teamId === t.id).map((p) => p.id) }))
-      : randomGroups(players.map((p) => p.id), rng);
+      : randomGroups(players.map((p) => p.id), rng, groupCount);
   return groups.map((g) => ({ ...g, order: shuffle(g.members, rng) }));
 }
 
-function randomGroups(ids: string[], rng: () => number): { id: string; name: string; color: string; members: string[] }[] {
+const defaultGroupCount = (n: number) => Math.max(1, Math.ceil(n / RANDOM_TEAM_MAX));
+
+function randomGroups(ids: string[], rng: () => number, groupCount: (n: number) => number): { id: string; name: string; color: string; members: string[] }[] {
   if (ids.length === 0) return [];
-  const count = Math.max(1, Math.ceil(ids.length / RANDOM_TEAM_MAX));
+  const count = groupCount(ids.length);
   const mixed = shuffle(ids, rng);
   return Array.from({ length: count }, (_, i) => ({
     id: `squadra-${i + 1}`,

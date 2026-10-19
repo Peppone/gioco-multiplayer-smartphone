@@ -1,0 +1,76 @@
+/* Pilota alla cieca: schermo condiviso, telefono e regia. Colori e font dal tema; il colore di ogni squadra viene dalla vista (--pc-team). */
+
+.pc-screen, .pc-ctrl, .pc-host { display: grid; gap: .6rem; align-content: start; grid-template-columns: minmax(0, 1fr); }
+.pc-screen { text-align: center; justify-items: center; }
+.pc-screen > * { max-width: 100%; }
+.pc-timer { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 1.1rem; }
+.pc-timer[data-paused] { opacity: .65; }
+.pc-screen .pc-timer { font-size: 2.6rem; }
+.pc-topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; flex-wrap: wrap; font-size: 1.5rem; font-weight: 800; }
+.pc-screen .big { margin: 0; }
+
+/* ---- Le corsie sulla TV ---- */
+.pc-lanes { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: .8rem; width: 100%; justify-items: center; }
+.pc-lane { display: grid; gap: .3rem; width: 100%; min-width: 0; padding: .4rem .5rem .5rem; border-radius: var(--radius); background: var(--panel); border: var(--border-w, 2px) solid var(--pc-team); }
+.pc-lane h3 { margin: 0; font-size: 1.2rem; }
+.pc-lane h3 small { font-weight: 600; opacity: .85; }
+.pc-lane footer { display: flex; justify-content: center; gap: 1rem; font-size: 1.1rem; font-weight: 700; }
+.pc-lane[data-finished] { box-shadow: 0 0 0 4px var(--good); }
+.pc-lanes[style*="--n: 1"] .pc-lane { max-width: 36rem; }
+.pc-lanes[style*="--n: 1"] .pc-map { max-height: 32rem; }
+
+.pc-map { display: block; width: 100%; height: auto; max-height: 24rem; margin: 0 auto; }
+.pc-floor { fill: var(--panel-2); }
+.pc-walls line { stroke: var(--fg); stroke-width: .13; stroke-linecap: round; }
+.pc-start { fill: var(--good); }
+.pc-exit line { stroke: var(--accent); stroke-width: .08; }
+.pc-exit path { fill: var(--accent); stroke: var(--accent); stroke-width: .04; stroke-linejoin: round; }
+.pc-checkpoint { fill: none; stroke: var(--accent); stroke-width: .07; }
+.pc-door rect { fill: color-mix(in srgb, var(--accent) 30%, transparent); stroke: var(--accent); stroke-width: .07; }
+.pc-door text { fill: var(--fg); font: 800 .5px var(--font); text-anchor: middle; }
+.pc-door[data-open="true"] rect { fill: color-mix(in srgb, var(--good) 45%, transparent); stroke: var(--good); }
+.pc-door[data-open="false"] rect { fill: color-mix(in srgb, var(--bad) 55%, transparent); stroke: var(--bad); }
+.pc-key circle { fill: var(--accent); }
+.pc-key path { fill: none; stroke: var(--accent); stroke-width: .07; stroke-linecap: round; }
+.pc-key-taken { fill: var(--good); font: 900 .6px var(--font); text-anchor: middle; }
+.pc-mine circle { fill: var(--bad); opacity: .85; }
+.pc-mine path { stroke: var(--fg); stroke-width: .07; stroke-linecap: round; }
+.pc-mine[data-known] circle { opacity: 1; stroke: var(--accent); stroke-width: .08; }
+.pc-patrol polyline { fill: none; stroke: var(--bad); stroke-width: .06; stroke-dasharray: .12 .1; opacity: .8; }
+.pc-patrol rect { fill: var(--bad); stroke: var(--fg); stroke-width: .06; }
+.pc-pilot circle:first-child { fill: var(--pc-team); stroke: var(--fg); stroke-width: .07; }
+.pc-pilot-eye { fill: var(--fg); }
+.pc-pilot[data-frozen] circle:first-child { stroke-dasharray: .14 .09; opacity: .7; }
+.pc-map[data-hidden] { filter: blur(.6rem); }
+
+.pc-results { border-collapse: collapse; font-size: 1.4rem; margin: 0 auto; }
+.pc-results th, .pc-results td { padding: .2rem .9rem; text-align: left; }
+.pc-results tr[data-finished] { font-weight: 800; }
+.pc-final ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; min-width: 22rem; }
+.pc-final li { display: flex; gap: 1.5rem; align-items: center; justify-content: space-between; padding: .5rem 1rem; border-radius: var(--radius); background: var(--panel); border-left: .6rem solid var(--pc-team); font-size: 1.5rem; }
+
+/* ---- Telefono ---- */
+.pc-ctrl { gap: .45rem; text-align: left; }
+.pc-head { display: flex; flex-wrap: wrap; gap: .2rem .5rem; align-items: center; justify-content: space-between; font-size: .85rem; }
+.pc-tag { display: inline-block; padding: 0 .45rem; border-radius: var(--radius); background: var(--pc-team); color: var(--on-opt, #fff); }
+.pc-hide { padding: .25rem .5rem; font-size: .8rem; }
+.pc-status, .pc-legend, .pc-stats, .pc-ctrl p { margin: 0; }
+.pc-status { font-weight: 700; }
+.pc-legend { font-size: .9rem; }
+.pc-stats { display: flex; gap: 1rem; font-weight: 800; }
+.pc-ctrl .pc-map { max-height: 22rem; }
+.pc-dpad { display: grid; grid-template: "x up y" 1fr "left z right" 1fr "w down v" 1fr / 1fr 1fr 1fr; gap: .4rem; }
+.pc-dpad button { min-height: 4.4rem; font-size: 2.2rem; font-weight: 900; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.pc-ctrl .pc-final ol { min-width: 0; }
+.pc-ctrl .pc-final li { font-size: 1rem; padding: .3rem .6rem; }
+.pc-ctrl .pc-final h2 { font-size: 1.2rem; }
+
+[data-theme="pixel"] .pc-ctrl { font-size: .7rem; }
+[data-theme="pixel"] .pc-head, [data-theme="pixel"] .pc-legend, [data-theme="pixel"] .pc-hide { font-size: .55rem; }
+[data-theme="pixel"] .pc-ctrl .pc-final li { font-size: .6rem; }
+
+/* ---- Regia ---- */
+.pc-host-lanes { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .6rem; }
+.pc-host-lane { padding: .4rem .6rem; border-radius: var(--radius); border: 2px solid var(--pc-team); }
+.pc-host-lane h4 { margin: 0 0 .2rem; }
+.pc-host-lane ul { margin: .2rem 0 0; padding-left: 1.1rem; }
