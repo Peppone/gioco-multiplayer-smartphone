@@ -1,0 +1,234 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`manuale > il manuale di un seme fisso non cambia (istantanea) 1`] = `
+[
+  {
+    "blocks": [
+      {
+        "text": "Sul bordo della bomba, che si vede solo sulla TV, ci sono quattro informazioni che molte regole usano. Chi è davanti alla TV deve leggervele: chiedetele ogni volta che una regola le nomina.",
+        "type": "p",
+      },
+      {
+        "items": [
+          "Numero di serie: 6 caratteri. Le vocali che possono comparire sono A, E, U. L'ultimo carattere è sempre una cifra, ed è l'«ultima cifra».",
+          "Batterie: da 0 a 4, disegnate come pile.",
+          "Spie: sigle di tre lettere (FRK, CAR, SND, CLR, TRN), ognuna accesa o spenta. Quelle che non ci sono sul bordo non contano.",
+          "Porte: RJ-45, USB, VGA, SERIALE. Possono mancare tutte.",
+        ],
+        "ordered": false,
+        "type": "list",
+      },
+    ],
+    "id": 0,
+    "title": "Il bordo della bomba",
+  },
+  {
+    "blocks": [
+      {
+        "text": "I fili si contano dall'alto verso il basso. Si legge l'elenco in ordine e si segue la prima regola vera.",
+        "type": "p",
+      },
+      {
+        "text": "Con 3 fili",
+        "type": "h",
+      },
+      {
+        "items": [
+          "Se ci sono esattamente 2 fili blu: taglia l'ultimo filo blu.",
+          "Se ci sono almeno 3 fili blu e c'è una porta USB: taglia il primo filo blu.",
+          "Se c'è esattamente un filo giallo: taglia il primo filo.",
+          "Altrimenti: taglia il primo filo.",
+        ],
+        "ordered": false,
+        "type": "list",
+      },
+      {
+        "text": "Con 4 fili",
+        "type": "h",
+      },
+      {
+        "items": [
+          "Se c'è la spia CLR accesa: taglia il secondo filo.",
+          "Se l'ultimo filo è nero: taglia l'ultimo filo nero.",
+          "Se non ci sono fili blu: taglia l'ultimo filo.",
+          "Altrimenti: taglia l'ultimo filo.",
+        ],
+        "ordered": false,
+        "type": "list",
+      },
+    ],
+    "id": 1,
+    "title": "Fili (3 e 4 fili)",
+  },
+  {
+    "blocks": [
+      {
+        "text": "Con 5 fili",
+        "type": "h",
+      },
+      {
+        "items": [
+          "Se non ci sono fili bianchi: taglia il terzo filo.",
+          "Se non ci sono fili gialli: taglia il primo filo.",
+          "Se ci sono al massimo 2 batterie: taglia il quarto filo.",
+          "Altrimenti: taglia il primo filo.",
+        ],
+        "ordered": false,
+        "type": "list",
+      },
+    ],
+    "id": 2,
+    "title": "Fili (5 fili)",
+  },
+  {
+    "blocks": [
+      {
+        "text": "Si legge l'elenco in ordine e si segue la prima regola vera.",
+        "type": "p",
+      },
+      {
+        "items": [
+          "Se il pulsante è giallo: premi e rilascia subito.",
+          "Se la scritta è «TIENI»: tieni premuto.",
+          "Se il pulsante è bianco e l'ultima cifra del numero di serie è dispari: tieni premuto.",
+          "Altrimenti: tieni premuto.",
+        ],
+        "ordered": false,
+        "type": "list",
+      },
+    ],
+    "id": 3,
+    "title": "Pulsante: premere o tenere",
+  },
+  {
+    "blocks": [
+      {
+        "text": "Se il pulsante va tenuto premuto, compare una striscia colorata. Rilascia quando l'ultima cifra dei secondi del timer è quella del colore della striscia (per esempio, con il timer a 03:47 la cifra è 7).",
+        "type": "p",
+      },
+      {
+        "head": [
+          "Striscia",
+          "Rilascia con la cifra",
+        ],
+        "rows": [
+          [
+            "blu",
+            "7",
+          ],
+          [
+            "bianco",
+            "3",
+          ],
+          [
+            "giallo",
+            "8",
+          ],
+          [
+            "rosso",
+            "6",
+          ],
+          [
+            "verde",
+            "5",
+          ],
+        ],
+        "type": "table",
+      },
+    ],
+    "id": 4,
+    "title": "Pulsante: la striscia",
+  },
+  {
+    "blocks": [
+      {
+        "text": "I simboli del modulo stanno tutti in una sola di queste colonne. Vanno premuti nell'ordine in cui compaiono nella colonna, dall'alto in basso.",
+        "type": "p",
+      },
+      {
+        "columns": [
+          [
+            "spada",
+            "cuore",
+            "tazza",
+            "esagono",
+            "zigzag",
+            "tridente",
+            "freccia",
+          ],
+          [
+            "fiamma",
+            "goccia",
+            "quadrato",
+            "foglia",
+            "triangolo",
+            "spada",
+            "sole",
+          ],
+          [
+            "stella",
+            "esagono",
+            "spirale",
+            "spada",
+            "croce",
+            "luna",
+            "sole",
+          ],
+          [
+            "spada",
+            "esagono",
+            "onda",
+            "fulmine",
+            "tazza",
+            "goccia",
+            "luna",
+          ],
+          [
+            "cuore",
+            "clessidra",
+            "occhio",
+            "campana",
+            "tridente",
+            "onda",
+            "scudo",
+          ],
+          [
+            "clessidra",
+            "scudo",
+            "fiamma",
+            "fulmine",
+            "freccia",
+            "onda",
+            "stella",
+          ],
+        ],
+        "type": "symbols",
+      },
+    ],
+    "id": 5,
+    "title": "Simboli",
+  },
+]
+`;
+
+exports[`manuale > il manuale di un seme fisso non cambia (istantanea) 2`] = `
+{
+  "batteries": 0,
+  "indicators": [
+    {
+      "label": "CAR",
+      "lit": true,
+    },
+    {
+      "label": "FRK",
+      "lit": false,
+    },
+  ],
+  "ports": [
+    "USB",
+    "SERIALE",
+    "VGA",
+  ],
+  "serial": "P4E9K7",
+}
+`;

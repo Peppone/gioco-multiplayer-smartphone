@@ -5,6 +5,7 @@ import { minigameViews } from "../minigames/registry";
 import { BOTTO_SCENES, type BottoSceneId, bottoScene } from "../minigames/stanze-col-botto/previewData";
 import { ONDA_SCENES, type OndaSceneId, ondaScene } from "../minigames/lunghezza-onda/previewData";
 import { AGENTI_SCENES, type AgentiSceneId, agentiScene } from "../minigames/agenti-segreti/previewData";
+import { ARTIFICIERI_SCENES, type ArtificieriSceneId, artificieriScene } from "../minigames/artificieri/previewData";
 import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
 import { Leaderboard } from "../ui/Leaderboard";
@@ -71,6 +72,7 @@ type Scene =
   | BottoSceneId
   | OndaSceneId
   | AgentiSceneId
+  | ArtificieriSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -103,6 +105,7 @@ const SCENES: { id: Scene; label: string }[] = [
   ...BOTTO_SCENES,
   ...ONDA_SCENES,
   ...AGENTI_SCENES,
+  ...ARTIFICIERI_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -271,6 +274,20 @@ function sceneViews(scene: Scene, now: number) {
     case "as-reveal":
     case "as-small":
       return agentiScene(scene, now);
+    case "art-bet":
+    case "art-briefing":
+    case "art-wires":
+    case "art-button":
+    case "art-symbols":
+    case "art-colors":
+    case "art-maze":
+    case "art-word":
+    case "art-manual":
+    case "art-watch":
+    case "art-exploded":
+    case "art-defused":
+    case "art-final":
+      return artificieriScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }

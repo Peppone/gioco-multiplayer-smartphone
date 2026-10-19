@@ -5,7 +5,15 @@
 export interface Decision {
   key: string;
   inputs: unknown[];
+  /** Tempo di «riflessione» di questa decisione (ms, min e max) al posto di quello del bot. */
+  thinkMs?: [number, number];
 }
+
+/**
+ * Vista della regia di Artificieri, aggiornata dalla regia automatica: l'artificiere simulato «legge il manuale» da qui
+ * (soluzioni e piani dei moduli), come farebbero gli esperti. I telefoni veri non l'hanno mai: è solo del simulatore.
+ */
+export const oracle: { artificieri: any | null } = { artificieri: null };
 
 export type Rnd = () => number;
 
@@ -81,6 +89,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
 
     case "agenti-segreti":
       return decideAgenti(v, rnd);
+
+    case "artificieri":
+      return decideArtificieri(v, rnd);
 
     case "lunghezza-onda":
       return decideOnda(v, rnd);
@@ -227,6 +238,55 @@ function decideOnda(v: View, rnd: Rnd): Decision | null {
   return null;
 }
 
+/** Probabilità che l'artificiere simulato sbagli un'azione (per provare errori, accelerazione ed esplosioni). */
+export const ARTIFICIERI_ERROR_RATE = 0.05;
+
+/**
+ * Artificieri: i bot delle altre squadre scommettono; l'artificiere preme «Inizia» e poi, un'azione alla volta, esegue il
+ * piano che la regia automatica vede per il primo modulo non risolto (con qualche errore a caso); gli esperti non fanno
+ * nulla (nessun bot sa leggere il manuale). La `key` contiene lo stato del modulo secondo la regia: si agisce una volta
+ * sola per passo, anche se arrivano più viste.
+ */
+function decideArtificieri(v: View, rnd: Rnd): Decision | null {
+  const me = v.me;
+  if (!me || !v.turn) return null;
+  const turn =`${v.turn.position}`;
+  if (me.role === "bettor") {
+    return v.phase === "bet" && me.canBet && me.myBet === null ? { key: `art-bet-${turn}`, inputs: [{ type: "bet", outcome: rnd() < 0.6 ? "defused" : "exploded" }] } : null;
+  }
+  if (me.role !== "defuser") return null;
+  if (v.phase === "briefing" && me.canStart) return { key: `art-start-${turn}`, inputs: [{ type: "start" }] };
+  if (v.phase !== "defuse") return null;
+  const bomb = oracle.artificieri?.bomb;
+  const m = bomb?.modules.find((x: View) => !x.solved);
+  if (!m?.plan) return null;
+  const fast: [number, number] = [40, 200];
+  const key = `art-${turn}-${m.id}-${bomb.strikes}-${JSON.stringify(m.progress)}`;
+  const next = m.plan.actions[0] as View;
+  if (rnd() < ARTIFICIERI_ERROR_RATE) {
+    const wrong = wrongArtificieri(m, next, rnd);
+    if (wrong) return { key, inputs: [{ ...wrong, module: m.id }], thinkMs: fast };
+  }
+  return { key, inputs: [{ ...next, module: m.id }], thinkMs: fast };
+}
+
+/** Un'azione sbagliata sul modulo (che costa un errore), oppure `null` se non se ne trova una facile. */
+function wrongArtificieri(m: View, next: View, rnd: Rnd): View | null {
+  if (m.kind === "wires") {
+    const cut = m.progress.cut as number[];
+    const wrong = [...m.data.wires.keys()].filter((i: number) => i !== next.wire && !cut.includes(i));
+    return wrong.length > 0 ? { type: "cut", wire: pick(wrong, rnd) } : null;
+  }
+  if (m.kind === "symbols") {
+    const pressed = m.progress.pressed as number[];
+    const wrong = [...m.data.symbols.keys()].filter((i: number) => i !== next.key && !pressed.includes(i));
+    return wrong.length > 0 ? { type: "press", key: pick(wrong, rnd) } : null;
+  }
+  if (m.kind === "colors") return { type: "press", key: (next.key + 1) % 4 };
+  if (m.kind === "word" && next.type !== "submit") return { type: "submit" };
+  return null;
+}
+
 /**
  * Controllo di privacy su ogni vista ricevuta da un telefono: il motivo se contiene ciò che quel telefono non dovrebbe
  * vedere, altrimenti `null`. Agenti Segreti: niente colori delle carte coperte prima della rivelazione, niente mappa a
@@ -243,10 +303,33 @@ export function privacyProblem(typeId: string, view: unknown): string | null {
     if (v.mode === "tutti" && v.teamDials !== null) return `posizioni altrui in ${v.phase}`;
     return null;
   }
+  if (typeId === "artificieri") return artificieriPrivacy(v);
   if (typeId !== "agenti-segreti") return null;
   const over = v.phase === "reveal" || v.phase === "done";
   if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
   if (v.me && v.me.role !== "spymaster" && "map" in v.me) return `mappa a un ${v.me.role}`;
+  return null;
+}
+
+/** Chiavi, a qualunque profondità. */
+function deepKeys(x: unknown, acc = new Set<string>()): Set<string> {
+  if (Array.isArray(x)) x.forEach((y) => deepKeys(y, acc));
+  else if (x && typeof x === "object") for (const [k, y] of Object.entries(x)) (acc.add(k), deepKeys(y, acc));
+  return acc;
+}
+
+/**
+ * Artificieri: nessun telefono riceve mai il bordo, i dati dei moduli, le regole, le soluzioni, le pagine altrui o le
+ * scommesse; il manuale solo gli esperti (e solo da briefing), i comandi solo l'artificiere (e solo in disinnesco).
+ */
+function artificieriPrivacy(v: View): string | null {
+  const keys = deepKeys(v);
+  for (const secret of ["edgework", "data", "rules", "solution", "plan", "pages", "lastStrike", "bomb", "bets", "target"]) if (keys.has(secret)) return `chiave «${secret}» sul telefono`;
+  const me = v.me;
+  if (!me) return null;
+  if ("manual" in me && (me.role !== "expert" || (v.phase !== "briefing" && v.phase !== "defuse" && me.manual.length > 0))) return `manuale a un ${me.role} in ${v.phase}`;
+  if ("controls" in me && (me.role !== "defuser" || v.phase !== "defuse")) return `comandi a un ${me.role} in ${v.phase}`;
+  if (me.role === "bettor" && v.phase === "bet" && v.turn && typeof v.turn.betsPlaced !== "number") return "scommesse non aggregate";
   return null;
 }
 

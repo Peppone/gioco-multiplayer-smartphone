@@ -151,3 +151,29 @@ export async function ondaMatch(api: AdminApi, eventId: string, mode: "tutti" | 
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };
 }
+
+/**
+ * Partita con il solo round «Artificieri»: i giocatori vengono ridistribuiti in squadre da 5 (come consiglia la guida:
+ * da 3 a 6), con scommesse e timer brevi. Niente pulsante da tenere premuto: i bot non sanno rilasciarlo a tempo.
+ */
+export async function artificieriMatch(api: AdminApi, setup: EventSetup, playerIds: string[]): Promise<{ matchId: string; teams: number }> {
+  const stamp = Date.now().toString(36);
+  const teams = Math.max(1, Math.ceil(playerIds.length / 5));
+  const colors = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#14b8a6", "#ec4899", "#6366f1"];
+  const teamIds: string[] = [];
+  for (let i = 0; i < teams; i++) teamIds.push((await api.post("/teams", { name: `Squadra ${i + 1} ${stamp}`, color: colors[i % colors.length], emblem: "💣" })).id);
+  await api.put(`/events/${setup.eventId}/teams`, { teamIds });
+  for (const [i, id] of playerIds.entries()) await api.put(`/events/${setup.eventId}/players/${id}`, { teamId: teamIds[i % teams] });
+
+  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Artificieri" });
+  const lists = await api.get<{ id: string; typeId: string; title: string }[]>("/instances");
+  const wordList = lists.find((i) => i.typeId === "word-list" && i.title === "Parole di Agenti Segreti")?.id;
+  if (!wordList) throw new Error("manca la lista «Parole di Agenti Segreti» nel database");
+  const inst = await api.post("/instances", {
+    typeId: "artificieri",
+    title: "Bombe di prova",
+    config: { difficulty: "media", modules: 4, seconds: 240, betSeconds: 10, wordList, enabledModules: { wires: true, button: false, symbols: true, colors: true, maze: true, word: true } },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id, teams };
+}

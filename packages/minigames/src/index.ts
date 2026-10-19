@@ -1,5 +1,6 @@
 import type { AnyMinigame } from "@gioco/shared";
 import { agentiSegreti } from "./agenti-segreti/index.js";
+import { artificieri } from "./artificieri/index.js";
 import { buzzer } from "./buzzer/index.js";
 import { ghostHunt } from "./caccia-fantasmi/index.js";
 import { indovinaCanzone } from "./indovina-canzone/index.js";
@@ -19,7 +20,7 @@ import { zombieHunt } from "./zombie-hunt/index.js";
 import { wordListSchema } from "./word-list.js";
 
 export { normalizeWord } from "./agenti-segreti/clue.js";
-export { agentiSegreti, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
+export { agentiSegreti, artificieri, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -52,6 +53,7 @@ export const minigames: Record<string, AnyMinigame> = {
   [stanzeColBotto.id]: stanzeColBotto,
   [lunghezzaOnda.id]: lunghezzaOnda,
   [agentiSegreti.id]: agentiSegreti,
+  [artificieri.id]: artificieri,
 };
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */

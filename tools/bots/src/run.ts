@@ -8,6 +8,7 @@
 //   pnpm stress --players 30 --scenario shadow         → Shadow Tournament: torneo intero con tempi brevi
 //   pnpm stress --players 30 --scenario agenti         → Agenti Segreti: Capi-spia e agenti simulati (da 4 a 30 giocatori)
 //   pnpm stress --players 30 --scenario onda           → Lunghezza d'Onda: una partita tutti contro tutti e una a squadre (da 3 a 30 giocatori)
+//   pnpm stress --players 30 --scenario artificieri    → Artificieri: squadre da 5, artificieri simulati che leggono le soluzioni dalla regia (da 2 a 30 giocatori)
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
 import { pathToFileURL } from "node:url";
@@ -16,7 +17,7 @@ import { scoreFreeForAll, scoreTeams } from "../../../packages/minigames/src/lun
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { agentiMatch, bottoMatch, classicMatch, duelMatch, ondaMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
+import { agentiMatch, artificieriMatch, bottoMatch, classicMatch, duelMatch, ondaMatch, paroleMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { type TestServer, startTestServer } from "./server-process.js";
 
@@ -25,7 +26,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "agenti" | "onda" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "agenti" | "onda" | "artificieri" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -103,6 +104,12 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
     if (opts.scenario === "parole") jobs.push({ name: "Parole Mannare", matchId: (await paroleMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "botto") jobs.push({ name: "Stanze col botto", matchId: (await bottoMatch(api, setup.eventId)).matchId });
     if (opts.scenario === "agenti") jobs.push({ name: "Agenti Segreti", matchId: (await agentiMatch(api, setup.eventId)).matchId });
+    let artificieriTeams = 0;
+    if (opts.scenario === "artificieri") {
+      const m = await artificieriMatch(api, setup, bots.map((b) => b.playerId));
+      artificieriTeams = m.teams;
+      jobs.push({ name: "Artificieri", matchId: m.matchId });
+    }
     if (opts.scenario === "onda") {
       jobs.push({ name: "Lunghezza d'Onda (tutti contro tutti)", matchId: (await ondaMatch(api, setup.eventId, "tutti")).matchId });
       jobs.push({ name: "Lunghezza d'Onda (a squadre)", matchId: (await ondaMatch(api, setup.eventId, "squadre")).matchId });
@@ -119,6 +126,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       if (opts.scenario === "botto" && run.reachedEnd) checkBotto(bots, check);
       if (opts.scenario === "agenti" && run.reachedEnd) checkAgenti(bots, check);
       if (opts.scenario === "onda" && run.reachedEnd) checkOnda(job.name, bots, check);
+      if (opts.scenario === "artificieri" && run.reachedEnd) checkArtificieri(bots, artificieriTeams, run.finalState, check);
       if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
 
@@ -248,6 +256,34 @@ function checkAgenti(bots: Bot[], check: (n: string, ok: boolean, d?: string) =>
 }
 
 /**
+ * Artificieri: tutti i telefoni vedono la stessa cronologia, con un esito per ogni squadra; i punti di ogni turno tornano
+ * con le regole; la somma dei punti in classifica torna con i turni e con le scommesse; nessuna fuga di informazioni.
+ */
+function checkArtificieri(bots: Bot[], teams: number, finalState: GameAdminState | null, check: (n: string, ok: boolean, d?: string) => void): void {
+  type Entry = { outcome: string; reason: string; solved: number; moduleCount: number; secondsLeft: number; points: number; betWinners: unknown[]; teamId: string };
+  type V = { phase: string; settings: { modulePoints: number; defusePoints: number; timeBonus: number; betPoints: number }; teams: { id: string; members: unknown[] }[]; history: Entry[] };
+  const views = bots.map((b) => b.lastViews.get("artificieri") as V | undefined);
+  check("Artificieri: tutti i telefoni hanno ricevuto la vista del round", views.every((v) => v !== undefined));
+  const known = views.filter((v): v is V => v !== undefined);
+  if (known.length === 0) return;
+  const v = known[0]!;
+  check("Artificieri: i telefoni sono arrivati alla classifica", known.every((x) => x.phase === "final" || x.phase === "done"), known.map((x) => x.phase).join(","));
+  check("Artificieri: stessa cronologia su tutti i telefoni", known.every((x) => JSON.stringify(x.history) === JSON.stringify(v.history)));
+  check("Artificieri: un turno per squadra", v.history.length === teams, `${v.history.length} turni per ${teams} squadre`);
+  check("Artificieri: ogni turno ha un esito (disinnescata o esplosa)", v.history.every((e) => e.outcome === "defused" || e.outcome === "exploded"), v.history.map((e) => e.outcome).join(","));
+  const s = v.settings;
+  const bad = v.history.filter((e) => e.points !== s.modulePoints * e.solved + (e.outcome === "defused" ? s.defusePoints + s.timeBonus * e.secondsLeft : 0) || e.solved > e.moduleCount);
+  check("Artificieri: i punti di ogni turno tornano con le regole", bad.length === 0, JSON.stringify(bad.slice(0, 1)));
+  const size = new Map(v.teams.map((t) => [t.id, t.members.length]));
+  const expected = v.history.reduce((n, e) => n + e.points * (size.get(e.teamId) ?? 0) + e.betWinners.length * s.betPoints, 0);
+  const lb = finalState?.leaderboards;
+  if (lb) check("Artificieri: la somma dei punti in classifica torna con turni e scommesse", lb.players.reduce((n, p) => n + p.points, 0) === expected, `${lb.players.reduce((n, p) => n + p.points, 0)} contro ${expected}`);
+  check("Artificieri: almeno una bomba disinnescata dai bot", v.history.some((e) => e.outcome === "defused"), v.history.map((e) => `${e.outcome}:${e.solved}`).join(","));
+  const leaks = bots.flatMap((b) => b.stats.leaks);
+  check("Artificieri: nessun telefono ha ricevuto bordo, dati, regole, soluzioni o manuale altrui", leaks.length === 0, leaks.slice(0, 3).join("; "));
+}
+
+/**
  * Lunghezza d'Onda: tutti i telefoni hanno la stessa classifica e la stessa cronologia, e ogni turno della cronologia
  * torna rifacendo i conti con `scoring.ts`; la somma dei turni dà la classifica. Nessuna vista con il bersaglio a chi
  * non doveva averlo.
@@ -329,8 +365,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "agenti", "onda", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto, agenti, onda o all");
+  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "agenti", "onda", "artificieri", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto, agenti, onda, artificieri o all");
     process.exit(2);
   }
   const url = arg("url");

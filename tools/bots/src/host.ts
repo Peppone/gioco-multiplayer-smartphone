@@ -1,6 +1,7 @@
 import { type Socket, io } from "socket.io-client";
 import { ClientEvent, type GameAdminState, type HostAck, type HostCommand, ServerEvent } from "@gioco/shared";
 import type { Bot } from "./bot.js";
+import { oracle } from "./strategy.js";
 
 export interface MatchRun {
   matchId: string;
@@ -34,6 +35,8 @@ export class AutoHost {
     this.socket = io(this.url, { auth: { role: "admin", token: this.token }, transports: ["websocket"], forceNew: true });
     this.socket.on(ServerEvent.GameAdmin, (s: GameAdminState) => {
       this.state = s;
+      // La regia vede tutto: l'artificiere simulato di Artificieri legge da qui le soluzioni.
+      if (s.frame?.typeId === "artificieri") oracle.artificieri = s.host?.info ?? null;
       this.version++;
       this.waiters.splice(0).forEach((w) => w());
     });

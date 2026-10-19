@@ -1,6 +1,6 @@
 # Piano: «Artificieri» (disinnesco a squadre, in stile Keep Talking and Nobody Explodes)
 
-> Stato: **da implementare**: è il **primo dei tre** giochi pianificati (poi [Pilota alla cieca](PIANO-PILOTA-CIECO.md)
+> Stato: **implementato** (P1–P7 fatti, vedi §7; resta da provare con persone): è il **primo dei tre** giochi pianificati (poi [Pilota alla cieca](PIANO-PILOTA-CIECO.md)
 > e [Plancia di Comando](PIANO-PLANCIA-COMANDO.md)). Le decisioni del §2 sono **confermate** dall'utente.
 > I punti che dipendono dal codice esistente sono verificati nel §9.
 > Da leggere insieme a [PIANO.md](../PIANO.md) e [NUOVO-MINIGIOCO.md](NUOVO-MINIGIOCO.md).
@@ -268,13 +268,80 @@ uno alla volta, ciascuno già giocabile.
 
 | Passo | Contenuto | Verifica |
 |---|---|---|
-| **P1 Moduli di base** | Bordo; generatore, giudice e testo del manuale di **fili**, **pulsante** e **simboli** (con i ~30 simboli SVG) | Per 5000 semi e ogni difficoltà: una sola soluzione, il giudice accetta la soluzione e rifiuta le altre azioni; stesso seme → stessa bomba; testo del manuale coerente con la struttura (snapshot) |
-| **P2 Logica del plugin** | Squadre, ordine dei turni, fasi, timer con accelerazione, errori, scommesse, comandi, punti, `buildConfig` | Unit test: input sulla bomba rifiutati da chi non è artificiere e fuori fase; rilascio del pulsante con latenza simulata (stessa pressione, RTT diversi → stesso giudizio); timer a zero entro `GRACE_MS`; pausa; contratto di `registry.test.ts` |
-| **P3 Anti-leak** | Scorrimento dello stato a ogni passo | Nessuna `data`/`edgework` agli esperti, nessuna `rules` all'artificiere, alla TV e alle altre squadre; nessuna soluzione fuori dalla regia; scommesse altrui nascoste prima di `outcome` |
-| **P4 Viste** | Moduli in SVG per TV e telefono, manuale, scene `/preview` (`art-*`: TV con la bomba, ogni modulo sul telefono, manuale, esplosione) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640 e sulla TV; `touch-action: none` sul pulsante; tutte le pagine del manuale leggibili senza scorrimento orizzontale |
-| **P5 End-to-end** | Partita con 2 squadre: scommessa, briefing, disinnesco giusto e sbagliato, esplosione per errori, accelerazione | **Frame WebSocket**: manuale solo agli esperti della squadra di turno; bomba mai agli esperti; server pulito alla fine |
-| **P6 Moduli aggiuntivi** | Uno alla volta: **colori**, **labirinto** (con il generatore comune `maze.ts`, §3.3), **parola** (con la lista di parole della libreria e `buildConfig`) | Per ogni modulo gli stessi test del P1, la sua scena `/preview` e un passo nello scenario e2e; per `maze.ts` test propri (labirinto perfetto, tutte le caselle raggiungibili, percorso più breve corretto) |
-| **P7 Bot, documenti, pacchetto** | Bot artificiere che «legge» il manuale dalla vista della regia simulata (risolve con il giudice) e bot che sbagliano; guida `docs/ARTIFICIERI.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md` (test richiesti), `GUIDA-HOST.md` | `pnpm stress --players 30 --scenario artificieri`; `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
+| **P1 Moduli di base** ✅ | Bordo; generatore, giudice e testo del manuale di **fili**, **pulsante** e **simboli** (con i ~30 simboli SVG) | Per 5000 semi e ogni difficoltà: una sola soluzione, il giudice accetta la soluzione e rifiuta le altre azioni; stesso seme → stessa bomba; testo del manuale coerente con la struttura (snapshot) |
+| **P2 Logica del plugin** ✅ | Squadre, ordine dei turni, fasi, timer con accelerazione, errori, scommesse, comandi, punti, `buildConfig` | Unit test: input sulla bomba rifiutati da chi non è artificiere e fuori fase; rilascio del pulsante con latenza simulata (stessa pressione, RTT diversi → stesso giudizio); timer a zero entro `GRACE_MS`; pausa; contratto di `registry.test.ts` |
+| **P3 Anti-leak** ✅ | Scorrimento dello stato a ogni passo | Nessuna `data`/`edgework` agli esperti, nessuna `rules` all'artificiere, alla TV e alle altre squadre; nessuna soluzione fuori dalla regia; scommesse altrui nascoste prima di `outcome` |
+| **P4 Viste** ✅ | Moduli in SVG per TV e telefono, manuale, scene `/preview` (`art-*`: TV con la bomba, ogni modulo sul telefono, manuale, esplosione) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640 e sulla TV; `touch-action: none` sul pulsante; tutte le pagine del manuale leggibili senza scorrimento orizzontale |
+| **P5 End-to-end** ✅ | Partita con 2 squadre: scommessa, briefing, disinnesco giusto e sbagliato, esplosione per errori, accelerazione | **Frame WebSocket**: manuale solo agli esperti della squadra di turno; bomba mai agli esperti; server pulito alla fine |
+| **P6 Moduli aggiuntivi** ✅ | Uno alla volta: **colori**, **labirinto** (con il generatore comune `maze.ts`, §3.3), **parola** (con la lista di parole della libreria e `buildConfig`) | Per ogni modulo gli stessi test del P1, la sua scena `/preview` e un passo nello scenario e2e; per `maze.ts` test propri (labirinto perfetto, tutte le caselle raggiungibili, percorso più breve corretto) |
+| **P7 Bot, documenti, pacchetto** ✅ | Bot artificiere che «legge» il manuale dalla vista della regia simulata (risolve con il giudice) e bot che sbagliano; guida `docs/ARTIFICIERI.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md` (test richiesti), `GUIDA-HOST.md` | `pnpm stress --players 30 --scenario artificieri`; `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
+
+### Scostamenti decisi in P1
+
+- **Le regole stanno nella bomba, non nel modulo** (il §5.1 diceva `ModuleState.rules`): ogni tipo di modulo ha un
+  solo elenco di regole per bomba (`BombRules`), valido per tutti i moduli di quel tipo. Con due moduli «Fili» sulla
+  stessa bomba, un manuale per modulo si contraddirebbe. Ogni tipo ha il suo flusso casuale (`deriveSeed` sull'indice
+  stabile del tipo), quindi aggiungere un tipo (P6) non cambia le regole degli altri.
+- **Pulsante: si rilascia sulla cifra delle unità dei secondi**, non su «una cifra qualunque» del timer (con lo 0
+  dei minuti sempre presente sarebbe banale). Il timer arrotonda per eccesso; tolleranza ±150 ms intorno al cambio
+  di cifra.
+- **Numero di serie** senza I, O, Q, Y e cifre senza 0 e 1 (non si confondono a distanza): le vocali sono A, E, U.
+- **Il giudice riceve il tempo rimasto all'ora equa** (`remainingMs`): il plugin (P2) lo ricava con `fairTime`.
+- **Fili**: 3–4 (facile), 3–5 (media), 3–6 (difficile); un filo già tagliato non si taglia di nuovo.
+
+### Scostamenti decisi in P2
+
+- **Timer: orologio con ancora e velocità** invece di una `deadline` ricalcolata: `bomb.clock = { at, remainingMs }`
+  (a `at`, ora server, restavano `remainingMs` di tempo «finto») e `bomb.speed`. Il tempo finto rimasto a `t` è
+  `remainingMs − (t − at) × speed`; a ogni errore con accelerazione si riancora all'ora equa dell'errore e la velocità
+  diventa `1 + 0,25 × errori`. La scadenza reale è derivata (`realDeadline`). La pausa usa `pausedRemainingMs` dello
+  stato, come negli altri giochi (vale per le scommesse e per il disinnesco).
+- **Tolleranza sulla scadenza**: un'azione con ora equa prima della scadenza e arrivata entro `GRACE_MS` dopo vale
+  (anche l'ultimo modulo); il timer esplode al tick solo da `scadenza + GRACE_MS`.
+- **Squadre**: i team della serata con giocatori, per nome; chi non ha team non gioca la bomba ma scommette. Senza
+  team: gruppi casuali da 3–5 (`ceil(n / 5)` squadre). `buildConfig` rifiuta un team con **un solo** giocatore (nessuno
+  a cui dare il manuale); `init` invece non rifiuta nulla, per il contratto generico dei plugin.
+- **Niente `libraryConfigSchema`**: l'istanza è la configurazione, perché per ora non riferisce altri contenuti. Il campo
+  `words` arriva con il modulo «Parola» (P6).
+- **Punti**: chi scommette giusto prende `betPoints` in aggiunta, quindi in una squadra i punti individuali possono
+  differire (e i ranghi con essi); i membri della squadra di turno ricevono tutti gli stessi punti della bomba.
+- **Il plugin è registrato**, quindi l'editor lo offre già, ma **non ha ancora viste nel client** (P4): non va
+  aggiunto a una partita vera finché non ci sono.
+- **Viste già scritte** (`screenView`, `viewFor`, `hostView`): il manuale arriva agli esperti solo da `briefing`, e
+  ogni esperto riceve il titolo di tutte le pagine con chi le ha, per sapere a chi chiedere.
+
+### Scostamenti decisi in P3
+
+- **Nomi delle chiavi delle viste** scelti perché i nomi segreti non compaiano mai in una vista pubblica, così il
+  controllo «nessuna chiave `rules`/`bets`/`index`…» è senza eccezioni: i numeri della partita sono in `settings` (non
+  `rules`, che è il manuale), il turno ha `position` (non `index`) e `betsPlaced` (conteggio, non `bets`).
+- **Cosa controlla `artificieri-leak.test.ts`** (a ogni passo di partite intere con 2 bombe per squadra, 4 scenari,
+  12 semi ciascuno): chiavi vietate per ruolo; testi che identificano una pagina del manuale, il numero di serie e le
+  soluzioni cercati nel JSON di ogni vista; elenco chiuso delle chiavi di `controls`, `history` e `status`; la bomba
+  sulla TV solo in disinnesco ed esito, la striscia del pulsante solo mentre è tenuto; il manuale solo in briefing e
+  disinnesco e solo le pagine proprie. Un test sul test prova che il controllo segnala una fuga inventata in ogni
+  vista; una verifica a mano (fuga iniettata nel plugin) ha fatto fallire 6 test.
+- **Helper condivisi** dei test di Artificieri in `test-helpers.ts` (partenza, input con ora e ritardo, soluzione e
+  errore garantiti): li riuseranno i test e2e di P5 solo come modello, non come import.
+
+### Scostamenti decisi in P4–P7
+
+- **Viste**: i moduli sono componenti riusabili (`parts.tsx`) pronti per una futura modalità «bomba sul telefono». Sulla TV i moduli stanno
+  in **una riga** (un modulo per colonna): con 6 moduli su due righe la bomba usciva dallo schermo. I 30 simboli SVG sono in
+  `symbols.tsx` (un test li confronta con `SYMBOL_IDS` del server). Nella regia il pulsante di chiusura si chiama
+  «Termina il round» (non «Termina la partita»): lo stesso nome del pulsante del motore rendeva ambiguo il cleanup dei test.
+- **Il giudice riceve gli errori della bomba** (`JudgeInput.strikes`): il modulo Colori cambia tabella con gli errori.
+- **Modulo «Parola»**: la parola giusta **non sta nei dati** del modulo (la TV è pubblica e l'artificiere la guarda): è l'unica
+  parola dell'elenco del manuale componibile con le rotelle, e il giudice la ricava dalle regole. Il modulo è **spento di
+  default** (richiede una lista di parole di 5 lettere, almeno 12); le parole si risolvono in `buildConfig` come in Agenti Segreti
+  (`libraryConfigSchema`, widget `instance`).
+- **Labirinto**: 9 labirinti nel manuale, distribuiti su 3 pagine da 3; i due cerchi sono unici tra i nove.
+- **Regia**: `hostView` espone per ogni modulo anche il `plan` strutturato (azioni) oltre al testo; lo usano i bot.
+- **Bot**: niente modulo «Pulsante» nello stress (non sanno rilasciare a tempo: lo copre l'e2e); l'artificiere simulato agisce
+  **un'azione per volta** sul piano che la regia automatica vede (ricalcolato a ogni passo) e sbaglia il 5% delle volte.
+  Lo stress ha trovato un difetto vero: `solution()` dei Simboli riproponeva anche i simboli già premuti.
+- **Costo del realtime**: con 30 telefoni ogni azione rimanda le viste a tutti (342 input → ~10 600 aggiornamenti): è il motivo
+  del primo passo di [Plancia di Comando](PIANO-PLANCIA-COMANDO.md).
 
 ## 8. Rischi residui
 

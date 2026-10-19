@@ -132,7 +132,7 @@ export class Bot {
     const d = decide(s.frame.typeId, s.frame.view, this.rnd);
     if (!d || d.key === this.lastKey) return;
     this.lastKey = d.key;
-    const thinkMs = between(this.rnd, this.opts.thinkMs);
+    const thinkMs = between(this.rnd, d.thinkMs ?? this.opts.thinkMs);
     // L'ora della pressione è quella in cui il giocatore decide, convertita in ora server con l'orologio sincronizzato.
     this.later(() => {
       const claimedTime = this.clock.toServerTime(this.localNow());
