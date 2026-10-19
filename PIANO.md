@@ -297,6 +297,7 @@ Ispirato a *Codenames*: la TV mostra la griglia di 25 parole (16 con 4×4), i du
 - **Controllo automatico dell'indizio**: rifiutate le parole della griglia ancora coperte e quelle con una parte in comune di almeno 4 lettere; i casi sottili restano alla regia («Indizio non valido»).
 - **Privacy**: le carte coperte di TV e agenti non hanno la chiave `kind`; la mappa solo ai Capi-spia e solo da «Distribuisci»; regia cieca come in Stanze col botto.
 - **Telefono in una schermata**: il testo delle carte si adatta alla larghezza con le container query (nel tema pixel le parole lunghe vanno su due righe); il test di anteprima prova tutte le 300 parole d'esempio nei 5 temi.
+- **Parole nel database**: non nel codice del gioco ma in una «Lista di parole» della libreria (comune con Reazione a catena), creata dal server al primo avvio e modificabile, esportabile e importabile dall'editor (area di testo con una parola per riga, widget `lines`).
 - **Test**: unit e anti-leak del plugin, anteprima Playwright (`as-*` nei 5 temi), e2e di partite complete (con i frame WebSocket) e stress (`pnpm stress --players 30 --scenario agenti`, con un controllo di privacy su ogni vista ricevuta dai bot).
 
 ### 👻 Caccia ai Fantasmi (`caccia-fantasmi`, tema `retro80`): gioco fisico con QR

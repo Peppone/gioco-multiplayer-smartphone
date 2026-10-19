@@ -5,6 +5,7 @@ import { DEFAULT_PORT } from "@gioco/shared";
 import { minigames } from "@gioco/minigames";
 import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
+import { AGENTI_WORDS_TITLE, seedLibrary } from "./library-seed.js";
 import { MasterAuth } from "./master-auth.js";
 import { buildApp } from "./app.js";
 import { backupDatabase } from "./backup.js";
@@ -63,12 +64,15 @@ if (recovery.abandoned.length > 0) console.log(`${recovery.abandoned.length} par
 const snapshotTimer = setInterval(() => snapshots.sync(), 1000);
 
 const masterAuth = new MasterAuth(db, () => engine.activeMatchId);
+const adminService = new AdminService(db);
+// Contenuti iniziali della libreria (le parole di Agenti Segreti): nel database, una volta sola.
+if (seedLibrary(db, adminService.library)) console.log(`Libreria: creata la lista «${AGENTI_WORDS_TITLE}».`);
 const app = buildApp({
   port,
   lanAddress,
   getTunnel: () => tunnel.current,
   clientDir: resolve(rootDir, process.env.CLIENT_DIR ?? "packages/client/dist"),
-  admin: { auth: adminAuth, service: new AdminService(db), master: { auth: masterAuth, engine } },
+  admin: { auth: adminAuth, service: adminService, master: { auth: masterAuth, engine } },
   mediaDir: resolve(dirname(dbFile), "media"),
 });
 const realtime = attachRealtime(app.server, { service: new PlayerService(db), presence, engine, adminAuth, masterAuth });

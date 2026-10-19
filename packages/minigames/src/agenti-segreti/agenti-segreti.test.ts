@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { MinigameContext, ParticipantInfo, TeamInfo } from "@gioco/shared";
 import { clueProblem, normalizeWord } from "./clue.js";
 import { type AgentiSegretiState as State, type CardKind, type Side, TURN_CAP, agentiSegreti as as, agentsLeft, agentsOf, formTeams } from "./index.js";
-import { DEFAULT_WORDS } from "./words.js";
 
 const make = (n: number, teamOf: (i: number) => string | null = () => null): ParticipantInfo[] =>
   Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, nickname: `Nick-p${i + 1}`, teamId: teamOf(i) }));
@@ -54,13 +53,34 @@ function voteAll(s: State, option: number | "pass", at = 1_000): State {
 
 const json = (v: unknown) => JSON.stringify(v);
 
-describe("agenti-segreti: lista di parole", () => {
-  it("300 parole diverse, corte, e nessuna (da 4 lettere in su) contenuta in un'altra", () => {
-    const words = DEFAULT_WORDS.map(normalizeWord);
-    expect(words).toHaveLength(300);
-    expect(new Set(words).size).toBe(300);
-    expect(Math.max(...words.map((w) => w.length))).toBeLessThanOrEqual(10);
-    for (const a of words) for (const b of words) if (a !== b && a.length >= 4) expect(b.includes(a), `${a} dentro ${b}`).toBe(false);
+describe("agenti-segreti: parole dalla libreria", () => {
+  // Le parole d'esempio stanno nel database (lista creata dal server al primo avvio): vedi library-seed.test.ts.
+  const LIST = Array.from({ length: 30 }, (_, i) => `Lista${String.fromCharCode(97 + i % 26)}${i}`);
+  const lookup = (lists: Record<string, unknown>) => (id: string) => (id in lists ? { typeId: "word-list", title: id, theme: "gameshow" as const, config: lists[id] } : undefined);
+  const build = (raw: unknown, lists: Record<string, unknown> = { l1: { words: LIST } }) => as.buildConfig!(raw, lookup(lists), { players: [], teams: [] });
+
+  it("l'istanza riferisce una lista della libreria: le parole sono quelle della lista più quelle proprie, senza doppioni", () => {
+    const out = build({ wordList: "l1", words: ["Extra", "LISTAA0", "Èxtra"] });
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.config.words).toEqual([...LIST, "Extra"]);
+  });
+
+  it("dalla lista si saltano le parole troppo lunghe per una carta", () => {
+    const out = build({ wordList: "l1" }, { l1: { words: [...LIST, "Una parola lunghissima"] } });
+    expect(out.ok && out.config.words).toEqual(LIST);
+  });
+
+  it("lista mancante, non valida o con troppe poche parole: l'avvio è rifiutato con il motivo", () => {
+    expect(build({ wordList: "boh" })).toEqual({ ok: false, error: "Lista di parole non valida o non trovata" });
+    expect(build({ wordList: "l1" }, { l1: { nope: true } })).toMatchObject({ ok: false });
+    expect(build({ wordList: "l1" }, { l1: { words: LIST.slice(0, 20) } })).toMatchObject({ ok: false, error: expect.stringContaining("almeno 25") });
+    expect(build({ wordList: "l1", gridSize: "4x4" }, { l1: { words: LIST.slice(0, 20) } }).ok).toBe(true);
+  });
+
+  it("senza lista bastano le parole proprie; senza né l'una né le altre l'istanza non si salva", () => {
+    expect(build({ words: LIST }).ok).toBe(true);
+    expect(as.libraryConfigSchema!.safeParse({}).success).toBe(false);
+    expect(as.libraryConfigSchema!.safeParse({ wordList: "l1" }).success).toBe(true);
   });
 
   it("la configurazione rifiuta liste con troppe poche parole diverse (contando i doppioni una volta sola)", () => {
@@ -110,7 +130,7 @@ describe("agenti-segreti: preparazione", () => {
     const seen = as.shownItems!(cmd(first, "deal"));
     const second = as.init(cfg, ctxOf(make(6), [], seen, 8), 0);
     expect(second.cards.some((c) => seen.includes(c.word))).toBe(false);
-    const dup = as.init({ ...cfg, words: [...DEFAULT_WORDS.slice(0, 25), "albero", "ÀLBERO"] }, ctxOf(make(4)), 0);
+    const dup = as.init({ ...cfg, words: [...cfg.words.slice(0, 25), "albero", "ÀLBERO"] }, ctxOf(make(4)), 0);
     expect(dup.cards.filter((c) => normalizeWord(c.word) === "albero")).toHaveLength(1);
   });
 

@@ -1,6 +1,6 @@
 import { type Locator, expect, test } from "@playwright/test";
 import { cardTextVars } from "../packages/client/src/minigames/agenti-segreti/cardText";
-import { DEFAULT_WORDS } from "../packages/minigames/src/agenti-segreti/words";
+import { AGENTI_SEGRETI_WORDS } from "../packages/server/src/seed-words";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80", "boom"] as const;
 const SCENES = ["as-setup", "as-clue", "as-guess", "as-guess-spy", "as-wrong", "as-assassin", "as-reveal", "as-small"] as const;
@@ -46,14 +46,14 @@ for (const theme of THEMES) {
 
     // Nel tema pixel il font è largo quanto è alto: le parole lunghe vanno su due righe, mai di più.
     const maxLines = theme === "pixel" ? 2 : 1;
-    test(`tutte le 300 parole della lista d'esempio stanno nella carta del telefono (al massimo ${maxLines} ${maxLines === 1 ? "riga" : "righe"})`, async ({ page }) => {
+    test(`tutte le 300 parole della lista iniziale (nel database) stanno nella carta del telefono (al massimo ${maxLines} ${maxLines === 1 ? "riga" : "righe"})`, async ({ page }) => {
       await page.goto(`/preview?theme=${theme}&scene=as-guess&still=1`);
       const grid = page.locator(".phone-frame").getByTestId("as-grid");
       await expect(grid.locator(".as-card")).toHaveCount(25);
       const bad: string[] = [];
       // Si riempiono le 25 carte con le parole della lista, 25 alla volta, con le stesse variabili CSS della vista.
-      for (let i = 0; i < DEFAULT_WORDS.length; i += 25) {
-        const batch = DEFAULT_WORDS.slice(i, i + 25).map((w) => ({ w, vars: cardTextVars(w) as Record<string, number> }));
+      for (let i = 0; i < AGENTI_SEGRETI_WORDS.length; i += 25) {
+        const batch = AGENTI_SEGRETI_WORDS.slice(i, i + 25).map((w) => ({ w, vars: cardTextVars(w) as Record<string, number> }));
         await grid.evaluate((g, words) => {
           g.querySelectorAll<HTMLElement>(".as-card").forEach((card, j) => {
             const item = words[j % words.length]!;

@@ -43,6 +43,11 @@ export class Bot {
   private lastKey: string | null = null;
   /** Istante (Date.now) in cui è prevista la consegna dell'ultimo stato in arrivo: i successivi non possono sorpassarlo. */
   private lastDeliveryAt = 0;
+  /**
+   * Stati in viaggio, in ordine di arrivo. Un solo timer li consegna dalla testa: con un timer per messaggio, a event
+   * loop carico l'orologio interno dei timer resta indietro rispetto a Date.now() e due stati potevano scambiarsi.
+   */
+  private readonly inbox: { at: number; s: GamePlayerState }[] = [];
   private timers = new Set<NodeJS.Timeout>();
 
   constructor(private readonly opts: BotOptions) {
@@ -67,6 +72,11 @@ export class Bot {
 
   private oneWay = () => between(this.rnd, this.opts.latencyMs);
 
+  private drainInbox(): void {
+    while (this.inbox.length && this.inbox[0]!.at <= Date.now()) this.onState(this.inbox.shift()!.s);
+    if (this.inbox.length) this.later(() => this.drainInbox(), this.inbox[0]!.at - Date.now());
+  }
+
   async join(): Promise<void> {
     this.socket = io(this.opts.url, { auth: { role: "play" }, transports: ["websocket"], forceNew: true });
     this.socket.on("disconnect", () => this.stats.disconnects++);
@@ -74,9 +84,10 @@ export class Bot {
     // Anche i messaggi in arrivo subiscono la latenza simulata, ma restano in ordine: un collegamento vero non li scambia.
     this.socket.on(ServerEvent.GamePlayer, (s: GamePlayerState) => {
       this.lastRawAt = Date.now();
-      const at = Math.max(Date.now() + this.oneWay(), this.lastDeliveryAt + 1);
+      const at = Math.max(Date.now() + this.oneWay(), this.lastDeliveryAt);
       this.lastDeliveryAt = at;
-      this.later(() => this.onState(s), at - Date.now());
+      this.inbox.push({ at, s });
+      if (this.inbox.length === 1) this.later(() => this.drainInbox(), at - Date.now());
     });
 
     await new Promise<void>((resolve, reject) => {

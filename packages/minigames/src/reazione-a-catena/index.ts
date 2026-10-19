@@ -2,13 +2,9 @@ import { z } from "zod";
 import { type MinigameType, type ParticipantInfo, fairTime } from "@gioco/shared";
 import { GRACE_MS, rankByPoints, totalsToScores } from "../util.js";
 import { deriveSeed, makeRng, shuffle } from "../knight-duel/rng.js";
+import { lookupWordList } from "../word-list.js";
 
 const wordSchema = z.string().trim().min(1).max(60);
-
-/** Lista di parole della libreria: un contenuto a sé, che più round (e squadre diverse) possono riusare. */
-export const wordListSchema = z.object({
-  words: z.array(wordSchema).min(1).max(500).meta({ title: "Parole", description: "Una per riga", itemLabel: "Parola" }),
-});
 
 const orderField = z.enum(["random", "listed", "reverse"]).default("random").meta({
   title: "Ordine delle parole",
@@ -49,7 +45,7 @@ export const reazioneConfigSchema = z.object({
 export const reazioneLibrarySchema = z
   .object({
     wordList: z.string().min(1).optional().meta({ title: "Lista di parole", widget: "instance", instanceKind: "word-list", description: "Contenuto della libreria, riusabile in più round" }),
-    words: z.array(wordSchema).max(300).default([]).meta({ title: "Parole proprie di questo round", description: "In più rispetto alla lista (facoltative)", itemLabel: "Parola" }),
+    words: z.array(wordSchema).max(300).default([]).meta({ title: "Parole proprie di questo round", description: "In più rispetto alla lista (facoltative)", itemLabel: "Parola", widget: "lines" }),
     order: orderField,
     startFrom: startFromField,
     ...settingsShape,
@@ -264,10 +260,9 @@ export const reazioneACatena: MinigameType<ReazioneConfig, ReazioneState, Input,
     const { wordList, words: own, ...rest } = parsed.data;
     let words: string[] = [];
     if (wordList) {
-      const inst = lookup(wordList);
-      const list = inst?.typeId === "word-list" ? wordListSchema.safeParse(inst.config) : undefined;
-      if (!list?.success) return { ok: false, error: "Lista di parole non valida o non trovata" };
-      words = list.data.words;
+      const list = lookupWordList(lookup, wordList);
+      if (!list) return { ok: false, error: "Lista di parole non valida o non trovata" };
+      words = list;
     }
     // Senza doppioni (anche se scritti con maiuscole diverse): una parola ripetuta tornerebbe a turno ravvicinato.
     const seen = new Set<string>();

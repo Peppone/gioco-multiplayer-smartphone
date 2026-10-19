@@ -1,19 +1,28 @@
-import { type Page, expect } from "@playwright/test";
+import { type APIRequestContext, type Page, expect } from "@playwright/test";
 import { clueProblem } from "../packages/minigames/src/agenti-segreti/clue";
-import { type Client, lastPlayerView, test } from "./support";
+import { type Client, adminApi, adminToken, lastPlayerView, test } from "./support";
 
 type Game = Awaited<ReturnType<Parameters<Parameters<typeof test>[2]>[0]["newGame"]>>;
 type Side = "red" | "blue";
 type Kind = Side | "civilian" | "assassin";
 
-const config = (extra: Record<string, unknown> = {}) => [
-  {
-    typeId: "agenti-segreti",
-    title: "Agenti e2e",
-    theme: "retro80",
-    config: { gridSize: "5x5", assassins: 1, clueSeconds: 0, guessSeconds: 0, maxTurns: 0, allowZeroInfinity: true, points: { win: 100, perAgent: 0 }, ...extra },
-  },
-];
+/**
+ * Le parole stanno nel database: il server di prova, al primo avvio, crea la lista «Parole di Agenti Segreti» e
+ * l'istanza la riferisce per id (come farebbe la regia nell'editor).
+ */
+async function config(request: APIRequestContext, extra: Record<string, unknown> = {}) {
+  const lists = await adminApi(request, await adminToken(request)).call<{ id: string; typeId: string; title: string }[]>("get", "/instances");
+  const wordList = lists.find((i) => i.typeId === "word-list" && i.title === "Parole di Agenti Segreti")?.id;
+  expect(wordList, "lista di parole creata dal server al primo avvio").toBeDefined();
+  return [
+    {
+      typeId: "agenti-segreti",
+      title: "Agenti e2e",
+      theme: "retro80",
+      config: { wordList, gridSize: "5x5", assassins: 1, clueSeconds: 0, guessSeconds: 0, maxTurns: 0, allowZeroInfinity: true, points: { win: 100, perAgent: 0 }, ...extra },
+    },
+  ];
+}
 
 const view = (c: Client) => lastPlayerView(c.traffic)!;
 
@@ -99,9 +108,9 @@ async function startRound(g: Game) {
   await expect(g.screen.page.getByTestId("as-setup")).toBeVisible();
 }
 
-test("agenti segreti: squadre e Capi-spia dalla regia, indizi, voto pari, Passa, annulla e assassino, senza far trapelare la mappa", async ({ newGame }) => {
+test("agenti segreti: squadre e Capi-spia dalla regia, indizi, voto pari, Passa, annulla e assassino, senza far trapelare la mappa", async ({ newGame, request }) => {
   test.slow();
-  const g = await newGame(config(), { playersPerTeam: 3 });
+  const g = await newGame(await config(request), { playersPerTeam: 3 });
   const { screen, admin } = g;
   const clients = [...g.reds, ...g.blues];
   await startRound(g);
@@ -194,8 +203,8 @@ test("agenti segreti: squadre e Capi-spia dalla regia, indizi, voto pari, Passa,
   await expect(rows.filter({ hasText: winners[0] }).locator(".pts")).toHaveText("100");
 });
 
-test("agenti segreti 4×4 senza assassino: indizio ∞ e tutti gli agenti trovati; con la regia cieca la regia non vede la mappa", async ({ newGame }) => {
-  const g = await newGame(config({ gridSize: "4x4", assassins: 0 }), { playersPerTeam: 2 });
+test("agenti segreti 4×4 senza assassino: indizio ∞ e tutti gli agenti trovati; con la regia cieca la regia non vede la mappa", async ({ newGame, request }) => {
+  const g = await newGame(await config(request, { gridSize: "4x4", assassins: 0 }), { playersPerTeam: 2 });
   const { screen, admin } = g;
   const clients = [...g.reds, ...g.blues];
   await startRound(g);

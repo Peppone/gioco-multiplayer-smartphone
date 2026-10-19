@@ -127,10 +127,14 @@ export async function bottoMatch(api: AdminApi, eventId: string): Promise<{ matc
 /** Partita con il solo round «Agenti Segreti»: tempi brevi e al massimo 16 turni, così i bot arrivano alla fine in fretta. */
 export async function agentiMatch(api: AdminApi, eventId: string): Promise<{ matchId: string }> {
   const match = await api.post(`/events/${eventId}/matches`, { name: "Agenti Segreti" });
+  // Le parole sono nel database: la lista che il server crea al primo avvio.
+  const lists = await api.get<{ id: string; typeId: string; title: string }[]>("/instances");
+  const wordList = lists.find((i) => i.typeId === "word-list" && i.title === "Parole di Agenti Segreti")?.id;
+  if (!wordList) throw new Error("manca la lista «Parole di Agenti Segreti» nel database");
   const inst = await api.post("/instances", {
     typeId: "agenti-segreti",
     title: "Agenti di prova",
-    config: { clueSeconds: 15, guessSeconds: 15, maxTurns: 16 },
+    config: { wordList, clueSeconds: 15, guessSeconds: 15, maxTurns: 16 },
   });
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id };

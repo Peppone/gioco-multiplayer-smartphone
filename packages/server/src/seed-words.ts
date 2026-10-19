@@ -2,7 +2,7 @@
  * Parole d'esempio di Agenti Segreti: 300 nomi comuni, scritte da noi (niente liste ufficiali del gioco da tavolo).
  * Corte (al massimo 10 lettere) perché stiano su una carta da ~64 px del telefono; nessuna (da 4 lettere in su) è contenuta in un'altra.
  */
-export const DEFAULT_WORDS: string[] = [
+export const AGENTI_SEGRETI_WORDS: string[] = [
   "Albero", "Ancora", "Angelo", "Anello", "Ape", "Aquila", "Arancia", "Arco", "Argento", "Asino",
   "Satellite", "Atleta", "Auto", "Baffi", "Balena", "Banca", "Bandiera", "Barca", "Batteria", "Becco",
   "Benzina", "Biberon", "Bici", "Biscotto", "Bomba", "Borsa", "Bosco", "Bottiglia", "Braccio", "Bruco",
