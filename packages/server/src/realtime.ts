@@ -40,7 +40,15 @@ export interface RealtimeDeps {
   /** Accesso del Game Master; senza, il ruolo "master" è disattivato. */
   masterAuth?: MasterAuth;
   now?: () => number;
+  /**
+   * Intervallo minimo (ms) tra due invii delle viste: gli input a raffica si accorpano in un solo invio (il primo dopo una pausa
+   * parte subito, i successivi al più tardi dopo questo tempo). 0 = nessun accorpamento.
+   */
+  flushMs?: number;
 }
+
+/** Intervallo di accorpamento predefinito: un ordine di grandezza sotto i tempi umani, ma 1/8 degli invii di un passo ogni 100 ms. */
+export const DEFAULT_FLUSH_MS = 80;
 
 export interface Realtime {
   io: Server;
@@ -76,8 +84,26 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
   /** Comandi del Game Master: 20 al secondo bastano per approvazioni a raffica. */
   const masterLimiter = new RateLimiter(20, 1000);
 
-  const sendPlayerState = (socketId: string, playerId: string) =>
-    io.to(socketId).emit(ServerEvent.GamePlayer, engine.playerState(playerId));
+  /**
+   * Ultima vista inviata a ogni telefono, come testo: una vista identica non si rimanda (con 30 telefoni, un cambio che tocca un
+   * solo giocatore non deve costare 30 messaggi). Lo stesso per schermo, regia e Game Master.
+   */
+  const lastPlayerSent = new Map<string, string>();
+  const lastRoomSent = new Map<string, string>();
+
+  const sendPlayerState = (socketId: string, playerId: string) => {
+    const state = engine.playerState(playerId);
+    lastPlayerSent.set(socketId, JSON.stringify(state));
+    io.to(socketId).emit(ServerEvent.GamePlayer, state);
+  };
+
+  /** Invia a una stanza solo se la vista è cambiata dall'ultimo invio a quella stanza. */
+  const emitRoom = (room: string, event: string, state: unknown) => {
+    const text = JSON.stringify(state);
+    if (lastRoomSent.get(room) === text) return;
+    lastRoomSent.set(room, text);
+    io.to(room).emit(event, state);
+  };
 
   const masterState = (): GameMasterState => ({
     ...engine.masterState(),
@@ -87,14 +113,42 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
     }),
   });
 
-  /** Invia le viste a tutti, ma solo se l'engine è cambiato dall'ultimo invio. */
-  const flush = () => {
+  const flushMs = deps.flushMs ?? DEFAULT_FLUSH_MS;
+  let lastFlushAt = -Infinity;
+  let pending: NodeJS.Timeout | null = null;
+
+  /** Invia davvero le viste: solo quelle cambiate, solo a chi le ha cambiate. */
+  const sendNow = () => {
+    if (pending) {
+      clearTimeout(pending);
+      pending = null;
+    }
     if (engine.version === sentVersion) return;
     sentVersion = engine.version;
-    io.to(SCREEN_ROOM).emit(ServerEvent.GameScreen, engine.screenState());
-    io.to(ADMIN_ROOM).emit(ServerEvent.GameAdmin, engine.adminState());
-    if (io.sockets.adapter.rooms.has(MASTER_ROOM)) io.to(MASTER_ROOM).emit(ServerEvent.GameMaster, masterState());
-    for (const [socketId, playerId] of presence.entries()) sendPlayerState(socketId, playerId);
+    lastFlushAt = Date.now();
+    emitRoom(SCREEN_ROOM, ServerEvent.GameScreen, engine.screenState());
+    emitRoom(ADMIN_ROOM, ServerEvent.GameAdmin, engine.adminState());
+    if (io.sockets.adapter.rooms.has(MASTER_ROOM)) emitRoom(MASTER_ROOM, ServerEvent.GameMaster, masterState());
+    for (const [socketId, playerId] of presence.entries()) {
+      const state = engine.playerState(playerId);
+      const text = JSON.stringify(state);
+      if (lastPlayerSent.get(socketId) === text) continue;
+      lastPlayerSent.set(socketId, text);
+      io.to(socketId).emit(ServerEvent.GamePlayer, state);
+    }
+  };
+
+  /**
+   * Invia le viste a tutti, ma solo se l'engine è cambiato dall'ultimo invio, e al massimo ogni `flushMs`: il primo cambio dopo una
+   * pausa parte subito (nessun ritardo per un buzzer isolato), quelli a raffica si accorpano in un invio solo alla fine
+   * dell'intervallo. L'ora equa degli input viene da `meta`, non dall'istante di invio: l'accorpamento non penalizza nessuno.
+   */
+  const flush = () => {
+    if (engine.version === sentVersion) return;
+    const wait = flushMs - (Date.now() - lastFlushAt);
+    if (wait <= 0) return sendNow();
+    pending ??= setTimeout(sendNow, wait);
+    pending.unref();
   };
 
   const finishJoin = (socket: Socket, result: PlayerResult, ack: Ack<JoinResult>) => {
@@ -202,6 +256,7 @@ export function attachRealtime(httpServer: HttpServer, deps: RealtimeDeps): Real
     });
 
     socket.on("disconnect", () => {
+      lastPlayerSent.delete(socket.id);
       if (presence.detach(socket.id)) broadcastLobby();
     });
   });

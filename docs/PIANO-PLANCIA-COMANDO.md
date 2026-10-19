@@ -220,13 +220,32 @@ Il P0 è un lavoro a sé sul server (beneficia tutti i giochi) e si chiude con i
 
 | Passo | Contenuto | Verifica |
 |---|---|---|
-| **P0 Invii raggruppati** (obbligatorio, prima del plugin) | In `realtime.ts`: `flush()` al massimo ogni ~100 ms (intervallo da tarare con le misure dello stress di Pilota alla cieca) e, per ogni socket, nessun invio se la vista è identica all'ultima inviata. Le azioni sensibili alla latenza non peggiorano: l'ora equa viene da `meta`, non dall'istante di invio | Prima e dopo: `pnpm stress` classico, `--scenario onda` e `--scenario pilota` con i tempi di aggiornamento a confronto. Test richiesti da `CLAUDE.md` per `realtime.ts`: `master.test.ts`, `e2e/stanze-segrete.spec.ts`, `pnpm stress --players 10 --scenario stanze`; più `pnpm test` e `pnpm test:e2e` completi (tutti i giochi passano da `flush`) |
+| **P0 Invii raggruppati** ✅ (obbligatorio, prima del plugin) | In `realtime.ts`: `flush()` al massimo ogni ~100 ms (intervallo da tarare con le misure dello stress di Pilota alla cieca) e, per ogni socket, nessun invio se la vista è identica all'ultima inviata. Le azioni sensibili alla latenza non peggiorano: l'ora equa viene da `meta`, non dall'istante di invio | Prima e dopo: `pnpm stress` classico, `--scenario onda` e `--scenario pilota` con i tempi di aggiornamento a confronto. Test richiesti da `CLAUDE.md` per `realtime.ts`: `master.test.ts`, `e2e/stanze-segrete.spec.ts`, `pnpm stress --players 10 --scenario stanze`; più `pnpm test` e `pnpm test:e2e` completi (tutti i giochi passano da `flush`) |
 | **P1 Logica del plugin** | Pannelli, nomi, ordini, scadenze all'ora equa, settori, eventi, punti, `buildConfig` | Unit test: nomi unici nell'equipaggio; ordine sempre su un valore diverso dall'attuale; `ownShare` rispettato su molti semi; input rifiutato da chi non è proprietario; esecuzione entro `GRACE_MS`; scafo a zero ferma l'astronave; contratto di `registry.test.ts` |
 | **P2 Anti-leak** | Scorrimento dello stato | Pannelli e ordini altrui mai nelle viste; TV senza pannelli né ordini |
 | **P3 Viste** | Pannello, TV, scene `/preview` (`pdc-*`: 4 e 6 comandi, nomi lunghi, blackout, allarme) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640 con 6 comandi e i nomi più lunghi; cursore che invia solo al rilascio |
 | **P4 End-to-end** | 2 equipaggi da 2: un ordine eseguito dal compagno, uno scaduto, un salto di settore | **Frame WebSocket**: ogni telefono riceve solo il proprio pannello; server pulito alla fine |
 | **P5 Bot e stress** | Bot che «sentono» gli ordini (leggono gli ordini dei compagni bot dal simulatore, non dal server) con ritardi ed errori | `pnpm stress --players 30 --scenario plancia`: tempi di aggiornamento con 30 giocatori che premono ~1 volta al secondo; nessun errore; punti coerenti con `scoring.ts` |
 | **P6 Documenti e pacchetto** | Guida `docs/PLANCIA-COMANDO.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md`, `GUIDA-HOST.md` | `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
+
+### P0 fatto: invii raggruppati (misure)
+
+`flush` in `realtime.ts` ora **accorpa** (il primo cambio dopo una pausa parte subito, quelli a raffica al più tardi dopo `flushMs` = 80 ms) e **non rimanda
+una vista identica** all'ultima inviata allo stesso telefono (e a schermo, regia e Game Master). I nuovi socket e le riconnessioni ricevono comunque la
+loro vista subito. Lo stress con 30 giocatori, prima e dopo (stesse partite, tutti i controlli verdi):
+
+| Scenario | Input | Aggiornamenti ai telefoni prima | dopo | Variazione |
+|---|---|---|---|---|
+| Classico + duello | 755 → 744 | 20 041 (26,5 per input) | 3 478 (4,7 per input) | **−83%** |
+| Lunghezza d'Onda | 1522 → 1517 | 44 761 (29,4 per input) | 9 762 (6,4 per input) | **−78%** |
+| Pilota alla cieca | 441 → 408 | 13 531 (30,7 per passo) | 11 910 (29,2 per passo) | −12% |
+
+- Dove la vista di un telefono dipende solo da ciò che fa lui (quiz, buzzer, sondaggi…) il guadagno è enorme. In **Pilota alla cieca** quasi nulla: la
+  posizione di ogni pilota è pubblica e cambia la vista di **tutti** a ogni passo, e i passi di 4 piloti sono troppo distanti perché si accorpino.
+- **Costo**: il tempo dopo un passo sale dal massimo di 734 ms (misurato prima, con picchi) a un tetto di ~90 ms con p95 79 ms: è l'intervallo di
+  accorpamento. Nessun peso sull'equità: l'ora equa degli input viene da `meta`, non dall'istante di invio.
+- **Conseguenza per Plancia di Comando**: la vista di un telefono deve restare **essenziale**: solo il proprio pannello, il proprio ordine e lo stato
+  indispensabile dell'equipaggio; l'avanzamento delle astronavi si mostra solo sulla TV. Con una vista così, la deduplicazione la rende quasi gratuita.
 
 ## 8. Rischi residui
 

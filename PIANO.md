@@ -331,6 +331,9 @@ Una gara in cui **chi guida non vede i pericoli** e **chi vede i pericoli non gu
 - **Misure dello stress** (30 telefoni, 4 piloti a raffica): ~31 invii per passo, stato dopo un passo in mediana 3 ms e p95 4 ms; annotate in [docs/PILOTA-CIECO.md](docs/PILOTA-CIECO.md) per dimensionare il primo passo di Plancia di Comando.
 - **Test**: unit (generatore su migliaia di semi, equità, movimento, plugin, anti-leak), anteprima Playwright (`pc-*` nei 5 temi), e2e di partite con mina, porta e arrivo, e stress (`pnpm stress --players 30 --scenario pilota`).
 
+### 📡 Invii raggruppati (`realtime.ts`)
+Ogni cambio di stato rimandava **tutte** le viste a **tutti** i telefoni (30 invii per input con 30 giocatori). Ora `flush` accorpa gli input a raffica (il primo dopo una pausa parte subito, gli altri al più tardi dopo `flushMs` = 80 ms) e **non rimanda una vista identica** all'ultima inviata a quel telefono: negli stress con 30 giocatori gli aggiornamenti calano dell'83% (classico) e del 78% (Lunghezza d'Onda); in Pilota alla cieca del 12% (la posizione dei piloti è pubblica). Il tetto di ritardo è l'intervallo di accorpamento (~80 ms); l'ora equa degli input viene da `meta`, non dall'istante di invio. Per questo **la vista di un telefono va tenuta essenziale**: dati che cambiano per tutti a ogni azione annullano la deduplicazione. Misure e dettagli in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md); test in `realtime-flush.test.ts`.
+
 ### 🧩 Prossimo minigioco (pianificato)
 Un ultimo gioco a squadre con **informazioni divise** tra i telefoni, dopo Artificieri e Pilota alla cieca. Le decisioni sono confermate con l'utente; i dettagli sono nel piano.
 

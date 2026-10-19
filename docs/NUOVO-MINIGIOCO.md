@@ -95,6 +95,13 @@ Registra le viste in `packages/client/src/minigames/registry.ts`:
 4. **Test end-to-end** in `e2e/`: uno scenario che gioca il minigioco dal telefono alla classifica, controlla il DOM e (se ci sono segreti) il traffico WebSocket. Usa il fixture `newGame` di `e2e/support.ts` (vedi `e2e/minigames.spec.ts`). Lancia `pnpm test:e2e`.
 5. Se il minigioco ha latenza o ordine di arrivo rilevanti, aggiungi una simulazione con ritardi casuali (vedi `buzzer.test.ts`).
 
+## 3 bis. Viste leggere (invii raggruppati)
+
+Il server **accorpa** gli invii (al massimo ogni ~80 ms) e **non rimanda a un telefono una vista identica** all'ultima inviata (`flush` in `realtime.ts`). Conviene quindi
+tenere `viewFor` **essenziale**: ciò che cambia a ogni azione di un giocatore (posizioni, contatori, avanzamenti) e che riguarda solo lui o solo la TV non
+deve stare nella vista di tutti gli altri telefoni, altrimenti ogni azione costa un messaggio per ogni giocatore (con 30 telefoni, ~30). Metti le informazioni
+`solo schermo` in `screenView`. Le funzioni devono restituire viste **deterministiche** (stesso stato, stesso JSON): niente timestamp o contatori che cambiano da soli.
+
 ## 4 bis. Game Master e interfaccia ricca per la regia (facoltativo)
 
 Per un gioco condotto da una persona (un GDR, un gioco a indizi) il plugin può dichiarare:
