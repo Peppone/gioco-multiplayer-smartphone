@@ -7,7 +7,7 @@ import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.
 import { lunghezzaOnda } from "./lunghezza-onda/index.js";
 import { paroleMannare } from "./parole-mannare/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
-import { reazioneACatena, wordListSchema } from "./reazione-a-catena/index.js";
+import { reazioneACatena } from "./reazione-a-catena/index.js";
 import { stanzeColBotto } from "./stanze-col-botto/index.js";
 import { stanzeSegrete } from "./stanze-segrete/index.js";
 import { scalata } from "./scalata/index.js";
@@ -16,7 +16,9 @@ import { sondaggio } from "./sondaggio/index.js";
 import { stima } from "./stima/index.js";
 import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
+import { wordListSchema } from "./word-list.js";
 
+export { normalizeWord } from "./agenti-segreti/clue.js";
 export { agentiSegreti, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
@@ -71,7 +73,7 @@ export const libraryContentTypes: Record<string, LibraryContentType> = {
   },
   "word-list": {
     id: "word-list",
-    title: "Lista di parole (Reazione a catena)",
+    title: "Lista di parole (Reazione a catena, Agenti Segreti)",
     defaultTheme: "gameshow",
     configSchema: wordListSchema as unknown as import("zod").ZodType<unknown>,
     sampleConfig: { words: ["Pizza", "Spiaggia", "Telefono", "Montagna", "Chitarra", "Gelato"] },

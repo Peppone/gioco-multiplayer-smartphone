@@ -4,7 +4,7 @@ import { deriveSeed, makeRng, shuffle } from "../knight-duel/rng.js";
 import { type TeamVote, castVote, confirmVote, createVote, resolveVote, tally } from "../team-vote.js";
 import { GRACE_MS, rankByPoints, totalsToScores } from "../util.js";
 import { clueProblem, normalizeWord } from "./clue.js";
-import { DEFAULT_WORDS } from "./words.js";
+import { lookupWordList } from "../word-list.js";
 
 /**
  * Agenti Segreti: parole e indizi a squadre, in stile Codenames.
@@ -32,37 +32,64 @@ const sec = (title: string, description?: string) => ({ title, ...(description &
 
 const GRID = { "5x5": { size: 25, first: 9, second: 8 }, "4x4": { size: 16, first: 6, second: 5 } } as const;
 
+/** Lunghezza massima di una parola della griglia: oltre non sta su una carta del telefono. */
+export const MAX_WORD_LENGTH = 20;
+const wordSchema = z.string().trim().min(1).max(MAX_WORD_LENGTH);
+
+const settingsShape = {
+  gridSize: z
+    .enum(["5x5", "4x4"])
+    .default("5x5")
+    .meta({ ...sec("Griglia", "5×5: 9 e 8 agenti, 7 civili. 4×4: 6 e 5 agenti, 4 civili (partite brevi)"), enumLabels: { "5x5": "5×5 (25 carte)", "4x4": "4×4 (16 carte)" } }),
+  assassins: z.number().int().min(0).max(3).default(1).meta(sec("Assassini", "0 = niente assassino (versione per bambini); ogni assassino in più toglie un civile")),
+  clueSeconds: z.number().int().min(0).max(600).default(90).meta(sec("Tempo per l'indizio (s)", "0 = senza limite. Allo scadere il turno passa")),
+  guessSeconds: z.number().int().min(0).max(300).default(60).meta(sec("Tempo di ogni voto (s)", "0 = senza limite: il voto si chiude quando confermano tutti")),
+  maxTurns: z.number().int().min(0).max(TURN_CAP).default(0).meta(sec("Turni al massimo", `0 = nessun limite (al massimo ${TURN_CAP}). Alla fine vince chi ha meno agenti da trovare`)),
+  allowZeroInfinity: z.boolean().default(true).meta(sec("Indizi con 0 e ∞", "Con 0 o ∞ la squadra può scoprire quante carte vuole")),
+  points: z
+    .object({
+      win: z.number().int().min(0).max(1000).default(100).meta(sec("Punti della vittoria", "A ogni membro della squadra vincitrice, Capo-spia compreso")),
+      perAgent: z.number().int().min(0).max(100).default(0).meta(sec("Punti per agente scoperto", "A ogni membro, per ogni agente della propria squadra scoperto")),
+    })
+    .default({ win: 100, perAgent: 0 })
+    .meta(sec("Punti")),
+};
+
+const enoughWords = (c: { words: string[]; gridSize: keyof typeof GRID }) => new Set(c.words.map(normalizeWord)).size >= GRID[c.gridSize].size;
+const ENOUGH = "Servono almeno 25 parole diverse (16 con la griglia 4×4)";
+
+/** Configurazione completa con cui parte il plugin: le parole sono già risolte (lista della libreria più quelle proprie). */
 export const agentiSegretiConfigSchema = z
-  .object({
-    words: z
-      .array(z.string().trim().min(1).max(20))
-      .min(16)
-      .max(300)
-      .default(DEFAULT_WORDS)
-      .meta({ title: "Parole", itemLabel: "Parola", description: "Le parole della griglia: almeno 25 diverse (16 con la griglia 4×4). Ogni partita ne estrae una parte" }),
-    gridSize: z
-      .enum(["5x5", "4x4"])
-      .default("5x5")
-      .meta({ ...sec("Griglia", "5×5: 9 e 8 agenti, 7 civili. 4×4: 6 e 5 agenti, 4 civili (partite brevi)"), enumLabels: { "5x5": "5×5 (25 carte)", "4x4": "4×4 (16 carte)" } }),
-    assassins: z.number().int().min(0).max(3).default(1).meta(sec("Assassini", "0 = niente assassino (versione per bambini); ogni assassino in più toglie un civile")),
-    clueSeconds: z.number().int().min(0).max(600).default(90).meta(sec("Tempo per l'indizio (s)", "0 = senza limite. Allo scadere il turno passa")),
-    guessSeconds: z.number().int().min(0).max(300).default(60).meta(sec("Tempo di ogni voto (s)", "0 = senza limite: il voto si chiude quando confermano tutti")),
-    maxTurns: z.number().int().min(0).max(TURN_CAP).default(0).meta(sec("Turni al massimo", `0 = nessun limite (al massimo ${TURN_CAP}). Alla fine vince chi ha meno agenti da trovare`)),
-    allowZeroInfinity: z.boolean().default(true).meta(sec("Indizi con 0 e ∞", "Con 0 o ∞ la squadra può scoprire quante carte vuole")),
-    points: z
-      .object({
-        win: z.number().int().min(0).max(1000).default(100).meta(sec("Punti della vittoria", "A ogni membro della squadra vincitrice, Capo-spia compreso")),
-        perAgent: z.number().int().min(0).max(100).default(0).meta(sec("Punti per agente scoperto", "A ogni membro, per ogni agente della propria squadra scoperto")),
-      })
-      .default({ win: 100, perAgent: 0 })
-      .meta(sec("Punti")),
-  })
-  .refine((c) => new Set(c.words.map(normalizeWord)).size >= GRID[c.gridSize].size, {
-    message: "Servono almeno 25 parole diverse (16 con la griglia 4×4)",
-    path: ["words"],
-  });
+  .object({ words: z.array(wordSchema).max(800).meta({ title: "Parole", itemLabel: "Parola" }), ...settingsShape })
+  .refine(enoughWords, { message: ENOUGH, path: ["words"] });
 
 export type AgentiSegretiConfig = z.infer<typeof agentiSegretiConfigSchema>;
+
+/**
+ * Istanza in libreria, come la compila la regia: le parole stanno in una «Lista di parole» della libreria (nel
+ * database, modificabile dall'editor e riusabile in più round) e/o nell'istanza stessa. All'avvio della partita
+ * `buildConfig` le risolve. Al primo avvio il server crea la lista «Parole di Agenti Segreti» con 300 parole d'esempio.
+ */
+export const agentiSegretiLibrarySchema = z
+  .object({
+    wordList: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({ title: "Lista di parole", widget: "instance", instanceKind: "word-list", description: `Contenuto della libreria, riusabile in più round. Le parole più lunghe di ${MAX_WORD_LENGTH} lettere si saltano` }),
+    words: z.array(wordSchema).max(300).default([]).meta({ title: "Parole proprie di questa istanza", description: "In più rispetto alla lista (facoltative)", itemLabel: "Parola", widget: "lines" }),
+    ...settingsShape,
+  })
+  .refine((c) => !!c.wordList || enoughWords(c), { message: `Scegli una lista di parole, oppure scrivine qui: ${ENOUGH.toLowerCase()}`, path: ["wordList"] });
+
+/** Parole della lista (solo quelle che stanno su una carta) e proprie, senza doppioni dopo la normalizzazione. */
+export function mergeWords(listWords: string[], own: string[]): string[] {
+  const seen = new Set<string>();
+  return [...listWords, ...own]
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0 && w.length <= MAX_WORD_LENGTH)
+    .filter((w) => !seen.has(normalizeWord(w)) && !!seen.add(normalizeWord(w)));
+}
 
 const clueWord = z.string().trim().min(1).max(30);
 const inputSchema = z.discriminatedUnion("type", [
@@ -458,8 +485,23 @@ export const agentiSegreti: MinigameType<AgentiSegretiConfig, AgentiSegretiState
   commandSchema,
   minPlayers: 4,
   maxPlayers: 30,
+
+  // Le parole stanno nel database (una «Lista di parole» della libreria): l'istanza la riferisce per id.
+  libraryConfigSchema: agentiSegretiLibrarySchema as unknown as z.ZodType<unknown>,
+  draftLibraryConfig: { words: [], gridSize: "5x5" },
+  buildConfig(raw, lookup) {
+    const parsed = agentiSegretiLibrarySchema.safeParse(raw);
+    if (!parsed.success) return { ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ") };
+    const { wordList, words: own, ...rest } = parsed.data;
+    const listWords = wordList ? lookupWordList(lookup, wordList) : [];
+    if (!listWords) return { ok: false, error: "Lista di parole non valida o non trovata" };
+    const config = agentiSegretiConfigSchema.safeParse({ ...rest, words: mergeWords(listWords, own) });
+    return config.success ? { ok: true, config: config.data } : { ok: false, error: ENOUGH };
+  },
+
+  // Solo per i test e i simulatori: le parole vere vengono dalla libreria.
   sampleConfig: {
-    words: DEFAULT_WORDS,
+    words: Array.from({ length: 60 }, (_, i) => `Parola${String.fromCharCode(65 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`),
     gridSize: "5x5",
     assassins: 1,
     clueSeconds: 90,

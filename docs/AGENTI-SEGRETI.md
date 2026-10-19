@@ -33,11 +33,30 @@ Le regole con i numeri della partita sono anche nel telefono (pulsante «ℹ️�
 
 ## Preparare il gioco (regia, `/admin`)
 
+### Le parole (nel database)
+
+Le parole non sono scritte nel programma: stanno nella **libreria**, come «Lista di parole» (lo stesso contenuto che
+usa Reazione a catena). Al primo avvio il server crea la lista **«Parole di Agenti Segreti»** con 300 parole
+d'esempio; da lì in poi è un contenuto come gli altri:
+
+- **aggiungere e correggere**: «Modifica» sulla lista apre un'area di testo con **una parola per riga**; si scrive o
+  si incolla un elenco intero. Sotto compaiono quante sono, i doppioni (maiuscole e accenti a parte: contano una
+  volta) e le parole troppo lunghe. Nel gioco si saltano quelle oltre 20 lettere;
+- **salvare**: «Salva» la scrive nel database (vale per le prossime partite); «Duplica» ne fa una copia da cambiare
+  senza toccare l'originale;
+- **esportare e importare**: «Esporta» scarica la lista in JSON (si reimporta con «Importa JSON»), «Scarica come testo
+  (.txt)» nell'editor scarica le parole una per riga.
+
+Se elimini o modifichi la lista d'esempio, al riavvio il server non la ricrea.
+
+### L'istanza
+
 Nella libreria si crea un'istanza di «Agenti Segreti»:
 
 | Campo | Default | Note |
 |---|---|---|
-| Parole | 300 parole d'esempio | Almeno 25 diverse (16 con 4×4); i doppioni (maiuscole e accenti compresi) contano una volta. Le parole uscite nei round precedenti della partita non si ripropongono finché la lista basta |
+| Lista di parole | — | Una lista della libreria (per esempio «Parole di Agenti Segreti») |
+| Parole proprie | nessuna | In più rispetto alla lista (anche al posto della lista). In tutto servono almeno 25 parole diverse (16 con 4×4), altrimenti la partita non parte. Le parole uscite nei round precedenti della partita non si ripropongono finché ne restano |
 | Griglia | 5×5 | 4×4 per partite brevi o con pochi giocatori |
 | Assassini | 1 | 0 = versione per bambini; ogni assassino in più toglie un civile |
 | Tempo per l'indizio | 90 s | 0 = senza limite; allo scadere il turno passa |
@@ -87,8 +106,11 @@ la TV mostra «⚠ La regia vede la mappa».
 ## Per chi sviluppa
 
 - Plugin: `packages/minigames/src/agenti-segreti/` (`index.ts` stato, fasi e viste; `clue.ts` controllo
-  dell'indizio; `words.ts` lista d'esempio). Il voto usa il modulo comune `packages/minigames/src/team-vote.ts` con
-  `onTie: "none"`.
+  dell'indizio). L'istanza (`agentiSegretiLibrarySchema`) riferisce una lista di parole (`word-list.ts`, comune con
+  Reazione a catena) e `buildConfig` la risolve all'avvio. Il voto usa il modulo comune
+  `packages/minigames/src/team-vote.ts` con `onTie: "none"`.
+- Parole d'esempio: `packages/server/src/seed-words.ts`, scritte nel database una volta sola da `library-seed.ts` (il
+  segno `seed.agenti-segreti-words` in `settings` evita di ricrearle se la regia le elimina).
 - Viste: `packages/client/src/minigames/agenti-segreti/` (TV, telefono, regia `AgentiHost.tsx`, regole
   `rulesText.ts`, anteprima `previewData.ts` con le scene `as-*`). Il testo delle carte si adatta alla larghezza con le
   container query (`cardText.ts`); nel tema pixel le parole lunghe vanno su due righe.

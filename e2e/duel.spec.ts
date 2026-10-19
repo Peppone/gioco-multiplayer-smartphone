@@ -61,6 +61,7 @@ test("duello completo con 4 telefoni: minigioco, draft segreto, battaglia simult
   // I compagni vedono in tempo reale la scelta dell'altro; la carta si ingrandisce solo tenendola premuta
   await r1.page.locator(".card-picker .peekable").first().click();
   await expect(r2.page.locator(".card-picker .card-badges i").first()).toHaveText("A"); // iniziale di «Ada…»
+  await expect.poll(() => lastPlayerView(r1.traffic)?.draft?.vote?.mine?.[0], "la scelta di r1 deve tornare nella sua vista").toBeTruthy(); // il frame di r1 può arrivare dopo quello di r2
   const redPick = lastPlayerView(r1.traffic)!.draft.vote.mine[0] as string;
   await r2.page.locator(".card-picker .peekable").first().click();
   await r1.page.getByRole("button", { name: "Conferma la carta" }).click();
