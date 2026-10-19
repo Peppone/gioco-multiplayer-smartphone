@@ -14,6 +14,16 @@ export function useRemaining(deadline: number, clock: ClockSync): number {
   return remaining;
 }
 
+/** Ora server (ms), aggiornata ogni `intervalMs`: serve a calcolare in locale tempi che non cambiano lo stato (porte, pattuglie, ordini). */
+export function useServerNow(clock: ClockSync, intervalMs = 200): number {
+  const [now, setNow] = useState(() => clock.toServerTime(Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => setNow(clock.toServerTime(Date.now())), intervalMs);
+    return () => clearInterval(id);
+  }, [clock, intervalMs]);
+  return now;
+}
+
 interface CountdownProps {
   openedAt: number;
   deadline: number;

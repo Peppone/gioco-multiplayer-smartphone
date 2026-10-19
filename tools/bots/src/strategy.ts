@@ -14,7 +14,7 @@ export interface Decision {
  * Vista della regia di Artificieri, aggiornata dalla regia automatica: l'artificiere simulato «legge il manuale» da qui
  * (soluzioni e piani dei moduli), come farebbero gli esperti. I telefoni veri non l'hanno mai: è solo del simulatore.
  */
-export const oracle: { artificieri: any | null; pilota: any | null } = { artificieri: null, pilota: null };
+export const oracle: { artificieri: any | null; pilota: any | null; plancia: any | null } = { artificieri: null, pilota: null, plancia: null };
 
 /** Ora server usata dai bot che aspettano porte e blocchi (ms): quella vera, tranne nei test che simulano il tempo. */
 export const clock: { now: () => number } = { now: () => Date.now() };
@@ -99,6 +99,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
 
     case "pilota-cieco":
       return decidePilota(v, rnd);
+
+    case "plancia-comando":
+      return decidePlancia(v, rnd);
 
     case "lunghezza-onda":
       return decideOnda(v, rnd);
@@ -312,6 +315,7 @@ export function privacyProblem(typeId: string, view: unknown): string | null {
   }
   if (typeId === "artificieri") return artificieriPrivacy(v);
   if (typeId === "pilota-cieco") return pilotaPrivacy(v);
+  if (typeId === "plancia-comando") return planciaPrivacy(v);
   if (typeId !== "agenti-segreti") return null;
   const over = v.phase === "reveal" || v.phase === "done";
   if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
@@ -379,6 +383,59 @@ function decidePilota(v: View, rnd: Rnd): Decision | null {
   const open = PILOT_DIRS.filter((d) => (lane.cells[lane.pos] & d.bit) !== 0);
   const dir = rnd() < PILOTA_ERROR_RATE && open.length > 0 ? pick([...open], rnd).dir : PILOT_DIRS.find((d) => lane.pos + d.delta(lane.w) === next)!.dir;
   return { key, inputs: [{ type: "move", dir }], thinkMs: [wait + 40, wait + 160] };
+}
+
+/** Probabilità che un bot «non senta» un ordine (o l'allarme) e non faccia nulla: così gli scafi si danneggiano ogni tanto. */
+export const PLANCIA_DEAF_RATE = 0.08;
+
+/** Sordità di un ordine: decisa dal suo nome (e dagli scaduti prima), non a ogni vista, altrimenti ci si ripensa subito. */
+const deaf = (what: string): boolean => {
+  let h = 2166136261;
+  for (const ch of what) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
+  return (h % 1000) / 1000 < PLANCIA_DEAF_RATE;
+};
+
+/**
+ * Plancia di Comando: ogni bot guarda gli ordini del proprio equipaggio (dalla regia automatica: è come se i compagni li
+ * gridassero) e, se uno nomina un suo comando, lo porta al valore giusto dopo un po' di «riflessione»; preme l'allarme
+ * generale. Ogni tanto non sente un ordine. Gli ordini scaduti o già eseguiti non si ripetono (la `key` include i conteggi).
+ */
+function decidePlancia(v: View, _rnd: Rnd): Decision | null {
+  const me = v.me;
+  const crew = v.crew;
+  if (!me || !crew || v.phase !== "sector" || v.pausedRemainingMs !== null || crew.stopped || me.inactive) return null;
+  if (crew.event?.kind === "alarm" && !me.alarmPressed) return { key: `pdc-alarm-${crew.event.until}`, inputs: deaf(`alarm-${crew.event.until}-${me.id}`) ? [] : [{ type: "alarm" }], thinkMs: [200, 2_500] };
+  const host = oracle.plancia?.crews.find((c: View) => c.id === crew.id);
+  if (!host) return null;
+  const stats = `${host.done}-${host.missed}-${v.sector}`;
+  const orders = (host.memberList as { order: string | null }[]).map((m) => m.order).filter((t): t is string => t !== null);
+  for (const text of orders) {
+    const control = (me.controls as { id: string; name: string; kind: string; options: string[]; value: number }[]).find((c) => text.includes(c.name));
+    if (!control) continue;
+    let input: unknown;
+    if (control.kind === "button") input = { type: "press", control: control.id };
+    else {
+      const value = control.kind === "toggle" ? (text.startsWith("Accendi") ? 1 : 0) : control.kind === "slider" ? Number(/ a (\d)!$/.exec(text)?.[1]) : control.options.findIndex((o) => text.endsWith(` su ${o}!`));
+      if (!Number.isInteger(value) || value < 0 || value === control.value) continue;
+      input = { type: "set", control: control.id, value };
+    }
+    return { key: `pdc-${control.id}-${text}-${stats}`, inputs: deaf(`${control.id}-${text}-${host.missed}`) ? [] : [input], thinkMs: [300, 2_500] };
+  }
+  return null;
+}
+
+/**
+ * Plancia di Comando: nessun telefono riceve lo stato grezzo (equipaggi, ordini degli altri, bersagli, seme, evento in
+ * programma) né più dei 6 comandi del proprio pannello.
+ */
+function planciaPrivacy(v: View): string | null {
+  const keys = deepKeys(v);
+  for (const secret of ["crews", "memberList", "target", "solution", "sectorEvent", "seed", "orders", "owner", "controlsByOwner"]) if (keys.has(secret)) return `chiave «${secret}» sul telefono`;
+  const me = v.me;
+  if (!me) return null;
+  if (me.controls.length > 6) return `${me.controls.length} comandi sul telefono`;
+  if (v.phase !== "sector" && me.order) return `ordine in ${v.phase}`;
+  return null;
 }
 
 /** Chiavi, a qualunque profondità. */

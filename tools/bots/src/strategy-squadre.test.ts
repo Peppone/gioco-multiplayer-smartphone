@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AnyMinigame, MinigameContext } from "@gioco/shared";
 import { artificieri } from "../../../packages/minigames/src/artificieri/index.js";
 import { pilotaCieco } from "../../../packages/minigames/src/pilota-cieco/index.js";
+import { planciaComando } from "../../../packages/minigames/src/plancia-comando/index.js";
 import { clock, decide, makeRnd, oracle, privacyProblem } from "./strategy.js";
 
 /**
@@ -30,6 +31,7 @@ function simulate(plugin: AnyMinigame, s0: any, start: number, maxMs: number, un
     for (; now < start + maxMs && !until(s); now += 50) {
       oracle.artificieri = plugin.id === "artificieri" ? plugin.hostView(s).info : null;
       oracle.pilota = plugin.id === "pilota-cieco" ? plugin.hostView(s).info : null;
+      oracle.plancia = plugin.id === "plancia-comando" ? plugin.hostView(s).info : null;
       s = plugin.onTick(s, now);
       if (hostTick) s = hostTick(s, now);
       for (const id of s.players as string[]) {
@@ -111,6 +113,68 @@ describe("bot di Pilota alla cieca", () => {
     expect(privacyProblem("pilota-cieco", { ...view, lanes: [{ reveal: {} }] })).toContain("strati scoperti in run");
     const navView = pilotaCieco.viewFor(s, nav, null) as { me: { layers: string[]; layerData: Record<string, unknown> } };
     expect(privacyProblem("pilota-cieco", { ...navView, me: { ...navView.me, layerData: { ...navView.me.layerData, patrols: [] , mines: [], doors: [], keys: [] } } })).toContain("strati diversi");
+  });
+});
+
+describe("bot di Plancia di Comando", () => {
+  it("due equipaggi di bot si passano gli ordini a voce: eseguono molti ordini, qualcuno scade, nessuna vista rivela più del suo pannello", () => {
+    const cfg = planciaComando.configSchema.parse({ sectors: 1, sectorSeconds: 60, events: true, orderSeconds: 12 });
+    let s: any = planciaComando.init(cfg, people([4, 4]), 0);
+    s = planciaComando.onHostCommand(s, { type: "launch" }, 100);
+    const out = simulate(planciaComando, s, 100, 70_000, (x) => x.phase !== "sector", undefined, 4);
+    expect(out.leaks).toEqual([]);
+    expect(out.s.phase).toBe("final");
+    const crews = out.s.crews as { done: number; missed: number; hull: number }[];
+    expect(crews.every((c) => c.done >= 15), `ordini eseguiti ${crews.map((c) => c.done)}`).toBe(true);
+    expect(crews.some((c) => c.missed > 0), "ogni tanto un bot non sente").toBe(true);
+    expect(out.inputs).toBeGreaterThan(40);
+  });
+
+  it("il bot porta il comando al valore dell'ordine che nomina un suo comando e preme l'allarme; altrimenti non fa nulla", () => {
+    const cfg = planciaComando.configSchema.parse({ events: false });
+    let s: any = planciaComando.init(cfg, people([3, 3]), 0);
+    s = planciaComando.onHostCommand(s, { type: "launch" }, 100);
+    oracle.plancia = planciaComando.hostView(s).info;
+    const crew = s.crews[0];
+    let heard = 0;
+    const orders = Object.values(crew.orders) as { controlId: string; target: number }[];
+    for (const ownerId of new Set(crew.controls.map((c: { owner: string }) => c.owner)) as Set<string>) {
+      const d = decide("plancia-comando", planciaComando.viewFor(s, ownerId, null), makeRnd(1));
+      const named = orders.some((o) => crew.controls.find((c: { id: string }) => c.id === o.controlId).owner === ownerId);
+      // chi ha un comando nominato da un ordine decide sempre (anche di non sentire: allora non manda nulla); gli altri tacciono
+      expect(d !== null, ownerId).toBe(named);
+      if (!d || d.inputs.length === 0) continue;
+      heard++;
+      const sent = d.inputs[0] as { type: string; control: string; value?: number };
+      const control = crew.controls.find((c: { id: string }) => c.id === sent.control);
+      expect(control.owner).toBe(ownerId);
+      const order = orders.find((o) => o.controlId === control.id)!;
+      if (control.kind === "button") expect(sent.type).toBe("press");
+      else expect(sent).toMatchObject({ type: "set", value: order.target });
+    }
+    expect(heard, "almeno un ordine sentito").toBeGreaterThanOrEqual(1);
+    const owner = crew.controls[0].owner as string;
+    // allarme: tutti premono; chi ha già premuto no
+    const base = planciaComando.viewFor(s, owner, null) as any;
+    const alarm = { ...base, crew: { ...base.crew, event: { kind: "alarm", until: 9_000 } } };
+    expect(decide("plancia-comando", alarm, makeRnd(1))!.key).toBe("pdc-alarm-9000");
+    expect(decide("plancia-comando", { ...alarm, me: { ...alarm.me, alarmPressed: true } }, makeRnd(1))?.key).not.toBe("pdc-alarm-9000");
+    // fuori dal settore, in pausa o col telefono fuori uso: niente
+    expect(decide("plancia-comando", { ...alarm, phase: "jump" }, makeRnd(1))).toBeNull();
+    expect(decide("plancia-comando", { ...alarm, pausedRemainingMs: 1000 }, makeRnd(1))).toBeNull();
+    expect(decide("plancia-comando", { ...alarm, me: { ...alarm.me, inactive: true } }, makeRnd(1))).toBeNull();
+  });
+
+  it("il controllo di privacy segnala stato grezzo, ordini altrui e troppi comandi sul telefono", () => {
+    const cfg = planciaComando.configSchema.parse({});
+    let s: any = planciaComando.init(cfg, people([3, 3]), 0);
+    s = planciaComando.onHostCommand(s, { type: "launch" }, 100);
+    const view = planciaComando.viewFor(s, s.players[0], null) as { me: Record<string, unknown> };
+    expect(privacyProblem("plancia-comando", view)).toBeNull();
+    expect(privacyProblem("plancia-comando", { ...view, crews: [] })).toContain("crews");
+    expect(privacyProblem("plancia-comando", { ...view, me: { ...view.me, orders: {} } })).toContain("orders");
+    expect(privacyProblem("plancia-comando", { ...view, me: { ...view.me, controls: Array(7).fill({}) } })).toContain("7 comandi");
+    expect(privacyProblem("plancia-comando", { ...view, phase: "final" })).toContain("ordine in final");
   });
 });
 

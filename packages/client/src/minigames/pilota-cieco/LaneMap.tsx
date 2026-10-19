@@ -1,19 +1,11 @@
-import { useEffect, useState } from "react";
-import { type ClockSync, doorChangesIn, doorOpen, patrolCell } from "@gioco/shared";
+import { doorChangesIn, doorOpen, patrolCell } from "@gioco/shared";
+import { useServerNow } from "../Countdown";
 import type { Door, LayerData, Patrol, PublicLane, Reveal } from "./types";
 
 const RIGHT = 2;
 const DOWN = 4;
 
-/** Ora server, aggiornata ogni `intervalMs`: serve a calcolare in locale porte e pattuglie. */
-export function useServerNow(clock: ClockSync, intervalMs = 200): number {
-  const [now, setNow] = useState(() => clock.toServerTime(Date.now()));
-  useEffect(() => {
-    const id = setInterval(() => setNow(clock.toServerTime(Date.now())), intervalMs);
-    return () => clearInterval(id);
-  }, [clock, intervalMs]);
-  return now;
-}
+export { useServerNow };
 
 interface Props {
   lane: PublicLane;

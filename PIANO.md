@@ -334,10 +334,15 @@ Una gara in cui **chi guida non vede i pericoli** e **chi vede i pericoli non gu
 ### 📡 Invii raggruppati (`realtime.ts`)
 Ogni cambio di stato rimandava **tutte** le viste a **tutti** i telefoni (30 invii per input con 30 giocatori). Ora `flush` accorpa gli input a raffica (il primo dopo una pausa parte subito, gli altri al più tardi dopo `flushMs` = 80 ms) e **non rimanda una vista identica** all'ultima inviata a quel telefono: negli stress con 30 giocatori gli aggiornamenti calano dell'83% (classico) e del 78% (Lunghezza d'Onda); in Pilota alla cieca del 12% (la posizione dei piloti è pubblica). Il tetto di ritardo è l'intervallo di accorpamento (~80 ms); l'ora equa degli input viene da `meta`, non dall'istante di invio. Per questo **la vista di un telefono va tenuta essenziale**: dati che cambiano per tutti a ogni azione annullano la deduplicazione. Misure e dettagli in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md); test in `realtime-flush.test.ts`.
 
-### 🧩 Prossimo minigioco (pianificato)
-Un ultimo gioco a squadre con **informazioni divise** tra i telefoni, dopo Artificieri e Pilota alla cieca. Le decisioni sono confermate con l'utente; i dettagli sono nel piano.
-
-3. **🚀 Plancia di Comando** (`plancia-comando`, tema `retro80`), in stile *Spaceteam*: ogni telefono è un pannello di comandi dai nomi assurdi e gli ordini arrivano ai compagni, che devono gridarli. **Primo passo obbligatorio**: raggruppare gli invii delle viste in `realtime.ts` e non rimandare viste identiche (oggi ogni cambio di stato rimanda tutte le viste a tutti), tarato con le misure dello stress di Pilota alla cieca. Piano in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md).
+### 🚀 Plancia di Comando (`plancia-comando`, tema `retro80`): ordini gridati tra telefoni
+Gioco caotico in stile *Spaceteam*: ogni telefono è un **pannello** di 4–6 comandi dai nomi assurdi (pulsanti, interruttori, cursori, selettori) e gli **ordini** a tempo arrivano ai compagni, che devono **gridarli**. Ordine eseguito → l'astronave avanza; scaduto → lo scafo si danneggia. A squadre (ogni team è un equipaggio da 2 a 8 membri) o in equipaggio unico; da 2 a 30 giocatori (`minPlayers: 2`). Piano in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md); guida in [docs/PLANCIA-COMANDO.md](docs/PLANCIA-COMANDO.md).
+- **Settori** con salto (pannelli nuovi, ordini −10% di tempo, un comando in più dal terzo), **eventi** (allarme generale: tutti premono il pulsante rosso; blackout: nomi ridotti alle iniziali) e **punti** per ordine, scafo e piazzamento; la classifica va per passi **per membro**.
+- **Ordini all'ora equa** (`fairTime` + `GRACE_MS`): la rete lenta non penalizza. Nessun punto per la rapidità.
+- **Privacy**: ogni telefono riceve solo i propri comandi e il proprio ordine; la TV né pannelli né ordini in corso (solo l'ultimo eseguito, in ritardo). Coperto da `plancia-leak.test.ts`, e2e sui frame WebSocket e stress. La vista del telefono resta essenziale per non annullare la deduplicazione di `realtime.ts`.
+- **Regia**: vede l'ordine di ogni membro; ripara gli scafi, rimescola i pannelli, salta il settore e segna un telefono **fuori uso** (📵).
+- **Regole in app**: bottone «ℹ️» del telefono, testo in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
+- **Misure dello stress** (30 telefoni, 4 equipaggi, ~9 comandi al secondo): ~2 aggiornamenti per comando (senza deduplicazione sarebbero ~30), stato di ritorno in mediana ~30 ms e p95 ~450 ms.
+- **Test**: unit (pannelli e nomi, plugin, anti-leak, bot), anteprima Playwright (`pdc-*` nei 5 temi), e2e con equipaggi veri e stress (`pnpm stress --players 30 --scenario plancia`).
 
 ---
 
@@ -393,7 +398,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
 | Extra: Artificieri | ✅ (da provare con persone) | Disinnesco a squadre con informazioni divise (2–30 giocatori), 6 moduli, manuale diviso tra gli esperti, scommesse; tema `boom`; guida `docs/ARTIFICIERI.md` |
 | Extra: Pilota alla cieca | ✅ (da provare con persone) | Gara a squadre in labirinto con strati di informazioni divisi tra i navigatori (2–30 giocatori), corsie in contemporanea o a turno; tema `pixel`; guida `docs/PILOTA-CIECO.md` |
-| Extra: Plancia di Comando | 📝 pianificato (3° di 3) | Piano `docs/PIANO-PLANCIA-COMANDO.md`; prima il raggruppamento degli invii in `realtime.ts` |
+| Extra: Plancia di Comando | ✅ (da provare con persone) | Ordini gridati tra telefoni in stile Spaceteam (2–30 giocatori), pannelli di comandi, settori, scafo ed eventi; tema `retro80`; guida `docs/PLANCIA-COMANDO.md` |
 
 **Scostamenti dal piano originale (concordati)**
 - **Test end-to-end con Playwright** (Edge, senza screenshot) oltre a Vitest.

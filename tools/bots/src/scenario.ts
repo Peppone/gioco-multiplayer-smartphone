@@ -179,6 +179,29 @@ export async function artificieriMatch(api: AdminApi, setup: EventSetup, playerI
 }
 
 /**
+ * Partita con il solo round «Plancia di Comando»: i giocatori vengono ridistribuiti in equipaggi da 4 a 8 (o in uno solo,
+ * con pochi giocatori), con settori brevi.
+ */
+export async function planciaMatch(api: AdminApi, setup: EventSetup, playerIds: string[]): Promise<{ matchId: string; crews: number; sectors: number }> {
+  const stamp = Date.now().toString(36);
+  const crews = playerIds.length < 4 ? 1 : Math.min(4, Math.max(2, Math.floor(playerIds.length / 4)));
+  const colors = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b"];
+  const teamIds: string[] = [];
+  for (let i = 0; i < crews; i++) teamIds.push((await api.post("/teams", { name: `Equipaggio ${i + 1} ${stamp}`, color: colors[i % colors.length], emblem: "🚀" })).id);
+  await api.put(`/events/${setup.eventId}/teams`, { teamIds });
+  for (const [i, id] of playerIds.entries()) await api.put(`/events/${setup.eventId}/players/${id}`, { teamId: teamIds[i % crews] });
+  const sectors = 3;
+  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Plancia di Comando" });
+  const inst = await api.post("/instances", {
+    typeId: "plancia-comando",
+    title: "Plancia di prova",
+    config: { mode: "squadre", sectors, sectorSeconds: 30, controlsPerPanel: 4, orderSeconds: 12, minOrderSeconds: 6, events: true, damagePerMiss: 5 },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id, crews, sectors };
+}
+
+/**
  * Partita con il solo round «Pilota alla cieca»: i giocatori vengono ridistribuiti in 4 squadre (o meno, con pochi
  * giocatori) che corrono insieme sulla TV, con livelli brevi.
  */

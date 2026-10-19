@@ -1,6 +1,6 @@
 # Piano: «Plancia di Comando» (ordini gridati tra telefoni, in stile Spaceteam)
 
-> Stato: **da implementare**: è il **terzo dei tre** giochi pianificati, dopo [Artificieri](PIANO-ARTIFICIERI.md) e
+> Stato: **implementato** (P0–P6 ✅; da provare con persone): è il **terzo dei tre** giochi pianificati, dopo [Artificieri](PIANO-ARTIFICIERI.md) e
 > [Pilota alla cieca](PIANO-PILOTA-CIECO.md), di cui usa le misure dello stress per dimensionare il P0. Le decisioni
 > del §2 e il P0 come primo passo sono **confermati** dall'utente. I punti che dipendono dal codice esistente sono
 > verificati nel §9.
@@ -221,12 +221,12 @@ Il P0 è un lavoro a sé sul server (beneficia tutti i giochi) e si chiude con i
 | Passo | Contenuto | Verifica |
 |---|---|---|
 | **P0 Invii raggruppati** ✅ (obbligatorio, prima del plugin) | In `realtime.ts`: `flush()` al massimo ogni ~100 ms (intervallo da tarare con le misure dello stress di Pilota alla cieca) e, per ogni socket, nessun invio se la vista è identica all'ultima inviata. Le azioni sensibili alla latenza non peggiorano: l'ora equa viene da `meta`, non dall'istante di invio | Prima e dopo: `pnpm stress` classico, `--scenario onda` e `--scenario pilota` con i tempi di aggiornamento a confronto. Test richiesti da `CLAUDE.md` per `realtime.ts`: `master.test.ts`, `e2e/stanze-segrete.spec.ts`, `pnpm stress --players 10 --scenario stanze`; più `pnpm test` e `pnpm test:e2e` completi (tutti i giochi passano da `flush`) |
-| **P1 Logica del plugin** | Pannelli, nomi, ordini, scadenze all'ora equa, settori, eventi, punti, `buildConfig` | Unit test: nomi unici nell'equipaggio; ordine sempre su un valore diverso dall'attuale; `ownShare` rispettato su molti semi; input rifiutato da chi non è proprietario; esecuzione entro `GRACE_MS`; scafo a zero ferma l'astronave; contratto di `registry.test.ts` |
-| **P2 Anti-leak** | Scorrimento dello stato | Pannelli e ordini altrui mai nelle viste; TV senza pannelli né ordini |
-| **P3 Viste** | Pannello, TV, scene `/preview` (`pdc-*`: 4 e 6 comandi, nomi lunghi, blackout, allarme) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640 con 6 comandi e i nomi più lunghi; cursore che invia solo al rilascio |
-| **P4 End-to-end** | 2 equipaggi da 2: un ordine eseguito dal compagno, uno scaduto, un salto di settore | **Frame WebSocket**: ogni telefono riceve solo il proprio pannello; server pulito alla fine |
-| **P5 Bot e stress** | Bot che «sentono» gli ordini (leggono gli ordini dei compagni bot dal simulatore, non dal server) con ritardi ed errori | `pnpm stress --players 30 --scenario plancia`: tempi di aggiornamento con 30 giocatori che premono ~1 volta al secondo; nessun errore; punti coerenti con `scoring.ts` |
-| **P6 Documenti e pacchetto** | Guida `docs/PLANCIA-COMANDO.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md`, `GUIDA-HOST.md` | `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
+| **P1 Logica del plugin** ✅ | Pannelli, nomi, ordini, scadenze all'ora equa, settori, eventi, punti, `buildConfig` | Unit test: nomi unici nell'equipaggio; ordine sempre su un valore diverso dall'attuale; `ownShare` rispettato su molti semi; input rifiutato da chi non è proprietario; esecuzione entro `GRACE_MS`; scafo a zero ferma l'astronave; contratto di `registry.test.ts` |
+| **P2 Anti-leak** ✅ | Scorrimento dello stato | Pannelli e ordini altrui mai nelle viste; TV senza pannelli né ordini |
+| **P3 Viste** ✅ | Pannello, TV, scene `/preview` (`pdc-*`: 4 e 6 comandi, nomi lunghi, blackout, allarme) nei 5 temi | Asserzioni Playwright: nessun overflow a 360×640 con 6 comandi e i nomi più lunghi; cursore che invia solo al rilascio |
+| **P4 End-to-end** ✅ | 2 equipaggi da 2: un ordine eseguito dal compagno, uno scaduto, un salto di settore | **Frame WebSocket**: ogni telefono riceve solo il proprio pannello; server pulito alla fine |
+| **P5 Bot e stress** ✅ | Bot che «sentono» gli ordini (leggono gli ordini dei compagni bot dal simulatore, non dal server) con ritardi ed errori | `pnpm stress --players 30 --scenario plancia`: tempi di aggiornamento con 30 giocatori che premono ~1 volta al secondo; nessun errore; punti coerenti con `scoring.ts` |
+| **P6 Documenti e pacchetto** ✅ | Guida `docs/PLANCIA-COMANDO.md`, `rulesText.ts`, `PIANO.md`, `CLAUDE.md`, `GUIDA-HOST.md` | `pnpm test`, `pnpm test:e2e`, `pnpm package:win` + `pnpm package:check` |
 
 ### P0 fatto: invii raggruppati (misure)
 
@@ -276,3 +276,13 @@ loro vista subito. Lo stress con 30 giocatori, prima e dopo (stesse partite, tut
 | Widget `lines` per gli elenchi di parole nell'editor | ✅ | `NUOVO-MINIGIOCO.md` §1 |
 | Presenza dei giocatori disponibile al plugin | ❌ non c'è: per ora la ridistribuzione è un comando della regia | `shared/src/minigame.ts` |
 | Stress con `--scenario` nuovo | da aggiungere `plancia` | `tools/bots/src/run.ts` |
+
+## 10. Come è andata (scostamenti dal piano)
+
+- **Primo pannello dopo il «Decollo»**: in `ready` i telefoni mostrano un messaggio di benvenuto e i comandi compaiono al decollo (i pannelli si creano all'inizio del primo settore).
+- **Telefono fuori uso** (📵 della regia): il suo pannello sparisce e i pannelli dei compagni si **rifanno** senza i suoi comandi (non passano ai compagni), così nessun ordine nomina comandi che nessuno ha.
+- **«Ripara gli scafi»** riporta al 50% gli scafi sotto il 50% (non al 100%) e rimette in moto chi era fermo.
+- **Equipaggio unico** non ha il limite di 8 membri (tutti nella stessa astronave); il limite vale per le squadre.
+- **Bot**: leggono gli ordini degli equipaggi dalla regia automatica (come se i compagni li gridassero) e ne perdono ~8% (la sordità dipende dal nome dell'ordine, non dalla vista: altrimenti il bot «ci ripensa» a ogni aggiornamento).
+- **Misura dello stress**: il tempo di ritorno dello stato include i pulsanti, che non cambiano la vista di chi li preme (grazie alla deduplicazione): il campione chiude col primo aggiornamento qualsiasi, quindi la coda lunga è attesa; soglia a 1,5 s.
+- **Verifica UI**: scene `pdc-ready`, `pdc-play`, `pdc-six`, `pdc-blackout`, `pdc-alarm`, `pdc-stopped`, `pdc-jump`, `pdc-final` in `/preview`.
