@@ -312,6 +312,13 @@ Re della collina con ruoli nascosti, da giocare muovendosi nella location.
 - **Perché non Bluetooth o NFC per la distanza** (valutati con l'utente): una pagina web non può né trasmettere né misurare il segnale Bluetooth (Web Bluetooth manca su Safari iOS e non espone l'RSSI di dispositivi qualsiasi), e l'NFC dal browser funziona solo su Chrome Android e solo contro tag, a pochi centimetri. Servirebbe un'app nativa, contro il vincolo D1. I QR sono l'unica soluzione che funziona su ogni telefono; un adesivo NFC con lo stesso link sarebbe equivalente a un QR.
 - **Limite noto**: chi fotografa un QR può inviare il codice da lontano. È accettato (party game tra amici); si mitiga con codici non banali e con la pausa tra scansioni.
 
+### 🧩 Prossimi minigiochi (pianificati, da implementare in quest'ordine)
+Tre giochi a squadre con **informazioni divise** tra TV e telefoni: chi agisce non sa, chi sa non agisce, e l'unico canale è la voce. Le decisioni sono confermate con l'utente; i dettagli sono nei piani.
+
+1. **💣 Artificieri** (`artificieri`, tema `boom`), in stile *Keep Talking and Nobody Explodes*: una squadra alla volta, l'artificiere davanti alla TV con la bomba e il telefono come telecomando, gli esperti **di spalle alla TV** con il manuale diviso sui telefoni; le altre squadre scommettono. Regole del manuale generate per ogni bomba; consegna a pezzi (3 moduli, poi gli altri). Piano in [docs/PIANO-ARTIFICIERI.md](docs/PIANO-ARTIFICIERI.md).
+2. **🧭 Pilota alla cieca** (`pilota-cieco`, tema `pixel`): fino a 4 squadre in gara sulla TV divisa in corsie; il pilota muove la pedina, ogni navigatore vede sul telefono un solo strato di pericoli (mine, porte, chiave, pattuglie). Labirinti **diversi ma equivalenti** per squadra; porte e pattuglie funzioni pure del tempo, calcolate anche dai telefoni. Riusa il generatore di labirinti di Artificieri. Piano in [docs/PIANO-PILOTA-CIECO.md](docs/PIANO-PILOTA-CIECO.md).
+3. **🚀 Plancia di Comando** (`plancia-comando`, tema `retro80`), in stile *Spaceteam*: ogni telefono è un pannello di comandi dai nomi assurdi e gli ordini arrivano ai compagni, che devono gridarli. **Primo passo obbligatorio**: raggruppare gli invii delle viste in `realtime.ts` e non rimandare viste identiche (oggi ogni cambio di stato rimanda tutte le viste a tutti), tarato con le misure dello stress di Pilota alla cieca. Piano in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md).
+
 ---
 
 ## Struttura del repository
@@ -364,6 +371,9 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | Extra: Lunghezza d'Onda | ✅ (da provare con persone) | Indizi su uno spettro (3–30 giocatori) con quadrante da trascinare, modalità tutti contro tutti e a squadre (mediana, scommessa, recupero); guida `docs/LUNGHEZZA-ONDA.md` |
 | Extra: Agenti Segreti | ✅ (da provare con persone) | Parole e indizi a squadre (4–30 giocatori) con mappa segreta ai Capi-spia, indizio controllato dal server, voto di squadra dal telefono e regia cieca; guida `docs/AGENTI-SEGRETI.md` |
 | Extra: Stanze Segrete | ✅ (da provare con persone) | GDR con ruolo Game Master (link limitato, `/master`), messaggi ed eventi salvati nel database; guida `docs/STANZE-SEGRETE.md` |
+| Extra: Artificieri | 📝 pianificato (1° di 3) | Piano `docs/PIANO-ARTIFICIERI.md` |
+| Extra: Pilota alla cieca | 📝 pianificato (2° di 3) | Piano `docs/PIANO-PILOTA-CIECO.md` |
+| Extra: Plancia di Comando | 📝 pianificato (3° di 3) | Piano `docs/PIANO-PLANCIA-COMANDO.md`; prima il raggruppamento degli invii in `realtime.ts` |
 
 **Scostamenti dal piano originale (concordati)**
 - **Test end-to-end con Playwright** (Edge, senza screenshot) oltre a Vitest.
