@@ -223,8 +223,8 @@ test("plancia di comando: l'allarme generale chiede a tutti di premere il pulsan
     const hullBefore = view(one).crew.hull as number;
     const otherBefore = view(otherCrew[0]!).crew.hull as number;
     await expect(otherCrew[0]!.page.getByTestId("pdc-alarm")).toBeVisible();
-    for (const c of crew) await c.page.getByTestId("pdc-alarm").click();
-    await otherCrew[0]!.page.getByTestId("pdc-alarm").click();
+    // l'allarme dura 5 s: i telefoni premono insieme e senza attendere la «stabilità» del pulsante lampeggiante (con sei browser in parallelo ogni clic può costare secondi)
+    await Promise.all([...crew, otherCrew[0]!].map((c) => c.page.getByTestId("pdc-alarm").click({ force: true })));
     await expect(otherCrew[0]!.page.getByTestId("pdc-alarm")).toBeDisabled();
     // chi ha premuto lo vede, a allarme risolto il pulsante sparisce
     await expect(one.page.getByTestId("pdc-alarm")).toHaveCount(0);
