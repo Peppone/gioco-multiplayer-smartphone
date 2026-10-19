@@ -189,7 +189,67 @@ function PickField({ schema, value, onChange, labelText, required, siblings }: P
   );
 }
 
-function ArrayField({ schema, value, onChange, label, required }: FieldProps) {
+/** Righe di un elenco di testi: vuote e spazi agli estremi non contano. */
+export const parseLines = (text: string) => text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+
+/**
+ * Elenco di testi brevi (es. parole) in un'area di testo, uno per riga: si aggiunge scrivendo o incollando un elenco
+ * intero, si corregge sul posto. Sotto: quante sono, i doppioni (maiuscole e accenti a parte) e quelle troppo lunghe.
+ */
+function LinesField({ schema, value, onChange, label, required }: FieldProps) {
+  const list = Array.isArray(value) ? (value as unknown[]).map(String) : [];
+  // Il testo resta quello scritto (righe vuote comprese) finché corrisponde al valore: così si può andare a capo.
+  const [text, setText] = useState(list.join("\n"));
+  useEffect(() => {
+    if (parseLines(text).join("\n") !== list.join("\n")) setText(list.join("\n"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.join("\n")]);
+  const key = (w: string) => w.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+  const seen = new Set<string>();
+  const dups = [...new Set(list.filter((w) => seen.has(key(w)) || !seen.add(key(w))))];
+  const max = schema.items?.maxLength;
+  const long = max ? list.filter((w) => w.length > max) : [];
+  const labelText = `${label}${required ? "" : " (facoltativo)"}`;
+  return (
+    <div className="field lines">
+      <span className="label">
+        {labelText} <small className="muted" data-testid="lines-count">({list.length})</small>
+      </span>
+      <textarea
+        aria-label={labelText}
+        rows={Math.min(14, Math.max(4, list.length + 1))}
+        value={text}
+        spellCheck={false}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(parseLines(e.target.value));
+        }}
+      />
+      <small className="muted hint">Una per riga{schema.description ? ` · ${schema.description}` : ""}</small>
+      {list.length > 0 && (
+        <button
+          type="button"
+          className="lines-export"
+          onClick={() => {
+            const url = URL.createObjectURL(new Blob([`${list.join("\n")}\n`], { type: "text/plain;charset=utf-8" }));
+            const a = Object.assign(document.createElement("a"), { href: url, download: `${(label || "elenco").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.txt` });
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Scarica come testo (.txt)
+        </button>
+      )}
+      {dups.length > 0 && <small className="hint" role="alert">Doppioni (contano una volta): {dups.slice(0, 8).join(", ")}{dups.length > 8 ? "…" : ""}</small>}
+      {long.length > 0 && <small className="hint" role="alert">Più lunghe di {max} caratteri: {long.slice(0, 5).join(", ")}{long.length > 5 ? "…" : ""}</small>}
+      {schema.maxItems !== undefined && list.length > schema.maxItems && <small className="hint" role="alert">Al massimo {schema.maxItems}</small>}
+    </div>
+  );
+}
+
+function ArrayField(props: FieldProps) {
+  if (props.schema.widget === "lines") return <LinesField {...props} />;
+  const { schema, value, onChange, label, required } = props;
   const list = Array.isArray(value) ? value : [];
   // Un widget dichiarato sull'array (es. «instance») vale per ciascun elemento.
   const itemSchema: JsonSchema = { ...(schema.items ?? {}), ...(schema.widget ? { widget: schema.widget, instanceKind: schema.instanceKind } : {}) };
