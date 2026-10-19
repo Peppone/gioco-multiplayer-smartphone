@@ -63,6 +63,14 @@ interface Live {
   roundState: unknown;
   /** Contenuti già mostrati dai round conclusi (assente nelle fotografie salvate prima di questa funzione). */
   seen?: string[];
+  /** Giocatori e squadre della serata cambiati durante un round: valgono dalla fine del round (assente se non ci sono modifiche in attesa). */
+  next?: { roster: ParticipantInfo[]; teams: TeamRow[] };
+}
+
+interface TeamRow {
+  id: string;
+  name: string;
+  color: string;
 }
 
 /** Stato dell'engine in forma serializzabile (le Map diventano elenchi di coppie). */
@@ -146,20 +154,8 @@ export class Engine {
     const event = this.db.select().from(events).where(eq(events.id, match.eventId)).get();
     if (!event) return fail("Serata non trovata.");
 
-    const roster: ParticipantInfo[] = this.db
-      .select({ id: players.id, nickname: players.nickname, teamId: eventPlayers.teamId })
-      .from(eventPlayers)
-      .innerJoin(players, eq(players.id, eventPlayers.playerId))
-      .where(eq(eventPlayers.eventId, event.id))
-      .all();
+    const { roster, teams: teamRows } = this.loadParticipants(event.id);
     if (roster.length === 0) return fail("Nessun giocatore assegnato alla serata.");
-
-    const teamRows = this.db
-      .select({ id: teams.id, name: teams.name, color: teams.color })
-      .from(eventTeams)
-      .innerJoin(teams, eq(teams.id, eventTeams.teamId))
-      .where(eq(eventTeams.eventId, event.id))
-      .all();
     const teamNames = new Map(teamRows.map((t) => [t.id, t.name]));
     const teamColors = new Map(teamRows.map((t) => [t.id, t.color]));
 
@@ -217,6 +213,52 @@ export class Engine {
     this.invalidateScores();
     this.touch();
     return OK;
+  }
+
+  // ---- Giocatori della serata ----
+
+  /** Giocatori e squadre della serata come stanno ora nel database. */
+  private loadParticipants(eventId: string): { roster: ParticipantInfo[]; teams: TeamRow[] } {
+    const roster: ParticipantInfo[] = this.db
+      .select({ id: players.id, nickname: players.nickname, teamId: eventPlayers.teamId })
+      .from(eventPlayers)
+      .innerJoin(players, eq(players.id, eventPlayers.playerId))
+      .where(eq(eventPlayers.eventId, eventId))
+      .all();
+    const teamRows = this.db
+      .select({ id: teams.id, name: teams.name, color: teams.color })
+      .from(eventTeams)
+      .innerJoin(teams, eq(teams.id, eventTeams.teamId))
+      .where(eq(eventTeams.eventId, eventId))
+      .all();
+    return { roster, teams: teamRows };
+  }
+
+  private applyParticipants(l: Live, found: { roster: ParticipantInfo[]; teams: TeamRow[] }): void {
+    l.roster = found.roster;
+    l.teamNames = new Map(found.teams.map((t) => [t.id, t.name]));
+    l.teamColors = new Map(found.teams.map((t) => [t.id, t.color]));
+    delete l.next;
+    this.invalidateScores();
+  }
+
+  /**
+   * Allinea i giocatori della partita alla serata (la regia ne ha aggiunti, tolti o spostati di squadra). Tra un round e l'altro vale
+   * subito; durante un round vale alla fine, perché i plugin hanno già i giocatori nel loro stato. Se `eventId` è di un'altra serata
+   * non fa nulla.
+   */
+  syncRoster(eventId?: string): void {
+    const l = this.live;
+    if (!l || l.phase === "ended" || (eventId !== undefined && eventId !== l.eventId)) return;
+    const found = this.loadParticipants(l.eventId);
+    const changed = JSON.stringify([found.roster, found.teams]) !== JSON.stringify([l.roster, [...l.teamNames].map(([id, name]) => ({ id, name, color: l.teamColors.get(id) }))]);
+    if (l.phase === "round") {
+      if (changed) l.next = found;
+      else delete l.next;
+    } else if (changed) {
+      this.applyParticipants(l, found);
+    }
+    this.touch();
   }
 
   // ---- Comandi della regia ----
@@ -310,6 +352,7 @@ export class Engine {
     if (l.roundIndex + 1 >= l.rounds.length) return this.endMatch(l);
 
     const round = l.rounds[l.roundIndex + 1]!;
+    if (l.roster.length === 0) return fail("Nessun giocatore in serata: aggiungine dalla regia.");
     const { maxPlayers: max, minPlayers: min } = this.plugin(round);
     if (min !== undefined && l.roster.length < min) {
       return fail(`${round.title}: servono almeno ${min} giocatori, in serata ce ne sono ${l.roster.length}.`);
@@ -392,6 +435,7 @@ export class Engine {
     if (shown?.length) l.seen = [...new Set([...(l.seen ?? []), ...shown])];
     l.phase = "results";
     l.roundState = null;
+    if (l.next) this.applyParticipants(l, l.next); // i punti del round sono già registrati con le squadre di prima
     this.touch();
   }
 
@@ -459,7 +503,11 @@ export class Engine {
     const l = this.live;
     if (!l) return { phase: "idle", inRoster: false };
     const me = l.roster.find((p) => p.id === playerId);
-    if (!me) return { phase: l.phase, matchName: l.matchName, inRoster: false };
+    if (!me) {
+      // Aggiunto alla serata durante un round: entra dal prossimo.
+      const joining = l.next?.roster.some((p) => p.id === playerId);
+      return { phase: l.phase, matchName: l.matchName, inRoster: false, ...(joining && { joining }) };
+    }
     const row = this.leaderboards(l).players.find((r) => r.id === playerId);
     return {
       phase: l.phase,
@@ -511,6 +559,8 @@ export class Engine {
     return {
       ...base,
       matchId: l.matchId,
+      eventId: l.eventId,
+      ...(l.next && { rosterPending: true }),
       rounds: l.rounds.map((r) => ({ id: r.roundId, title: r.title, typeId: r.typeId })),
       host,
       master: this.masterAvailable,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { AdminPlayerView, EventDetail, EventStatus, InstanceView, TeamView } from "@gioco/shared";
 import { STATUS_LABEL } from "./EventsPanel";
 import { api, errorMessage } from "./api";
+import { EventRoster } from "./EventRoster";
 import { moveItem } from "./schema-form/logic";
 
 export function EventEditor({
@@ -59,9 +60,6 @@ export function EventEditor({
     void run(() => api("PUT", `/events/${eventId}/teams`, { teamIds }));
   };
 
-  const assignment = new Map(event.players.map((p) => [p.playerId, p.teamId]));
-  const eventTeams = teams.filter((t) => event.teamIds.includes(t.id));
-
   const addMatch = (e: React.FormEvent) => {
     e.preventDefault();
     void run(async () => {
@@ -105,35 +103,7 @@ export function EventEditor({
       </div>
 
       <h3>Giocatori ({players.length} registrati)</h3>
-      <ul className="list">
-        {players.map((p) => {
-          const inEvent = assignment.has(p.id);
-          const teamId = assignment.get(p.id) ?? "";
-          return (
-            <li key={p.id}>
-              <span>{p.avatar} {p.nickname}</span>
-              <span className="row">
-                <select
-                  value={inEvent ? teamId : "__out"}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    void run(() =>
-                      v === "__out"
-                        ? api("DELETE", `/events/${eventId}/players/${p.id}`)
-                        : api("PUT", `/events/${eventId}/players/${p.id}`, { teamId: v === "" ? null : v }),
-                    );
-                  }}
-                >
-                  <option value="__out">Non in serata</option>
-                  <option value="">In serata, senza team</option>
-                  {eventTeams.map((t) => <option key={t.id} value={t.id}>{t.emblem} {t.name}</option>)}
-                </select>
-              </span>
-            </li>
-          );
-        })}
-        {players.length === 0 && <li className="muted">Nessun giocatore: si registrano dal telefono su /play.</li>}
-      </ul>
+      <EventRoster eventId={eventId} event={event} teams={teams} players={players} run={run} />
 
       <h3>Partite</h3>
       <form className="row" onSubmit={addMatch}>

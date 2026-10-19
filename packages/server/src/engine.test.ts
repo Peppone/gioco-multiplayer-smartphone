@@ -218,3 +218,106 @@ describe("Engine: viste filtrate (anti-leak)", () => {
     expect(w.engine.screenState().leaderboards).toBeUndefined();
   });
 });
+
+describe("Engine: giocatori che cambiano a partita avviata", () => {
+  const newPlayer = (nick: string, teamId: string | null) => {
+    const r = w.playerService.create({ nickname: nick, avatar: "🐼", color: "#445566" });
+    if (!r.ok) throw new Error("player");
+    w.ids[nick] = r.player.id;
+    expect(w.admin.assignPlayer(w.event.id, r.player.id, teamId).ok).toBe(true);
+    return r.player.id;
+  };
+  const finishRound = () => w.engine.hostCommand({ type: "engine", action: "finish-round" });
+
+  it("tra un round e l'altro un nuovo giocatore entra subito e può giocare", () => {
+    start();
+    const eli = newPlayer("eli", w.red.id);
+    expect(w.engine.playerState(eli)).toMatchObject({ phase: "ready", inRoster: true, me: { teamId: w.red.id } });
+    next();
+    expect(w.engine.rosterIds()).toContain(eli);
+    w.clock.t += 1_000;
+    expect(answer("eli", 1)).toBe(true);
+  });
+
+  it("tra un round e l'altro chi viene tolto esce subito, ma i suoi punti restano nel registro", () => {
+    start();
+    next();
+    w.clock.t += 1_000;
+    answer("ada", 1);
+    plugin("next"); // rivela: i punti si assegnano
+    finishRound();
+    expect(w.engine.playerState(w.ids.ada!).me?.points).toBeGreaterThan(0);
+    w.admin.removePlayer(w.event.id, w.ids.ada!);
+    expect(w.engine.playerState(w.ids.ada!)).toMatchObject({ inRoster: false });
+    expect(w.engine.rosterIds()).not.toContain(w.ids.ada);
+    expect(w.engine.screenState().leaderboards?.players.map((p) => p.name)).not.toContain("ada");
+    // Rimesso in serata ritrova i punti.
+    w.admin.assignPlayer(w.event.id, w.ids.ada!, w.red.id);
+    expect(w.engine.playerState(w.ids.ada!).me?.points).toBeGreaterThan(0);
+  });
+
+  it("durante un round le modifiche aspettano la fine del round", () => {
+    start();
+    next();
+    const eli = newPlayer("eli", w.red.id);
+    w.admin.removePlayer(w.event.id, w.ids.dan!);
+    // Il round in corso continua con i giocatori di prima.
+    expect(w.engine.rosterIds()).toContain(w.ids.dan);
+    expect(w.engine.rosterIds()).not.toContain(eli);
+    expect(w.engine.playerState(eli)).toEqual({ phase: "round", matchName: "Partita 1", inRoster: false, joining: true });
+    expect(w.engine.adminState()).toMatchObject({ rosterPending: true, eventId: w.event.id });
+    w.clock.t += 1_000;
+    expect(answer("eli", 1)).toBe(false);
+    expect(answer("dan", 1)).toBe(true);
+
+    finishRound();
+    expect(w.engine.rosterIds()).toContain(eli);
+    expect(w.engine.rosterIds()).not.toContain(w.ids.dan);
+    expect(w.engine.adminState().rosterPending).toBeUndefined();
+    // I punti del round sono stati registrati con il roster di prima: dan li ha presi.
+    const entries = w.scores.leaderboards(w.event.id);
+    expect(entries.players.map((p) => p.name)).toContain("eli");
+    expect(entries.players.map((p) => p.name)).not.toContain("dan");
+  });
+
+  it("una modifica annullata durante il round non lascia nulla in attesa", () => {
+    start();
+    next();
+    w.admin.removePlayer(w.event.id, w.ids.dan!);
+    expect(w.engine.adminState().rosterPending).toBe(true);
+    w.admin.assignPlayer(w.event.id, w.ids.dan!, w.blue.id);
+    expect(w.engine.adminState().rosterPending).toBeUndefined();
+  });
+
+  it("il cambio di squadra vale dal round dopo e i punti del round restano alla squadra di prima", () => {
+    start();
+    next();
+    w.clock.t += 1_000;
+    answer("ada", 1);
+    w.admin.assignPlayer(w.event.id, w.ids.ada!, w.blue.id);
+    expect(w.engine.playerState(w.ids.ada!).me?.teamId).toBe(w.red.id);
+    plugin("next"); // rivela: i punti si assegnano
+    finishRound();
+    expect(w.engine.playerState(w.ids.ada!).me?.teamId).toBe(w.blue.id);
+    const red = w.engine.screenState().leaderboards?.teams.find((t) => t.id === w.red.id);
+    expect(red?.points).toBeGreaterThan(0);
+  });
+
+  it("senza giocatori in serata il round non parte", () => {
+    start();
+    for (const nick of ["ada", "bob", "cleo", "dan"]) w.admin.removePlayer(w.event.id, w.ids[nick]!);
+    expect(next()).toEqual({ ok: false, error: "Nessun giocatore in serata: aggiungine dalla regia." });
+  });
+
+  it("la modifica in attesa sopravvive a un riavvio (fotografia)", () => {
+    start();
+    next();
+    const eli = newPlayer("eli", w.red.id);
+    const snap = w.engine.snapshot()!;
+    const restored = JSON.parse(JSON.stringify(snap)) as typeof snap;
+    w.engine.restore(restored);
+    expect(w.engine.playerState(eli)).toMatchObject({ joining: true });
+    finishRound();
+    expect(w.engine.rosterIds()).toContain(eli);
+  });
+});

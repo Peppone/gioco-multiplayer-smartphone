@@ -65,6 +65,7 @@ const snapshotTimer = setInterval(() => snapshots.sync(), 1000);
 
 const masterAuth = new MasterAuth(db, () => engine.activeMatchId);
 const adminService = new AdminService(db);
+adminService.onRosterChange = (eventId) => engine.syncRoster(eventId);
 // Contenuti iniziali della libreria (le parole di Agenti Segreti): nel database, una volta sola.
 if (seedLibrary(db, adminService.library)) console.log(`Libreria: creata la lista «${AGENTI_WORDS_TITLE}».`);
 const app = buildApp({

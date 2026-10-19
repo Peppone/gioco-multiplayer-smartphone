@@ -55,6 +55,9 @@ export class AdminService {
 
   readonly library: LibraryService;
 
+  /** Chiamata quando cambiano giocatori o squadre di una serata (senza id: di tutte), così la partita live si allinea. */
+  onRosterChange: (eventId?: string) => void = () => undefined;
+
   // ---- Giocatori ----
 
   listPlayers(): AdminPlayerView[] {
@@ -117,6 +120,7 @@ export class AdminService {
       tx.delete(eventTeams).where(eq(eventTeams.teamId, id)).run();
       tx.delete(teams).where(eq(teams.id, id)).run();
     });
+    this.onRosterChange();
     return ok(null);
   }
 
@@ -191,6 +195,7 @@ export class AdminService {
         }
       }
     });
+    this.onRosterChange(eventId);
     return this.getEvent(eventId);
   }
 
@@ -211,6 +216,7 @@ export class AdminService {
       .values({ eventId, playerId, teamId })
       .onConflictDoUpdate({ target: [eventPlayers.eventId, eventPlayers.playerId], set: { teamId } })
       .run();
+    this.onRosterChange(eventId);
     return this.getEvent(eventId);
   }
 
@@ -220,6 +226,7 @@ export class AdminService {
       .delete(eventPlayers)
       .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.playerId, playerId)))
       .run();
+    this.onRosterChange(eventId);
     return this.getEvent(eventId);
   }
 

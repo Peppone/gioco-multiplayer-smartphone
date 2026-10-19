@@ -8,6 +8,7 @@ import { useServerInfo } from "../screen/useServerInfo";
 import { Leaderboard } from "../ui/Leaderboard";
 import { ApiError, api, errorMessage } from "./api";
 import { parseImport, serializeInstance } from "./schema-form/logic";
+import { LiveRoster } from "./EventRoster";
 import { useAdminGame } from "./useAdminGame";
 import { type QrCode, ZoneQrSheet } from "./ZoneQrSheet";
 
@@ -275,6 +276,10 @@ export function LivePanel() {
             ))}
           </div>
         </section>
+      )}
+
+      {active && state.phase !== "ended" && state.eventId && (
+        <LiveRoster eventId={state.eventId} inRound={state.phase === "round"} pending={!!state.rosterPending} />
       )}
 
       {state.master && state.phase === "round" && <MasterLinkBox />}

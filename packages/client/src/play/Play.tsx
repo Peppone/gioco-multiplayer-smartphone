@@ -176,7 +176,9 @@ export function Play() {
       <p className="muted">
         {!game || game.phase === "idle"
           ? "Sei in lobby: aspetta che la serata inizi."
-          : !game.inRoster
+          : game.joining
+            ? "Sei in serata: entri dal prossimo round. Guarda lo schermo!"
+            : !game.inRoster
             ? "Una partita è in corso, ma non sei stato aggiunto alla serata: chiedi alla regia."
             : game.phase === "ended"
               ? "Partita conclusa. Guarda la classifica sullo schermo!"

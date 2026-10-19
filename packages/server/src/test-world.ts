@@ -15,6 +15,7 @@ export function buildWorld() {
   const scores = new ScoreService(db, now);
   const rtt: Record<string, number | null> = {};
   const engine = new Engine({ db, registry: minigames, scores, now, rttOf: (id) => rtt[id] ?? null });
+  admin.onRosterChange = (eventId) => engine.syncRoster(eventId);
 
   const must = <T>(r: { ok: true; value: T } | { ok: false; error: string }): T => {
     if (!r.ok) throw new Error(r.error);

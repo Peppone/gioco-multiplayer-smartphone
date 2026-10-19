@@ -47,6 +47,8 @@ export interface GamePlayerState {
   matchName?: string;
   /** False se il giocatore non fa parte della serata in corso: vede solo l'attesa. */
   inRoster: boolean;
+  /** Aggiunto alla serata durante un round: entra dal prossimo. */
+  joining?: boolean;
   /** 1-based; presente quando il giocatore è in serata. */
   roundNumber?: number;
   frame?: MinigameFrame;
@@ -55,6 +57,9 @@ export interface GamePlayerState {
 
 export interface GameAdminState extends GameScreenState {
   matchId?: string;
+  eventId?: string;
+  /** Giocatori della serata cambiati durante il round: valgono dal prossimo. */
+  rosterPending?: boolean;
   rounds: { id: string; title: string; typeId: string }[];
   host?: HostView;
   /** Il round in corso ha un Game Master: la regia può generare il link per il suo telefono. */
