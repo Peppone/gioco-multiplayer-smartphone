@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80"] as const;
-const SCENES = ["stanze-dark", "stanze-items", "stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
+const SCENES = ["stanze-dark", "stanze-explored", "stanze-items", "stanze-setup", "stanze-compass", "stanze-pending", "stanze-sight", "stanze-mail", "stanze-event", "stanze-history", "stanze-reveal"] as const;
 
 // Le scene dell'anteprima mostrano schermo e telefono senza giocare una partita: qui si controllano layout e privacy.
 for (const theme of THEMES) {
@@ -15,7 +15,7 @@ for (const theme of THEMES) {
         expect(sizes.sw, "overflow orizzontale del telefono").toBeLessThanOrEqual(sizes.cw + 1);
         const screenSizes = await page.locator(".screen-frame .screen").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
         expect(screenSizes.sw, "overflow orizzontale dello schermo").toBeLessThanOrEqual(screenSizes.cw + 1);
-        await expect(page.locator(".screen-frame .ss-room")).toHaveCount(scene === "stanze-dark" ? 0 : 9);
+        await expect(page.locator(".screen-frame .ss-room")).toHaveCount(scene === "stanze-dark" || scene === "stanze-explored" ? 0 : 9);
       });
     }
 
@@ -83,6 +83,23 @@ test("a mappa nascosta né lo schermo né il telefono mostrano griglia, stanze o
   await page.locator(".phone-frame").getByRole("button", { name: /Regole/ }).click();
   await expect(page.locator(".phone-frame .ss-rules")).not.toContainText("stanze (");
   await expect(page.locator(".phone-frame .ss-rules")).toContainText("La mappa la mostra il Game Master");
+});
+
+test("la mappa esplorata mostra solo le stanze visitate e chi sta con te, senza la griglia intera né lettere", async ({ page }) => {
+  await page.goto("/preview?theme=retro80&scene=stanze-explored&still=1");
+  const phone = page.locator(".phone-frame");
+  await expect(phone.locator(".ss-explored .ss-mini-room")).toHaveCount(3);
+  await expect(phone.locator(".ss-mini-room.me")).toHaveAttribute("data-cell", "4");
+  await expect(phone.locator(".ss-mini-room.me .ss-other")).toHaveText("M");
+  await expect(phone.locator(".ss-explored")).toContainText("Con te: Marco");
+  await expect(phone.locator('.ss-mini-room[data-cell="0"]')).toHaveCount(0); // una stanza non visitata non esiste sul telefono
+  // La griglia è quella delle sole stanze visitate (2 × 2), non del complesso (3 × 3).
+  expect(await phone.locator(".ss-explored .ss-mini").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length)).toBe(2);
+  await expect(phone.locator(".ss-letter, .ss-letter-big")).toHaveCount(0);
+  await expect(page.locator(".screen-frame .ss-grid")).toHaveCount(0); // lo schermo resta al buio
+  // Le regole non rivelano ancora la forma del complesso.
+  await phone.getByRole("button", { name: /Regole/ }).click();
+  await expect(phone.locator(".ss-rules")).not.toContainText("stanze (");
 });
 
 test("gli oggetti ignoti mostrano solo «Un oggetto»; quelli palesati nome e testo", async ({ page }) => {

@@ -32,6 +32,13 @@ export function rulesSections(r: Rules): RulesSection[] {
       ],
     },
     {
+      title: "La mappa che hai esplorato",
+      paragraphs: [
+        "Il Game Master può farti vedere le stanze in cui sei già stato, disegnate una accanto all'altra. Non vedi quelle che non hai visitato né dove sono gli altri, a parte chi è nella tua stanza.",
+        "Sbirciare non conta come visitare. Le stanze lontane non sono collegate sulla mappa: non sai cosa c'è in mezzo.",
+      ],
+    },
+    {
       title: "Le lettere",
       paragraphs: [
         `Nessuno vede le lettere di diritto. Quando il Game Master ti permette di guardare, tieni premuto il riquadro: la lettera resta visibile ${r.sightSec} secondi per ogni occhiata, poi sparisce.`,

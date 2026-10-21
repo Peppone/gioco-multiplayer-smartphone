@@ -95,7 +95,28 @@ test("stanze segrete: il Game Master conduce la sessione dal telefono, con lette
   await expect(screen.page.locator(".ss-room")).toHaveCount(0);
   await expect(p0.page.locator(".ss-mini")).toHaveCount(0);
 
-  const card = (nick: string) => m.locator(`details.sh-player[data-player="${nick}"]`);
+  // ---- Mappa esplorata: ogni telefono vede solo le stanze visitate e chi sta con lui ----
+  await expect(p0.page.locator(".ss-explored")).toHaveCount(0);
+  await m.getByRole("button", { name: "Mostra le stanze esplorate ai telefoni" }).click();
+  await expect(p0.page.locator(".ss-explored .ss-mini-room")).toHaveCount(1); // solo la stanza di partenza
+  await expect(p0.page.locator('.ss-explored .ss-mini-room[data-cell="0"]')).toHaveClass(/me/);
+  await expect(p1.page.locator(".ss-explored")).toContainText(`Con te: ${n3}`); // n1 e n3 sono nella stanza 5
+  await expect(p2.page.locator(".ss-explored")).not.toContainText("Con te");
+  await expect(p0.page.locator(".ss-mini-room")).toHaveCount(1); // né la griglia intera né le dimensioni
+  // Il traffico di prima contiene la mappa intera mostrata poco fa: qui conta l'ultima vista, personale di ognuno.
+  const lastOf = (c: Client) => lastPlayerView(c.traffic)!;
+  await expect.poll(() => lastOf(p0).explored?.rooms.map((r: { cell: number }) => r.cell)).toEqual([0]);
+  await expect.poll(() => lastOf(p1).explored?.rooms.map((r: { cell: number }) => r.cell)).toEqual([4]); // ognuno vede solo le sue stanze
+  const mine = JSON.stringify(lastOf(p0));
+  expect(lastOf(p0)).not.toHaveProperty("rows"); // le dimensioni del complesso restano ignote (rows/cols dentro «explored» sono solo il riquadro delle stanze visitate)
+  expect(lastOf(p0).rules).not.toHaveProperty("rows");
+  expect(mine).not.toContain("letter");
+  for (const other of [n1, n2, n3]) expect(mine).not.toContain(other); // gli altri sono in stanze mai visitate da n0
+  expect(screen.traffic.text()).not.toMatch(/explored/); // lo schermo non la riceve
+  await m.getByRole("button", { name: "Nascondi le stanze esplorate" }).click();
+  await expect(p0.page.locator(".ss-explored")).toHaveCount(0);
+
+  const card =(nick: string) => m.locator(`details.sh-player[data-player="${nick}"]`);
   const open = async (nick: string) => {
     if (!(await card(nick).evaluate((d) => (d as HTMLDetailsElement).open))) await card(nick).locator("summary").click();
   };

@@ -103,6 +103,8 @@ pubblici, leggili ad alta voce.
 
 **La mappa è nascosta.** Di default i giocatori non sanno com'è fatto il complesso: lo schermo dice solo che è "avvolto nel buio" e i telefoni non hanno la mini-mappa né le dimensioni (nemmeno nelle regole). Né la griglia né le posizioni arrivano ai client. Il GM la mostra con *Mostra la mappa a schermo e telefoni* quando vuole (anche subito in preparazione) e la può nascondere di nuovo. La rivelazione finale la mostra comunque. Restano visibili il numero della propria stanza e la croce con le frecce, che il GM controlla.
 
+**Le stanze esplorate.** Senza mostrare la mappa intera, il GM può dare a ogni telefono la mappa di ciò che *quel* giocatore ha visitato (*Mostra le stanze esplorate ai telefoni* / *Nascondi le stanze esplorate*, anche in preparazione). Il server registra sempre le stanze visitate da ciascuno, dal momento di *Inizia* (la stanza di partenza conta): vale ogni spostamento approvato e ogni spostamento fatto dal GM in partita; **sbirciare non conta**, e in preparazione i piazzamenti non contano. Ogni giocatore vede solo le **proprie** stanze, mai quelle visitate dagli altri; nessuna lettera, porta o muro, e senza le dimensioni del complesso (le stanze sono disegnate relative alla più in alto a sinistra tra quelle visitate, quindi un angolo non si distingue dal centro). Degli altri giocatori compaiono solo quelli che stanno **nella stanza in cui sei ora**, anche con le posizioni non pubbliche; in qualsiasi altra stanza non c'è alcuna indicazione di loro. Se la mappa intera è già mostrata, quella esplorata non viene inviata. Lo schermo non la riceve mai.
+
 **Fasi.** *Preparazione* (scegli la stanza di partenza di ognuno, accendi capacità, chiudi porte) → *In gioco* (nessun
 timer: si va al ritmo del GM) → *Rivelazione* (lo schermo accende le lettere e traccia i due percorsi, con l'esito
 di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi ha la soluzione **convalidata**
@@ -113,6 +115,7 @@ di ognuno) → *Conclusa*. Punti: chi è **fuggito** riceve `escapePoints`, chi 
 | | Schermo | Telefono del giocatore | GM |
 |---|---|---|---|
 | Griglia e numeri delle stanze | solo se il GM mostra la mappa | solo se il GM mostra la mappa (il numero della propria stanza sempre) | ✅ |
+| Stanze visitate | ❌ | solo le proprie, se il GM accende le stanze esplorate (e chi è con lui nella stanza attuale) | ✅ |
 | Lettere | solo alla rivelazione | solo durante un'occhiata concessa | ✅ |
 | Note sulle stanze, porte chiuse, diario, cronometri | ❌ | ❌ | ✅ |
 | Oggetti | ❌ | solo quelli della propria stanza, misteriosi finché il GM non li palesa a lui | ✅ con note e chi li conosce |

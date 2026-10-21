@@ -174,6 +174,10 @@ export interface StanzeState {
   publicReveal: boolean;
   /** La mappa (griglia e posizioni) è visibile a schermo e telefoni: di default no, la mostra il GM quando vuole. */
   mapShown: boolean;
+  /** Stanze in cui è stato ogni giocatore da quando la partita è iniziata, in ordine di arrivo (sbirciare non conta). Le registra sempre il server. */
+  visited: Record<PlayerId, CellId[]>;
+  /** I telefoni vedono la mappa di ciò che hanno esplorato (solo le proprie stanze visitate): di default no, la accende il GM. */
+  exploredShown: boolean;
 }
 
 // ---- Schemi ----
@@ -274,6 +278,7 @@ const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("dice-roll"), target: targetSchema.optional(), sides: dieSchema, label: z.string().trim().max(40).optional(), hidden: z.boolean().optional() }),
   z.object({ type: z.literal("dice-cancel"), rollId: z.number().int() }),
   z.object({ type: z.literal("show-map"), visible: z.boolean() }),
+  z.object({ type: z.literal("show-explored"), visible: z.boolean() }),
   z.object({ type: z.literal("public-reveal") }),
   z.object({ type: z.literal("end") }),
 ]);
@@ -299,6 +304,14 @@ const live = (s: StanzeState) => s.phase === "setup" || s.phase === "play";
 
 function addLog(s: StanzeState, at: number, line: string): StanzeState {
   return { ...s, log: [...s.log, { at, text: line }].slice(-KEEP_LOG) };
+}
+
+/** Segna la stanza come visitata, ma solo a partita iniziata: in preparazione il GM piazza e sposta a piacere. */
+function markVisited(s: StanzeState, id: PlayerId, cell: CellId | null): StanzeState {
+  if (s.phase !== "play" || cell === null) return s;
+  const seen = s.visited?.[id] ?? [];
+  if (seen.includes(cell)) return s;
+  return { ...s, visited: { ...s.visited, [id]: [...seen, cell] } };
 }
 
 function setFeedback(s: StanzeState, id: PlayerId, f: Feedback): StanzeState {
@@ -469,7 +482,7 @@ function place(s: StanzeState, playerId: PlayerId, cell: CellId | null, now: num
   if (s.positions[playerId] === cell) return s;
   // Le richieste di spostamento e sbirciata riguardavano la vecchia stanza.
   const requests = s.requests.filter((r) => !(r.playerId === playerId && (r.kind === "move" || r.kind === "peek")));
-  const next = { ...s, positions: { ...s.positions, [playerId]: cell }, requests };
+  const next = markVisited({ ...s, positions: { ...s.positions, [playerId]: cell }, requests }, playerId, cell);
   return addLog(next, now, cell === null ? `${nick(s, playerId)} tolto dalla mappa` : `${nick(s, playerId)} → ${roomName(cell)}`);
 }
 
@@ -520,7 +533,7 @@ function resolve(s: StanzeState, requestId: number, approve: boolean, now: numbe
     const from = s.positions[r.playerId];
     const to = from === null || from === undefined || !r.direction ? null : neighbor(grid(s), from, r.direction);
     if (approve && to !== null) {
-      next = { ...next, positions: { ...next.positions, [r.playerId]: to } };
+      next = markVisited({ ...next, positions: { ...next.positions, [r.playerId]: to } }, r.playerId, to);
       cell = to;
       next = addLog(next, now, `${who} si sposta nella ${roomName(to)}`);
     } else if (approve) approve = false; // la stanza di partenza non c'è più: non si sposta
@@ -553,7 +566,9 @@ function begin(s: StanzeState, now: number): StanzeState {
   if (s.phase !== "setup" || unplaced(s).length > 0) return s;
   // Parte il tempo di gioco, il primo cronometro del GM.
   const timers = s.timers.map((t) => (t.id === "t0" ? startTimer(t, now) : t));
-  return addLog({ ...s, phase: "play", timers }, now, "Si comincia");
+  // Ognuno ha già visitato la stanza da cui parte.
+  const visited = Object.fromEntries(s.roster.map((p) => [p.id, s.positions[p.id] == null ? [] : [s.positions[p.id]!]]));
+  return addLog({ ...s, phase: "play", timers, visited }, now, "Si comincia");
 }
 
 function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeState {
@@ -791,6 +806,8 @@ function onHostCommand(state: StanzeState, cmd: Command, now: number): StanzeSta
     }
     case "show-map":
       return s.mapShown === cmd.visible ? s : addLog({ ...s, mapShown: cmd.visible }, now, cmd.visible ? "Mappa mostrata ai giocatori" : "Mappa nascosta");
+    case "show-explored":
+      return s.exploredShown === cmd.visible ? s : addLog({ ...s, exploredShown: cmd.visible }, now, cmd.visible ? "Mappa esplorata mostrata ai giocatori" : "Mappa esplorata nascosta");
     case "public-reveal":
       return s.phase === "play" ? { ...freezeTimers(s, now), phase: "reveal", publicReveal: true, mapShown: true } : s;
     case "end":
@@ -883,6 +900,41 @@ const revealed = (s: StanzeState) => ({
   outcomes: s.roster.map((p) => ({ id: p.id, nickname: p.nickname, outcome: s.outcome[p.id] ?? "in-gioco", solved: s.solved[p.id] === true })),
 });
 
+/** Una stanza della mappa esplorata: `x` e `y` sono relativi alla stanza visitata più in alto a sinistra, mai coordinate vere. */
+export interface ExploredRoom {
+  cell: CellId;
+  x: number;
+  y: number;
+  here: boolean;
+}
+
+export interface ExploredView {
+  cols: number;
+  rows: number;
+  rooms: ExploredRoom[];
+  /** Chi sta nella stanza in cui sei ora; gli altri giocatori non compaiono mai. */
+  withYou: { id: string; nickname: string }[];
+}
+
+/**
+ * La mappa di ciò che un giocatore ha visitato. Niente lettere, porte, muri né stanze mai viste; le coordinate
+ * partono dalle stanze visitate (non dalla griglia vera), così non si capisce dove finisce il complesso.
+ */
+function exploredOf(s: StanzeState, playerId: PlayerId): ExploredView {
+  const seen = s.visited?.[playerId] ?? [];
+  const pos = s.positions[playerId] ?? null;
+  const g = grid(s);
+  const at = seen.map((cell) => ({ cell, row: Math.floor(cell / g.cols), col: cell % g.cols }));
+  const minRow = Math.min(...at.map((c) => c.row));
+  const minCol = Math.min(...at.map((c) => c.col));
+  return {
+    cols: at.length === 0 ? 0 : Math.max(...at.map((c) => c.col)) - minCol + 1,
+    rows: at.length === 0 ? 0 : Math.max(...at.map((c) => c.row)) - minRow + 1,
+    rooms: at.map((c) => ({ cell: c.cell, x: c.col - minCol, y: c.row - minRow, here: c.cell === pos })),
+    withYou: pos === null || !seen.includes(pos) ? [] : s.roster.filter((p) => p.id !== playerId && s.positions[p.id] === pos).map((p) => ({ id: p.id, nickname: p.nickname })),
+  };
+}
+
 export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Command> = {
   id: "stanze-segrete",
   title: "Stanze Segrete",
@@ -925,6 +977,8 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       log: [],
       publicReveal: false,
       mapShown: false,
+      visited: {},
+      exploredShown: false,
     };
   },
 
@@ -1006,6 +1060,8 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
       outcome: s.outcome[playerId] ?? "in-gioco",
       solved: s.solved[playerId] === true,
       others: s.mapShown && s.cfg.positionsPublic ? s.roster.filter((p) => p.id !== playerId).map((p) => ({ id: p.id, nickname: p.nickname, cell: s.positions[p.id] ?? null })) : [],
+      // Con la mappa intera già mostrata questa non serve.
+      ...(s.exploredShown && !s.mapShown && { explored: exploredOf(s, playerId) }),
       abilities: mine.filter((g) => g.usesLeft === null || g.usesLeft > 0).map((g) => ({
         id: g.id,
         action: g.action,
@@ -1065,6 +1121,7 @@ export const stanzeSegrete: MinigameType<StanzeConfig, StanzeState, Input, Comma
         solved: s.solved,
         unplaced: left,
         mapShown: s.mapShown,
+        exploredShown: s.exploredShown,
         grants: s.grants,
         closedDoors: s.closedDoors,
         timers: s.timers,

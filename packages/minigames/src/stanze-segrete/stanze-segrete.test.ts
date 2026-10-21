@@ -366,6 +366,98 @@ describe("la mappa è nascosta finché il GM non la mostra", () => {
   });
 });
 
+describe("mappa esplorata", () => {
+  /** a si sposta con il permesso e l'approvazione del GM. */
+  const walk = (s: StanzeState, id: string, direction: "up" | "down" | "left" | "right") => {
+    let t = cmd(s, { type: "grant", target: { players: [id] }, action: "move" });
+    t = input(t, id, { type: "move", direction });
+    return cmd(t, { type: "resolve", requestId: t.requests.at(-1)!.id, approve: true });
+  };
+  const explored = (s: StanzeState, id: string) => view(s, id).explored as { cols: number; rows: number; rooms: { cell: number; x: number; y: number; here: boolean }[]; withYou: { id: string; nickname: string }[] };
+
+  it("di default i telefoni non la ricevono, anche se il server tiene traccia delle visite", () => {
+    const s = walk(started(), "a", "right");
+    expect(s.visited.a).toEqual([0, 1]);
+    expect(view(s, "a")).not.toHaveProperty("explored");
+  });
+
+  it("show-explored: ognuno vede solo le stanze visitate, senza lettere né numero di righe e colonne della mappa", () => {
+    let s = cmd(started(), { type: "show-explored", visible: true });
+    expect(cmd(s, { type: "show-explored", visible: true })).toBe(s);
+    // All'inizio c'è solo la stanza di partenza: per a è un angolo, per b il centro, ma sul telefono è uguale.
+    expect(explored(s, "a")).toEqual({ cols: 1, rows: 1, rooms: [{ cell: 0, x: 0, y: 0, here: true }], withYou: [] });
+    expect(explored(s, "b").rooms).toEqual([{ cell: 4, x: 0, y: 0, here: true }]);
+    s = walk(walk(s, "a", "right"), "a", "right");
+    const v = view(s, "a");
+    expect(v.explored.rooms.map((r: { cell: number }) => r.cell)).toEqual([0, 1, 2]);
+    expect(v.explored).toMatchObject({ cols: 3, rows: 1 });
+    expect(v.explored.rooms.map((r: { here: boolean }) => r.here)).toEqual([false, false, true]);
+    expect(JSON.stringify(v)).not.toContain("letter");
+    expect(v).not.toHaveProperty("rows");
+    expect(v.rules).not.toHaveProperty("rows");
+    // Il GM la può nascondere di nuovo.
+    expect(view(cmd(s, { type: "show-explored", visible: false }), "a")).not.toHaveProperty("explored");
+  });
+
+  it("la storia si accumula anche mentre è nascosta; sbirciare non vale come visitare", () => {
+    let s = walk(started(), "a", "down"); // a: 0 → 3, mappa esplorata ancora spenta
+    let t = cmd(s, { type: "grant", target: { players: ["a"] }, action: "peek" });
+    t = input(t, "a", { type: "peek", direction: "right" });
+    s = cmd(t, { type: "resolve", requestId: t.requests.at(-1)!.id, approve: true, showLetterSec: 5 });
+    s = cmd(s, { type: "show-explored", visible: true });
+    expect(explored(s, "a").rooms.map((r) => r.cell)).toEqual([0, 3]);
+    expect(explored(s, "a").rooms.map((r) => [r.x, r.y])).toEqual([[0, 0], [0, 1]]);
+  });
+
+  it("gli altri compaiono solo se sono nella stanza in cui sei ora, mai nelle altre", () => {
+    let s = cmd(started(), { type: "show-explored", visible: true });
+    s = walk(walk(s, "a", "right"), "a", "down"); // a passa da 0 e 1, arriva in 4 dove c'è b
+    expect(explored(s, "a").rooms.map((r) => r.cell)).toEqual([0, 1, 4]);
+    expect(explored(s, "a").withYou).toEqual([{ id: "b", nickname: "Nick-b" }]);
+    expect(explored(s, "b").withYou).toEqual([{ id: "a", nickname: "Nick-a" }]);
+    // c non è in nessuna stanza visitata da a e non si nota in nessun modo.
+    expect(JSON.stringify(view(s, "a"))).not.toContain("Nick-c");
+    // Dopo che b se ne va, a non sa dove sia.
+    s = cmd(s, { type: "place", playerId: "b", cellId: 5 });
+    expect(explored(s, "a").withYou).toEqual([]);
+    expect(JSON.stringify(view(s, "a"))).not.toContain("Nick-b");
+    // Il chi-c'è-con-te vale anche se le posizioni non sono pubbliche sullo schermo.
+    const cfg = game.configSchema.parse({ ...game.sampleConfig, positionsPublic: false });
+    let p = game.init(cfg, ctx, 0);
+    for (const [id, cellId] of [["a", 1], ["b", 1], ["c", 8]] as const) p = cmd(p, { type: "place", playerId: id, cellId });
+    p = cmd(cmd(p, { type: "start" }), { type: "show-explored", visible: true });
+    expect(explored(p, "a").withYou.map((x) => x.id)).toEqual(["b"]);
+  });
+
+  it("la preparazione non conta: vale la stanza da cui si parte; uno spostamento del GM in partita sì", () => {
+    let s = game.init(config, ctx, 0);
+    for (const [id, cellId] of [["a", 2], ["b", 4], ["c", 8]] as const) s = cmd(s, { type: "place", playerId: id, cellId });
+    s = cmd(s, { type: "place", playerId: "a", cellId: 0 });
+    s = cmd(s, { type: "show-explored", visible: true });
+    expect(explored(s, "a").rooms).toEqual([]); // ancora in preparazione: niente da mostrare
+    s = cmd(s, { type: "start" });
+    expect(s.visited.a).toEqual([0]);
+    s = cmd(s, { type: "place", playerId: "a", cellId: 8 });
+    expect(explored(s, "a").rooms.map((r) => r.cell)).toEqual([0, 8]);
+    // Le stanze lontane restano al loro posto relativo, senza sapere che nel mezzo c'è altro.
+    expect(explored(s, "a")).toMatchObject({ cols: 3, rows: 3 });
+  });
+
+  it("se la mappa intera è già mostrata non viene mandata anche questa", () => {
+    const s = cmd(cmd(started(), { type: "show-explored", visible: true }), { type: "show-map", visible: true });
+    expect(view(s, "a")).not.toHaveProperty("explored");
+    expect(view(cmd(s, { type: "show-map", visible: false }), "a")).toHaveProperty("explored");
+  });
+
+  it("schermo e giocatori fuori serata non la ricevono; il GM sa se è accesa", () => {
+    const s = walk(cmd(started(), { type: "show-explored", visible: true }), "a", "right");
+    expect(game.screenView(s)).toEqual({ phase: "play", mapShown: false });
+    expect(view(s, "z")).not.toHaveProperty("explored");
+    expect((game.hostView(s).info as any).exploredShown).toBe(true);
+    expect((game.hostView(started()).info as any).exploredShown).toBe(false);
+  });
+});
+
 describe("oggetti", () => {
   // a è nella stanza 0, b nella 4, c nella 8; la scopa e la lettera sono nella stanza 4
   const withItems = () => {

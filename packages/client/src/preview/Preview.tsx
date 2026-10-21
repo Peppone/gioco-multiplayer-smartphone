@@ -60,6 +60,7 @@ type Scene =
   | "duel-replay"
   | "duel-ended"
   | "stanze-dark"
+  | "stanze-explored"
   | "stanze-items"
   | "stanze-setup"
   | "stanze-compass"
@@ -95,6 +96,7 @@ const SCENES: { id: Scene; label: string }[] = [
   { id: "duel-replay", label: "Duello: scontro" },
   { id: "duel-ended", label: "Duello: fine" },
   { id: "stanze-dark", label: "Stanze: mappa nascosta" },
+  { id: "stanze-explored", label: "Stanze: mappa esplorata" },
   { id: "stanze-items", label: "Stanze: oggetti" },
   { id: "stanze-setup", label: "Stanze: preparazione" },
   { id: "stanze-compass", label: "Stanze: croce" },
@@ -220,6 +222,7 @@ function sceneViews(scene: Scene, now: number) {
     case "duel-ended":
       return { typeId: "knight-duel", ...duelScene(scene, now) };
     case "stanze-dark":
+    case "stanze-explored":
     case "stanze-items":
     case "stanze-setup":
     case "stanze-compass":
@@ -326,7 +329,8 @@ const SS_PLAYERS = [
 ];
 function stanzeScene(scene: Scene, now: number) {
   const reveal = scene === "stanze-reveal";
-  const screen = scene === "stanze-dark" ? { phase: "play", mapShown: false } : {
+  const hidden = scene === "stanze-dark" || scene === "stanze-explored";
+  const screen = hidden ? { phase: "play", mapShown: false } : {
     mapShown: true,
     phase: reveal ? "reveal" : scene === "stanze-setup" ? "setup" : "play",
     rows: 3,
@@ -349,8 +353,8 @@ function stanzeScene(scene: Scene, now: number) {
   const phone: Record<string, unknown> = {
     phase: "play",
     member: true,
-    mapShown: scene !== "stanze-dark",
-    ...(scene !== "stanze-dark" && { rows: 3, cols: 3 }),
+    mapShown: !hidden,
+    ...(!hidden && { rows: 3, cols: 3 }),
     cell: scene === "stanze-setup" ? 0 : 4,
     outcome: "in-gioco",
     solved: false,
@@ -363,8 +367,18 @@ function stanzeScene(scene: Scene, now: number) {
     messages: [],
     pendingEvents: [],
     history: [],
-    rules: { ...(scene !== "stanze-dark" && { rows: 3, cols: 3 }), sightSec: 8, messageMaxLength: 280, positionsPublic: true },
+    rules: { ...(!hidden && { rows: 3, cols: 3 }), sightSec: 8, messageMaxLength: 280, positionsPublic: true },
   };
+  // Il GM ha acceso le stanze esplorate: Gina ha visitato la 2, la 5 e la 6 e ora è nella 5 con Marco.
+  if (scene === "stanze-explored") {
+    phone.others = [];
+    phone.explored = {
+      cols: 2,
+      rows: 2,
+      rooms: [{ cell: 1, x: 0, y: 0, here: false }, { cell: 4, x: 0, y: 1, here: true }, { cell: 5, x: 1, y: 1, here: false }],
+      withYou: [{ id: "p2", nickname: "Marco" }],
+    };
+  }
   if (scene === "stanze-compass") {
     phone.abilities = [{ id: "g1", action: "move", label: null, usesLeft: null, expiresAt: null }, { id: "g2", action: "sight", label: null, usesLeft: 1, expiresAt: now + 30_000 }];
     phone.compass = { move: { up: "open", down: "blocked", left: "open", right: "open" } };

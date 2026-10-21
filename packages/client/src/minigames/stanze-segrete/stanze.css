@@ -36,6 +36,8 @@
 .ss-mini-room { aspect-ratio: 1; display: grid; place-items: center; background: var(--panel); border-radius: calc(var(--radius) / 2); position: relative; font-size: .9rem; }
 .ss-mini-room small { position: absolute; top: .1rem; left: .25rem; opacity: .55; font-size: .65rem; }
 .ss-mini-room.me { outline: 3px solid var(--accent); }
+.ss-explored { display: grid; gap: .3rem; }
+.ss-with { margin: 0; text-align: center; font-size: .85rem; }
 .ss-dot { color: var(--accent); font-size: 1.1rem; }
 .ss-other { font-size: .7rem; font-weight: 800; opacity: .8; }
 

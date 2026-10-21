@@ -99,6 +99,7 @@ interface HostInfo {
   solved: Record<string, boolean>;
   unplaced: number;
   mapShown: boolean;
+  exploredShown: boolean;
   grants: HostGrant[];
   closedDoors: { a: number; b: number }[];
   items: HostItem[];
@@ -1147,6 +1148,11 @@ export function StanzeHost({ info: raw, run, clock, theme, library }: HostProps)
           {editable && (
             <button className={info.mapShown ? "" : "primary"} aria-pressed={info.mapShown} onClick={() => void run({ type: "show-map", visible: !info.mapShown })}>
               {info.mapShown ? "Nascondi la mappa" : "Mostra la mappa a schermo e telefoni"}
+            </button>
+          )}
+          {editable && (
+            <button aria-pressed={info.exploredShown} title="Ogni telefono vede solo le stanze in cui è stato, senza lettere e senza gli altri giocatori (tranne quelli nella stanza in cui si trova)" onClick={() => void run({ type: "show-explored", visible: !info.exploredShown })}>
+              {info.exploredShown ? "Nascondi le stanze esplorate" : "Mostra le stanze esplorate ai telefoni"}
             </button>
           )}
           {info.phase === "play" && <button className="primary" onClick={() => void run({ type: "public-reveal" })}>Rivela la mappa sullo schermo</button>}

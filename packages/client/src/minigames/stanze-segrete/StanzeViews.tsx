@@ -141,6 +141,26 @@ function MiniMap({ v }: { v: PhoneView }) {
   );
 }
 
+/** Solo le stanze visitate, senza lettere né porte; accanto a te compaiono solo i giocatori che stanno nella tua stanza. */
+function ExploredMap({ v }: { v: PhoneView }) {
+  const e = v.explored;
+  if (!e || e.rooms.length === 0) return null;
+  return (
+    <div className="ss-explored" aria-label="Le stanze che hai visitato">
+      <div className="ss-mini" style={{ gridTemplateColumns: `repeat(${e.cols}, 1fr)`, maxWidth: `${Math.min(13, e.cols * 4.3)}rem` }}>
+        {e.rooms.map((r) => (
+          <div key={r.cell} className={`ss-mini-room ${r.here ? "me" : ""}`} data-cell={r.cell} style={{ gridColumn: r.x + 1, gridRow: r.y + 1 }}>
+            <small>{r.cell + 1}</small>
+            {r.here && <span className="ss-dot">●</span>}
+            {r.here && e.withYou.map((o) => <span key={o.id} className="ss-other" title={o.nickname}>{o.nickname.slice(0, 1).toUpperCase()}</span>)}
+          </div>
+        ))}
+      </div>
+      {e.withYou.length > 0 && <p className="muted ss-with">Con te: {e.withYou.map((o) => o.nickname).join(", ")}</p>}
+    </div>
+  );
+}
+
 /** Croce direzionale: frecce aperte, bloccate (🔒, non premibili) o nascoste ai bordi. */
 function Compass({ title, state, kind, disabled, onPress }: { title: string; state: Record<Dir, ArrowState>; kind: "move" | "peek"; disabled: boolean; onPress: (d: Dir) => void }) {
   const cell = (d: Dir) => {
@@ -346,6 +366,7 @@ function GameTab({ v, send, clock, seenDice }: { v: PhoneView; send: ControllerP
       {v.outcome === "eliminato" && <p className="ss-banner bad">Sei stato eliminato 💀</p>}
       {v.solved && <p className="ss-banner good">Soluzione convalidata 🔑</p>}
       <MiniMap v={v} />
+      <ExploredMap v={v} />
       {v.feedback && <Feedback f={v.feedback} clock={clock} />}
       {v.dice && <DiceCards dice={v.dice} send={send} seen={seenDice} />}
       <Items items={v.items ?? []} />

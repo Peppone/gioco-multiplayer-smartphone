@@ -79,6 +79,15 @@ export interface Rules {
 /** Un oggetto nella propria stanza: sconosciuto finché il Master non lo palesa. */
 export type PhoneItem = { ref: number; known: false } | { ref: number; known: true; name: string; icon: string; text: string };
 
+/** Le stanze già visitate, con coordinate relative alla più in alto a sinistra: non si deduce la forma del complesso. */
+export interface ExploredView {
+  cols: number;
+  rows: number;
+  rooms: { cell: number; x: number; y: number; here: boolean }[];
+  /** Chi sta nella tua stanza. */
+  withYou: { id: string; nickname: string }[];
+}
+
 export interface PhoneView {
   phase: "setup" | "play" | "reveal" | "done";
   member: boolean;
@@ -89,6 +98,7 @@ export interface PhoneView {
   outcome?: Outcome;
   solved?: boolean;
   others?: { id: string; nickname: string; cell: number | null }[];
+  explored?: ExploredView;
   abilities?: Ability[];
   compass?: Partial<Record<"move" | "peek", Record<Dir, ArrowState>>>;
   pending?: PendingRequest[];
