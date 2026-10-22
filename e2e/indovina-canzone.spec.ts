@@ -1,25 +1,7 @@
 import { expect } from "@playwright/test";
 import { adminToken, openAdmin, test, unique } from "./support";
+import { TAP_SCRIPT, silentWav, stereoTone, unlockAudio, uploadTone } from "./audio-support";
 import { test as plain } from "@playwright/test";
-
-/** WAV mono 8 kHz di silenzio (circa mezzo secondo): basta a essere un audio valido. */
-function silentWav(): Buffer {
-  const samples = 4_000;
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0);
-  header.writeUInt32LE(36 + samples, 4);
-  header.write("WAVEfmt ", 8);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(1, 22);
-  header.writeUInt32LE(8_000, 24);
-  header.writeUInt32LE(8_000, 28);
-  header.writeUInt16LE(1, 32);
-  header.writeUInt16LE(8, 34);
-  header.write("data", 36);
-  header.writeUInt32LE(samples, 40);
-  return Buffer.concat([header, Buffer.alloc(samples, 128)]);
-}
 
 const SECRET = "TITOLO-SEGRETO-E2E";
 
@@ -173,80 +155,6 @@ test("indovina la canzone da YouTube: lo schermo comanda il lettore nascosto, i 
 });
 
 // ---- Effetti audio: si misura il segnale che esce davvero dal grafo Web Audio dello schermo ----
-
-/** WAV stereo 16 bit a 44,1 kHz di circa 4 s: un tono sinusoidale per canale (0 Hz = silenzio). */
-function stereoTone(leftHz: number | number[], rightHz: number | number[] = leftHz): Buffer {
-  const rate = 44_100;
-  const frames = rate * 4;
-  const data = Buffer.alloc(frames * 4);
-  const sample = (hz: number | number[], i: number) => {
-    const tones = [hz].flat().filter((f) => f > 0);
-    if (tones.length === 0) return 0;
-    return Math.round(tones.reduce((s, f) => s + Math.sin((2 * Math.PI * f * i) / rate), 0) * 0.25 * 32_767);
-  };
-  for (let i = 0; i < frames; i++) {
-    data.writeInt16LE(sample(leftHz, i), i * 4);
-    data.writeInt16LE(sample(rightHz, i), i * 4 + 2);
-  }
-  const header = Buffer.alloc(44);
-  header.write("RIFF", 0);
-  header.writeUInt32LE(36 + data.length, 4);
-  header.write("WAVEfmt ", 8);
-  header.writeUInt32LE(16, 16);
-  header.writeUInt16LE(1, 20);
-  header.writeUInt16LE(2, 22);
-  header.writeUInt32LE(rate, 24);
-  header.writeUInt32LE(rate * 4, 28);
-  header.writeUInt16LE(4, 32);
-  header.writeUInt16LE(16, 34);
-  header.write("data", 36);
-  header.writeUInt32LE(data.length, 40);
-  return Buffer.concat([header, data]);
-}
-
-/** Inserisce un analizzatore davanti all'uscita di ogni AudioContext e ne espone il livello (RMS massimo). */
-const TAP_SCRIPT = `
-  const taps = [];
-  const desc = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "destination");
-  Object.defineProperty(BaseAudioContext.prototype, "destination", {
-    get() {
-      if (!this.__tap) {
-        const analyser = this.createAnalyser();
-        analyser.fftSize = 2048;
-        analyser.connect(desc.get.call(this));
-        this.__tap = analyser;
-        taps.push(analyser);
-      }
-      return this.__tap;
-    },
-  });
-  window.__db = (hz) => {
-    let best = -Infinity;
-    for (const a of taps) {
-      const buf = new Float32Array(a.frequencyBinCount);
-      a.getFloatFrequencyData(buf);
-      best = Math.max(best, buf[Math.round((hz * a.fftSize) / a.context.sampleRate)]);
-    }
-    return best;
-  };`;
-
-/**
- * Il tocco che sblocca l'audio dello schermo. Si aspetta l'app e si tocca un testo: in un punto fisso (in alto a
- * sinistra) c'è il pulsante del muto, e a pagina già disegnata il tocco spegnerebbe l'audio invece di sbloccarlo.
- */
-async function unlockAudio(page: import("@playwright/test").Page) {
-  await page.getByText("Si comincia tra poco!").click();
-  await expect(page.getByRole("button", { name: "Disattiva l'audio" })).toBeVisible();
-}
-
-async function uploadTone(request: import("@playwright/test").APIRequestContext, name: string, wav: Buffer): Promise<string> {
-  const res = await request.post("/api/admin/media", {
-    headers: { Authorization: `Bearer ${await adminToken(request)}`, "Content-Type": "audio/wav", "X-File-Name": name },
-    data: wav,
-  });
-  expect(res.status()).toBe(201);
-  return ((await res.json()) as { file: string }).file;
-}
 
 test("effetto «senza voce»: nello stesso brano il tono centrale (la «voce») sparisce e quello su un canale resta", async ({ newGame, request }) => {
   // 1000 Hz identico sui due canali = «voce»; 3000 Hz solo a sinistra = «strumento».

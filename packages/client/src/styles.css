@@ -279,3 +279,9 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .guess-form input, .guess-form button { box-sizing: border-box; width: 100%; min-width: 0; }
 /* Lettore YouTube: deve restare in pagina ma invisibile e non cliccabile (si usa solo l audio). */
 .yt-hidden { position: fixed; right: 0; bottom: 0; width: 200px; height: 200px; opacity: 0; pointer-events: none; z-index: -1; overflow: hidden; }
+/* Indovina la canzone: categorie da scegliere e spezzoni crescenti */
+.categories { list-style: none; display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; padding: 0; margin: 1rem 0; }
+.categories li { background: var(--panel); padding: .5rem 1.2rem; border-radius: 2rem; font-size: 1.5rem; }
+.pick-grid { display: grid; gap: .8rem; grid-template-columns: minmax(0, 1fr); margin: 1rem 0; }
+.pick-btn { background: var(--primary); color: #fff; font-weight: 700; font-size: 1.2rem; padding: 1rem; overflow-wrap: anywhere; }
+.song-loop[data-sounding="true"] { color: var(--accent); font-weight: 700; }

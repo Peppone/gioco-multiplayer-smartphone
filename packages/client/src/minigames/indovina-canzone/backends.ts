@@ -7,9 +7,19 @@ import { connectEffect } from "./effects";
 export interface MusicBackend {
   /** Esegue `cb` appena il brano è pronto (subito se lo è già); restituisce l'annullamento. */
   whenReady(cb: () => void): () => void;
-  /** Fa suonare dal secondo indicato. */
-  playAt(seconds: number): void;
+  /**
+   * Fa suonare dal secondo indicato. Con `maxMs` il lettore si ferma da solo dopo quel tempo, con precisione al campione
+   * se la sorgente lo permette (gli spezzoni da mezzo secondo non possono dipendere dai timer della pagina).
+   */
+  playAt(seconds: number, maxMs?: number): void;
   pause(): void;
+  /** Da fermo si prepara al secondo indicato, così il prossimo `playAt` parte senza ritardo (negli ascolti a spezzoni). */
+  cue(seconds: number): void;
+  /**
+   * Solo con un effetto: porta la nitidezza da `from` a `to` (0 = effetto pieno, 1 = suono originale) in `durationMs`.
+   * Senza effetto non c'è nulla da attenuare e non fa nulla.
+   */
+  setClarity(from: number, to: number, durationMs: number): void;
   dispose(): void;
 }
 
@@ -21,7 +31,7 @@ function effectFileBackend(file: string, effect: AudioEffect): MusicBackend {
   const el = new Audio(`/media/${file}`);
   el.preload = "auto";
   const ctx = (Howler.ctx as AudioContext | null) ?? new AudioContext();
-  const disconnect = connectEffect(ctx, ctx.createMediaElementSource(el), effect);
+  const chain = connectEffect(ctx, ctx.createMediaElementSource(el), effect);
   return {
     whenReady(cb) {
       if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
@@ -38,11 +48,86 @@ function effectFileBackend(file: string, effect: AudioEffect): MusicBackend {
       void el.play().catch(() => undefined); // senza tocco dell'utente il browser può rifiutare
     },
     pause: () => el.pause(),
+    cue(seconds) {
+      el.currentTime = seconds;
+    },
+    setClarity: chain.setClarity,
     dispose() {
       el.pause();
-      disconnect();
+      chain.disconnect();
       el.removeAttribute("src");
       el.load();
+    },
+  };
+}
+
+/**
+ * File del server decodificato in memoria e suonato con la Web Audio API, per gli ascolti a spezzoni: attacco e stacco
+ * di ogni spezzone sono programmati sul tempo dell'audio (al campione), mentre un elemento audio impiegherebbe qualche
+ * centinaio di millisecondi a partire e a fermarsi, troppi per uno spezzone da mezzo secondo. Gli effetti passano da
+ * un nodo d'ingresso fisso, a cui si collega ogni spezzone.
+ */
+export function bufferFileBackend(file: string, effect: AudioEffect = "none"): MusicBackend {
+  const ctx = (Howler.ctx as AudioContext | null) ?? new AudioContext();
+  const input = ctx.createGain();
+  const chain = connectEffect(ctx, input, effect);
+  let buffer: AudioBuffer | null = null;
+  let current: AudioBufferSourceNode | null = null;
+  let disposed = false;
+  const waiting = new Set<() => void>();
+
+  fetch(`/media/${file}`)
+    .then((res) => res.arrayBuffer())
+    .then((data) => ctx.decodeAudioData(data))
+    .then(
+      (decoded) => {
+        if (disposed) return;
+        buffer = decoded;
+        waiting.forEach((cb) => cb());
+        waiting.clear();
+      },
+      () => undefined, // brano illeggibile: resta muto e la regia può saltarlo
+    );
+
+  const stop = () => {
+    try {
+      current?.stop();
+    } catch {
+      /* già fermo */
+    }
+    current?.disconnect();
+    current = null;
+  };
+
+  return {
+    whenReady(cb) {
+      if (buffer) {
+        cb();
+        return () => undefined;
+      }
+      waiting.add(cb);
+      return () => void waiting.delete(cb);
+    },
+    playAt(seconds, maxMs) {
+      if (!buffer) return;
+      stop();
+      void ctx.resume();
+      input.gain.value = audio.isMuted() ? 0 : 1;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(input);
+      source.start(0, Math.min(Math.max(0, seconds), buffer.duration));
+      if (maxMs !== undefined) source.stop(ctx.currentTime + Math.max(0, maxMs) / 1000);
+      current = source;
+    },
+    pause: stop,
+    cue: () => undefined, // ogni spezzone riparte da sé: non c'è nulla da preparare
+    setClarity: chain.setClarity,
+    dispose() {
+      disposed = true;
+      waiting.clear();
+      stop();
+      chain.disconnect();
     },
   };
 }
@@ -64,6 +149,8 @@ export function fileBackend(file: string, effect: AudioEffect = "none"): MusicBa
       if (!h.playing()) h.play();
     },
     pause: () => void h.pause(),
+    cue: (seconds) => void h.seek(seconds),
+    setClarity: () => undefined,
     dispose: () => void h.unload(),
   };
 }
@@ -150,6 +237,8 @@ export function youtubeBackend(videoId: string, host: HTMLElement): MusicBackend
       player.playVideo();
     },
     pause: () => void player?.pauseVideo(),
+    cue: () => undefined, // un video non ancora avviato ripartirebbe da solo: si cerca il punto direttamente in `playAt`
+    setClarity: () => undefined,
     dispose() {
       disposed = true;
       waiting.clear();
