@@ -331,6 +331,15 @@ Una gara in cui **chi guida non vede i pericoli** e **chi vede i pericoli non gu
 - **Misure dello stress** (30 telefoni, 4 piloti a raffica): ~31 invii per passo, stato dopo un passo in mediana 3 ms e p95 4 ms; annotate in [docs/PILOTA-CIECO.md](docs/PILOTA-CIECO.md) per dimensionare il primo passo di Plancia di Comando.
 - **Test**: unit (generatore su migliaia di semi, equità, movimento, plugin, anti-leak), anteprima Playwright (`pc-*` nei 5 temi), e2e di partite con mina, porta e arrivo, e stress (`pnpm stress --players 30 --scenario pilota`).
 
+### 🎵 Quiz musicale (`indovina-canzone`): spezzoni, suono che si svela, categorie
+Estensioni di *Indovina la canzone* (guida `docs/INDOVINA-CANZONE.md`):
+- **Svelare il suono**: l'effetto sull'audio (sfocato, senza voce) si attenua col tempo ascoltato fino al brano intero; la nitidezza è una funzione pura del tempo (`clarityAt` in `packages/shared/src/playback.ts`) e lo schermo programma la rampa sul grafo Web Audio.
+- **Spezzoni crescenti**: lo stesso brano riparte dall'inizio con durate configurabili (es. 0,5 s, 1 s, 2 s…) e pause; il piano (`loopPosition`) è condiviso da server e schermo. Per i file lo schermo usa `AudioBufferSourceNode` (attacco e stacco al campione) e l'ascolto parte con un anticipo di 400 ms; Howler/HTML5 non basta, perché `pause()` resta in coda finché `play()` non si risolve.
+- **Categorie e capitani**: ogni brano ha una o più categorie; i capitani delle squadre scelgono a turno la categoria del prossimo brano, il server estrae un brano non suonato (tempo massimo, poi sorte; la regia può scegliere al posto loro). Il **capitano** è un attributo della serata (`event_players.is_captain`, uno per squadra).
+
+### 🧩 Squadre temporanee (`teamBased`, `Engine.setTempTeams`)
+Per i minigiochi che usano le squadre, la regia può formare squadre ad hoc che **sostituiscono** quelle della serata dal round successivo, finché non le toglie (guida `docs/SQUADRE-TEMPORANEE.md`). Decisione: i punti restano ai giocatori e alle squadre della serata (la classifica a squadre non cambia struttura); i minigiochi senza squadre non le vedono; i meta-giochi con `buildConfig` (duello) vengono ricomposti all'avvio del round.
+
 ### 📡 Invii raggruppati (`realtime.ts`)
 Ogni cambio di stato rimandava **tutte** le viste a **tutti** i telefoni (30 invii per input con 30 giocatori). Ora `flush` accorpa gli input a raffica (il primo dopo una pausa parte subito, gli altri al più tardi dopo `flushMs` = 80 ms) e **non rimanda una vista identica** all'ultima inviata a quel telefono: negli stress con 30 giocatori gli aggiornamenti calano dell'83% (classico) e del 78% (Lunghezza d'Onda); in Pilota alla cieca del 12% (la posizione dei piloti è pubblica). Il tetto di ritardo è l'intervallo di accorpamento (~80 ms); l'ora equa degli input viene da `meta`, non dall'istante di invio. Per questo **la vista di un telefono va tenuta essenziale**: dati che cambiano per tutti a ogni azione annullano la deduplicazione. Misure e dettagli in [docs/PIANO-PLANCIA-COMANDO.md](docs/PIANO-PLANCIA-COMANDO.md); test in `realtime-flush.test.ts`.
 
