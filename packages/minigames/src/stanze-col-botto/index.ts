@@ -16,6 +16,8 @@ export type CharacterId = "president" | "bomber" | "blue-member" | "red-member" 
 export type Phase = "pairing" | "deal" | "round" | "lock" | "hostages" | "exchange" | "gamble" | "reveal" | "done";
 export type ShareKind = "card-share" | "color-share" | "card-reveal" | "color-reveal" | "public-card" | "public-color";
 export type RoomAssignment = "random" | "qr" | "host";
+/** Come si propone lo «Scambia»: dall'app (tocca un nome), con la scansione reciproca dei QR di persona, o entrambi. */
+export type ShareMethod = "app" | "qr" | "both";
 
 export interface Card {
   team: Team;
@@ -39,6 +41,7 @@ export const stanzeColBottoConfigSchema = z
     roundMode: z.enum(["base", "long", "custom"]).default("base").meta({ ...sec("Round", "Base: 3 round da 3-2-1 minuti. Lungo: 5 round da 5-4-3-2-1 (solo con più di 10 giocatori). Personalizzato: tabella qui sotto"), enumLabels: { base: "Base (3-2-1 min)", long: "Lungo (5-4-3-2-1 min)", custom: "Personalizzato" } }),
     customRounds: z.array(customRoundSchema).max(8).default([]).meta({ title: "Round personalizzati", itemLabel: "Round", description: "Solo con «Personalizzato»" }),
     colorShare: z.enum(["auto", "always", "never"]).default("auto").meta({ ...sec("Mostrare solo il colore", "Automatico: ammesso solo con più di 10 giocatori, come nel gioco originale"), enumLabels: { auto: "Automatico", always: "Sempre", never: "Mai" } }),
+    shareMethod: z.enum(["app", "qr", "both"]).default("app").meta({ ...sec("Come si scambiano le carte", "Dall'app: si tocca un nome. Con i QR: ci si scansiona a vicenda di persona, così la stanza vede che lo scambio è avvenuto"), enumLabels: { app: "Dall'app", qr: "Solo con i QR (di persona)", both: "Dall'app o con i QR" } }),
     lockSeconds: z.number().int().min(5).max(120).default(20).meta(sec("Tempo per eleggere un leader a fine round (s)", "Se una stanza ne è senza, allo scadere lo estrae il server")),
     hostageSeconds: z.number().int().min(5).max(180).default(20).meta(sec("Tempo per confermare gli ostaggi (s)", "Allo scadere completa le scelte il server")),
     startAfterFirstSeconds: z.number().int().min(0).max(60).default(5).meta(sec("Avvio del round dopo il primo leader (s)", "Il round successivo parte questi secondi dopo che il primo leader preme «Avvia il round»")),
@@ -68,6 +71,8 @@ const inputSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start-round") }),
   z.object({ type: z.literal("share-offer"), kind: z.enum(["card", "color"]), targetId: id }),
   z.object({ type: z.literal("share-answer"), seq: z.number().int().min(1), accept: z.boolean() }),
+  /** Ho inquadrato il QR di un compagno: lo scambio avviene quando anche lui inquadra il mio. */
+  z.object({ type: z.literal("scan-peer"), code: z.string().trim().min(1).max(12), kind: z.enum(["card", "color"]) }),
   /** «Mostra» a senso unico; `targetId: null` = a tutta la stanza. */
   z.object({ type: z.literal("reveal"), kind: z.enum(["card", "color"]), targetId: id.nullable() }),
   z.object({ type: z.literal("gamble"), team: z.enum(["blue", "red"]) }),
@@ -101,6 +106,14 @@ export interface Share {
   round: number;
   at: number;
   status: "pending" | "accepted" | "declined" | "expired";
+}
+
+/** «Ho inquadrato il QR di `to`»: da solo non rivela nulla, serve anche la scansione nel verso opposto. */
+export interface Scan {
+  from: string;
+  to: string;
+  kind: "card" | "color";
+  at: number;
 }
 
 export interface RoomState {
@@ -148,6 +161,12 @@ export interface StanzeColBottoState {
   exchanges: Exchange[];
   shares: Share[];
   nextSeq: number;
+  /** QR personali per lo scambio di persona: un codice a testa, che ruota; si accetta anche quello appena scaduto. */
+  qrCodes: Record<string, string>;
+  qrPrev: Record<string, string>;
+  qrEpoch: number;
+  qrAt: number;
+  scans: Scan[];
   phaseStartedAt: number;
   phaseEndsAt: number | null;
   pausedRemainingMs: number | null;
@@ -160,6 +179,10 @@ export interface StanzeColBottoState {
 }
 
 const OFFER_MS = 20_000;
+/** Ogni QR personale vale 20 s (più altri 20 da «scaduto»): una foto di un QR non serve a lungo. */
+const QR_TTL_MS = 20_000;
+/** Tempo entro cui anche l'altro deve inquadrare il mio QR. */
+const SCAN_MS = 30_000;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const nick = (s: StanzeColBottoState, pid: string) => s.participants.find((p) => p.id === pid)?.nickname ?? "?";
@@ -258,7 +281,7 @@ export function knownBy(s: StanzeColBottoState, viewer: string): Known[] {
 // ---- Fasi e tempo ----
 
 function enter(s: StanzeColBottoState, phase: Phase, now: number, seconds: number | null): StanzeColBottoState {
-  return { ...s, phase, phaseStartedAt: now, phaseEndsAt: seconds === null ? null : now + seconds * 1000, pausedRemainingMs: null };
+  return { ...s, phase, phaseStartedAt: now, phaseEndsAt: seconds === null ? null : now + seconds * 1000, pausedRemainingMs: null, scans: [] };
 }
 
 const TIMED: Phase[] = ["round", "lock", "hostages", "exchange", "gamble"];
@@ -379,7 +402,8 @@ function movePlayer(s: StanzeColBottoState, pid: string, to: RoomId): StanzeColB
   });
   const shares = s.shares.map((sh) => (sh.status === "pending" && (sh.from === pid || sh.to === pid) ? { ...sh, status: "expired" as const } : sh));
   const { [pid]: _gone, ...refused } = s.joinRefused;
-  return { ...s, room: { ...s.room, [pid]: to }, rooms: [clean(s.rooms[0]), clean(s.rooms[1])], shares, joinRefused: refused };
+  const scans = s.scans.filter((x) => x.from !== pid && x.to !== pid);
+  return { ...s, room: { ...s.room, [pid]: to }, rooms: [clean(s.rooms[0]), clean(s.rooms[1])], shares, scans, joinRefused: refused };
 }
 
 // ---- Leader ----
@@ -511,8 +535,53 @@ function addShare(s: StanzeColBottoState, share: Omit<Share, "seq">): StanzeColB
   return { ...s, shares: [...s.shares, { ...share, seq: s.nextSeq }], nextSeq: s.nextSeq + 1 };
 }
 
+const appSwap = (s: StanzeColBottoState) => s.cfg.shareMethod !== "qr";
+const qrSwap = (s: StanzeColBottoState) => s.cfg.shareMethod !== "app";
+
+/** Un codice di 6 caratteri a testa, tutti diversi: derivano dal seme e dall'epoca, quindi sono deterministici. */
+function makeCodes(s: StanzeColBottoState, epoch: number): Record<string, string> {
+  const next = rng(s, 1000 + epoch);
+  const used = new Set<string>();
+  const codes: Record<string, string> = {};
+  for (const p of s.players) {
+    let code: string;
+    do code = Array.from({ length: 6 }, () => CODE_ALPHABET[Math.floor(next() * CODE_ALPHABET.length)]).join("");
+    while (used.has(code));
+    used.add(code);
+    codes[p] = code;
+  }
+  return codes;
+}
+
+/** Durante il round i QR personali ruotano ogni `QR_TTL_MS`; le scansioni rimaste senza risposta decadono. */
+function rotateCodes(s: StanzeColBottoState, now: number): StanzeColBottoState {
+  if (!qrSwap(s) || s.phase !== "round" || s.pausedRemainingMs !== null) return s;
+  const scans = s.scans.filter((x) => now - x.at < SCAN_MS);
+  const stale = now - s.qrAt >= QR_TTL_MS;
+  if (!stale && scans.length === s.scans.length) return s;
+  if (!stale) return { ...s, scans };
+  return { ...s, scans, qrPrev: s.qrCodes, qrCodes: makeCodes(s, s.qrEpoch + 1), qrEpoch: s.qrEpoch + 1, qrAt: now };
+}
+
+/**
+ * Scambio di persona: ognuno inquadra il QR dell'altro. La prima scansione si ricorda soltanto; quando arriva quella
+ * nel verso opposto (entro `SCAN_MS`) lo scambio avviene come un «Scambia» accettato. Se uno dei due ha scelto il solo
+ * colore, si scambia il colore.
+ */
+function scanPeer(s: StanzeColBottoState, pid: string, code: string, kind: "card" | "color", at: number): StanzeColBottoState {
+  if (!qrSwap(s) || !canInteract(s, pid) || !allowedKind(s, kind)) return s;
+  const wanted = code.trim().toUpperCase();
+  const target = s.players.find((p) => p !== pid && (s.qrCodes[p] === wanted || s.qrPrev[p] === wanted));
+  if (!target || s.room[target] !== s.room[pid] || s.cards[target] === undefined) return s;
+  const open = s.scans.filter((x) => at - x.at < SCAN_MS && x.from !== pid);
+  const back = open.find((x) => x.from === target && x.to === pid);
+  if (!back) return { ...s, scans: [...open, { from: pid, to: target, kind, at }] };
+  const shareKind: ShareKind = kind === "color" || back.kind === "color" ? "color-share" : "card-share";
+  return addShare({ ...s, scans: open.filter((x) => x !== back) }, { kind: shareKind, from: target, to: pid, audience: [target, pid], room: s.room[pid]!, round: s.round, at, status: "accepted" });
+}
+
 function offerShare(s: StanzeColBottoState, pid: string, kind: "card" | "color", target: string, at: number): StanzeColBottoState {
-  if (!canInteract(s, pid) || pid === target || s.room[target] !== s.room[pid] || !allowedKind(s, kind)) return s;
+  if (!appSwap(s) || !canInteract(s, pid) || pid === target || s.room[target] !== s.room[pid] || !allowedKind(s, kind)) return s;
   if (hasPending(s, pid) || hasPending(s, target)) return s;
   return addShare(s, { kind: kind === "card" ? "card-share" : "color-share", from: pid, to: target, audience: [pid, target], room: s.room[pid]!, round: s.round, at, status: "pending" });
 }
@@ -617,6 +686,7 @@ export interface RulesInfo {
   players: number;
   rounds: { seconds: number; hostages: number }[];
   colorAllowed: boolean;
+  shareMethod: ShareMethod;
   startAfterFirstSeconds: number;
   startAfterExchangeSeconds: number;
 }
@@ -625,6 +695,7 @@ const rulesOf = (s: StanzeColBottoState): RulesInfo => ({
   players: s.players.length,
   rounds: s.rounds,
   colorAllowed: colorAllowed(s.cfg, s.players.length),
+  shareMethod: s.cfg.shareMethod,
   startAfterFirstSeconds: s.cfg.startAfterFirstSeconds,
   startAfterExchangeSeconds: s.cfg.startAfterExchangeSeconds,
 });
@@ -645,6 +716,7 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
     roundMode: "base",
     customRounds: [],
     colorShare: "auto",
+    shareMethod: "app",
     lockSeconds: 20,
     hostageSeconds: 20,
     startAfterFirstSeconds: 5,
@@ -679,6 +751,11 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
       exchanges: [],
       shares: [],
       nextSeq: 1,
+      qrCodes: {},
+      qrPrev: {},
+      qrEpoch: 0,
+      qrAt: now,
+      scans: [],
       phaseStartedAt: now,
       phaseEndsAt: null,
       pausedRemainingMs: null,
@@ -687,7 +764,8 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
       blindBroken: false,
       outcome: null,
     };
-    return config.roomAssignment === "random" ? { ...base, room: randomPairing(base, 3) } : base;
+    const withCodes = config.shareMethod === "app" ? base : { ...base, qrCodes: makeCodes(base, 0) };
+    return config.roomAssignment === "random" ? { ...withCodes, room: randomPairing(withCodes, 3) } : withCodes;
   },
 
   onInput(state, playerId, input, meta) {
@@ -720,6 +798,8 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
         return roundOpen ? offerShare(state, playerId, input.kind, input.targetId, at) : state;
       case "share-answer":
         return answerShare(state, playerId, input.seq, input.accept);
+      case "scan-peer":
+        return roundOpen ? scanPeer(state, playerId, input.code, input.kind, at) : state;
       case "reveal":
         return roundOpen ? revealCard(state, playerId, input.kind, input.targetId, at) : state;
       case "gamble": {
@@ -730,7 +810,7 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
   },
 
   onTick(state, now) {
-    const s = expireOffers(state, now);
+    const s = rotateCodes(expireOffers(state, now), now);
     if (s.pausedRemainingMs !== null || s.phaseEndsAt === null || now < s.phaseEndsAt) return s;
     return expire(s, now);
   },
@@ -817,6 +897,8 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
     const incoming = state.shares.filter((sh) => sh.status === "pending" && sh.to === playerId);
     const outgoing = state.shares.find((sh) => sh.status === "pending" && sh.from === playerId);
     const inElection = canElect(state, r);
+    const swapNow = qrSwap(state) && canInteract(state, playerId);
+    const scanOut = state.scans.find((x) => x.from === playerId);
     return {
       ...publicView(state),
       rules: rulesOf(state),
@@ -843,6 +925,12 @@ export const stanzeColBotto: MinigameType<StanzeColBottoConfig, StanzeColBottoSt
         travel: travel ? { from: travel.from, to: travel.to } : null,
         canShare: canInteract(state, playerId),
         colorAllowed: colorAllowed(state.cfg, state.players.length),
+        appSwap: appSwap(state),
+        // Il QR personale è solo nella vista del suo proprietario: schermo, regia e altri telefoni non lo ricevono mai.
+        qrSwap: swapNow,
+        qrCode: swapNow ? (state.qrCodes[playerId] ?? null) : null,
+        scanOut: swapNow && scanOut ? { to: person(state, scanOut.to)!, kind: scanOut.kind } : null,
+        scanIn: swapNow ? state.scans.filter((x) => x.to === playerId).map((x) => person(state, x.from)!) : [],
         incoming: incoming.map((sh) => ({ seq: sh.seq, kind: sh.kind === "card-share" ? "card" : "color", from: person(state, sh.from)!, at: sh.at })),
         outgoing: outgoing ? { seq: outgoing.seq, kind: outgoing.kind === "card-share" ? "card" : "color", to: person(state, outgoing.to)!, at: outgoing.at } : null,
         known,

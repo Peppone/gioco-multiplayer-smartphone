@@ -256,6 +256,7 @@ function sceneViews(scene: Scene, now: number) {
     case "scb-round":
     case "scb-round-full":
     case "scb-offer":
+    case "scb-swap":
     case "scb-known":
     case "scb-lock":
     case "scb-leaders":

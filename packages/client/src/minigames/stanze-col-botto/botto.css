@@ -83,8 +83,17 @@
 .scb-name[data-leader="true"] { border-color: var(--accent); }
 .scb-name[data-voted="true"] { outline: 3px solid var(--accent); }
 .scb-name[data-hostage="true"] { background: var(--accent); color: var(--on-opt, #000); }
-.scb-showall { gap: .35rem; }
+.scb-showall { gap: .35rem; flex-wrap: wrap; }
 .scb-showall button { flex: 1; padding: .5rem .3rem; font-size: .8rem; }
+.scb-showall button[data-testid="scb-swap-open"] { flex-basis: 100%; font-weight: 800; }
+.scb-showall button[data-pending="true"] { outline: 3px solid var(--accent); }
+
+.scb-swap .gf-rules-body { justify-items: center; text-align: center; }
+.scb-swap-qr { margin: 0; display: grid; gap: .3rem; justify-items: center; }
+.scb-swap-qr svg { background: #fff; padding: .5rem; border-radius: .5rem; max-width: 100%; height: auto; }
+.scb-swap-qr code { letter-spacing: .15em; font-size: 1.1rem; }
+.scb-swap-kind button { flex: 1; padding: .6rem; }
+.scb-swap-note { margin: 0; padding: .6rem .8rem; border-radius: var(--radius); border: var(--border-w) solid var(--accent); }
 .scb-hostage-bar { display: grid; gap: .3rem; padding: .5rem; border-radius: var(--radius); border: var(--border-w) solid var(--accent); }
 .scb-known-btn { padding: .5rem; font-size: .85rem; touch-action: manipulation; }
 

@@ -17,6 +17,7 @@ export interface Rules {
   players: number;
   rounds: { seconds: number; hostages: number }[];
   colorAllowed: boolean;
+  shareMethod: "app" | "qr" | "both";
   startAfterFirstSeconds: number;
   startAfterExchangeSeconds: number;
 }
@@ -92,6 +93,14 @@ export interface Me {
   travel?: { from: 0 | 1; to: 0 | 1 } | null;
   canShare?: boolean;
   colorAllowed?: boolean;
+  /** «Scambia» dall'app (tocca un nome). */
+  appSwap?: boolean;
+  /** Scambio di persona con i QR disponibile adesso; `qrCode` è il mio codice, che ruota. */
+  qrSwap?: boolean;
+  qrCode?: string | null;
+  /** Chi ho inquadrato e aspetto che mi inquadri; chi ha inquadrato me e aspetto di inquadrare. */
+  scanOut?: { to: Person; kind: "card" | "color" } | null;
+  scanIn?: Person[];
   incoming?: (Offer & { from: Person })[];
   outgoing?: (Offer & { to: Person }) | null;
   known?: Known[];

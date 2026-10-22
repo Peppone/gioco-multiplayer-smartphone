@@ -249,13 +249,13 @@ function HoldCard({ me }: { me: Me }) {
   );
 }
 
-/** Legge (una volta) il codice della stanza dal link del QR e lo toglie dall'indirizzo. */
-function takeRoomParam(): string | null {
+/** Legge (una volta) il codice dal link di un QR (`stanza` o `scambio`) e lo toglie dall'indirizzo. */
+function takeLinkParam(name: "stanza" | "scambio"): string | null {
   try {
     const url = new URL(window.location.href);
-    const code = url.searchParams.get("stanza");
+    const code = url.searchParams.get(name);
     if (!code) return null;
-    url.searchParams.delete("stanza");
+    url.searchParams.delete(name);
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     return code;
   } catch {
@@ -271,7 +271,7 @@ function PairingPanel({ v, me, send }: { v: PhoneView; me: Me; send: ControllerP
   useEffect(() => {
     if (sent.current) return;
     sent.current = true;
-    const fromLink = takeRoomParam();
+    const fromLink = takeLinkParam("stanza");
     if (fromLink) send({ type: "join-room", code: fromLink });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -405,8 +405,10 @@ function RoomPeople({ v, me, send }: { v: PhoneView; me: Me; send: ControllerPro
     if (me.canShare) {
       list.push({ id: "reveal-card", label: "Mostra la carta", primary: true, run: () => send({ type: "reveal", kind: "card", targetId: p.id }) });
       if (me.colorAllowed) list.push({ id: "reveal-color", label: "Mostra il colore", run: () => send({ type: "reveal", kind: "color", targetId: p.id }) });
-      list.push({ id: "share-card", label: "Scambia la carta", run: () => send({ type: "share-offer", kind: "card", targetId: p.id }), disabled: !!me.outgoing });
-      if (me.colorAllowed) list.push({ id: "share-color", label: "Scambia il colore", run: () => send({ type: "share-offer", kind: "color", targetId: p.id }), disabled: !!me.outgoing });
+      if (me.appSwap) {
+        list.push({ id: "share-card", label: "Scambia la carta", run: () => send({ type: "share-offer", kind: "card", targetId: p.id }), disabled: !!me.outgoing });
+        if (me.colorAllowed) list.push({ id: "share-color", label: "Scambia il colore", run: () => send({ type: "share-offer", kind: "color", targetId: p.id }), disabled: !!me.outgoing });
+      }
     }
     if (me.canAbdicate && me.isLeader) list.push({ id: "abdicate", label: "Passa la leadership", run: () => send({ type: "abdicate", targetId: p.id }) });
     if (me.canPickHostages) {
@@ -449,12 +451,62 @@ function RoomPeople({ v, me, send }: { v: PhoneView; me: Me; send: ControllerPro
   );
 }
 
-function ShowAll({ me, send }: { me: Me; send: ControllerProps["send"] }) {
+function ShowAll({ me, send, onSwap }: { me: Me; send: ControllerProps["send"]; onSwap: () => void }) {
   if (!me.canShare) return null;
   return (
     <div className="scb-showall row">
       <button data-testid="scb-show-all-card" onClick={() => send({ type: "reveal", kind: "card", targetId: null })}>📢 Mostra la carta a tutti</button>
       {me.colorAllowed && <button data-testid="scb-show-all-color" onClick={() => send({ type: "reveal", kind: "color", targetId: null })}>🎨 Il colore a tutti</button>}
+      {me.qrSwap && <button data-testid="scb-swap-open" data-pending={(me.scanIn?.length ?? 0) > 0} onClick={onSwap}>🤝 Scambia di persona</button>}
+    </div>
+  );
+}
+
+/**
+ * Scambio di persona: ognuno mostra il proprio QR e inquadra quello dell'altro. Il telefono non rivela nulla finché non
+ * si sono inquadrati entrambi, quindi chi guarda la stanza vede due persone che si inquadrano i telefoni: lo scambio
+ * è avvenuto, anche se non sa che carte si siano viste.
+ */
+function SwapDialog({ me, send, onClose }: { me: Me; send: ControllerProps["send"]; onClose: () => void }) {
+  const info = useServerInfo(5000);
+  const base = (info?.tunnel.status === "ready" ? info.tunnel.url : null) ?? info?.lanUrl ?? window.location.origin;
+  const [scanning, setScanning] = useState(false);
+  const [kind, setKind] = useState<"card" | "color">("card");
+  const [code, setCode] = useState("");
+  const scan = (c: string) => send({ type: "scan-peer", code: c, kind });
+  return (
+    <div className="gf-rules scb-swap" role="dialog" aria-modal="true" aria-label="Scambio di persona" data-testid="scb-swap">
+      <div className="gf-rules-body">
+        <h2>Scambia di persona</h2>
+        <p className="muted">Fatevi inquadrare a vicenda: ognuno scansiona il QR dell'altro. Finché non vi siete inquadrati entrambi non si vede nulla.</p>
+        {me.qrCode && (
+          <figure className="scb-swap-qr" data-testid="scb-swap-qr" data-code={me.qrCode}>
+            <QRCodeSVG value={`${base}/play?scambio=${me.qrCode}`} size={210} />
+            <figcaption>Il tuo QR · <code>{me.qrCode}</code></figcaption>
+          </figure>
+        )}
+        {me.colorAllowed && (
+          <div className="row scb-swap-kind" role="group" aria-label="Cosa scambiare">
+            <button className={kind === "card" ? "primary" : ""} aria-pressed={kind === "card"} data-testid="scb-swap-kind-card" onClick={() => setKind("card")}>La carta</button>
+            <button className={kind === "color" ? "primary" : ""} aria-pressed={kind === "color"} data-testid="scb-swap-kind-color" onClick={() => setKind("color")}>Solo il colore</button>
+          </div>
+        )}
+        <button className="primary" data-testid="scb-swap-scan" onClick={() => setScanning(true)}>📷 Inquadra il QR dell'altro</button>
+        <div className="row">
+          <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Codice dell'altro" aria-label="Codice dell'altro" maxLength={8} />
+          <button disabled={code.trim().length < 4} data-testid="scb-swap-enter" onClick={() => { scan(code); setCode(""); }}>Invia</button>
+        </div>
+        {me.scanOut && <p className="scb-swap-note" data-testid="scb-swap-out">Hai inquadrato <b>{me.scanOut.to.nickname}</b>: ora lascia che inquadri il tuo QR.</p>}
+        {(me.scanIn ?? []).map((p) => (
+          <p key={p.id} className="scb-swap-note" data-testid="scb-swap-in"><b>{p.nickname}</b> ti ha inquadrato: inquadra il suo QR per completare lo scambio.</p>
+        ))}
+        {scanning && (
+          <Suspense fallback={<p>Caricamento…</p>}>
+            <QrScanner param="scambio" what="dell'altro giocatore" onCode={(c) => { setScanning(false); scan(c); }} onClose={() => setScanning(false)} />
+          </Suspense>
+        )}
+      </div>
+      <button className="primary gf-rules-close" onClick={onClose}>Chiudi</button>
     </div>
   );
 }
@@ -508,9 +560,31 @@ export function BottoController({ view, send, clock, theme }: ControllerProps) {
   const sfx = useSfx(theme);
   const [rules, setRules] = useState(false);
   const [showKnown, setShowKnown] = useState(false);
+  const [swap, setSwap] = useState(false);
   const [flash, closeFlash] = useFlash(me?.known ?? []);
   const phase = v.phase;
   const offerKey = me?.incoming?.[0]?.seq ?? (me?.abdicationFrom ? -1 : null);
+  const qrSwap = !!me?.qrSwap;
+  // Se il QR dell'altro è stato inquadrato con la fotocamera di sistema, il codice arriva dal link: lo si invia una volta sola.
+  const linked = useRef<string | null>(null);
+  const linkTaken = useRef(false);
+  useEffect(() => {
+    if (linkTaken.current) return;
+    linkTaken.current = true;
+    linked.current = takeLinkParam("scambio");
+  }, []);
+  useEffect(() => {
+    if (!me || !linked.current) return;
+    if (qrSwap) {
+      send({ type: "scan-peer", code: linked.current, kind: "card" });
+      setSwap(true);
+    }
+    linked.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!me, qrSwap]);
+  useEffect(() => {
+    if (!qrSwap || flash) setSwap(false);
+  }, [qrSwap, flash]);
 
   useEffect(() => {
     if (phase === "round") sfx("start", 0.5);
@@ -558,7 +632,7 @@ export function BottoController({ view, send, clock, theme }: ControllerProps) {
         </p>
         {phase === "lock" && <p className="scb-lock-note" data-testid="scb-lock-note">Tempo scaduto!{me.canAppoint ? " Eleggete il leader: tra poco lo estrae il sistema." : " Attendi l'altra stanza."}</p>}
         <RoomPeople v={v} me={me} send={send} />
-        <ShowAll me={me} send={send} />
+        <ShowAll me={me} send={send} onSwap={() => setSwap(true)} />
         {iAmLeader && <HostagePanel v={v} me={me} send={send} />}
         {!iAmLeader && (me.hostagePicks?.length ?? 0) > 0 && (
           <p className="muted" data-testid="scb-hostage-seen">Ostaggi in preparazione: {(me.hostagePicks ?? []).map((id) => v.rooms.flat().find((p) => p.id === id)?.nickname ?? "?").join(", ")}</p>
@@ -655,6 +729,7 @@ export function BottoController({ view, send, clock, theme }: ControllerProps) {
           <small className="muted">Tocca per chiudere</small>
         </button>
       )}
+      {swap && <SwapDialog me={me} send={send} onClose={() => setSwap(false)} />}
       {rules && <RulesDialog v={v} me={me} onClose={() => setRules(false)} />}
       {showKnown && <KnownDialog known={me.known ?? []} onClose={() => setShowKnown(false)} />}
     </div>

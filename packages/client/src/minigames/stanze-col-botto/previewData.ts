@@ -7,6 +7,7 @@ export type BottoSceneId =
   | "scb-round"
   | "scb-round-full"
   | "scb-offer"
+  | "scb-swap"
   | "scb-known"
   | "scb-lock"
   | "scb-leaders"
@@ -21,6 +22,7 @@ export const BOTTO_SCENES: { id: BottoSceneId; label: string }[] = [
   { id: "scb-round", label: "Botto: round (12 giocatori)" },
   { id: "scb-round-full", label: "Botto: round (30 giocatori)" },
   { id: "scb-offer", label: "Botto: proposta di scambio" },
+  { id: "scb-swap", label: "Botto: scambio di persona con i QR" },
   { id: "scb-known", label: "Botto: carte viste" },
   { id: "scb-lock", label: "Botto: attesa del blocco" },
   { id: "scb-leaders", label: "Botto: leader rivelati" },
@@ -64,7 +66,7 @@ function base(phase: Phase, now: number, n: number, ends: number | null, over: P
   };
 }
 
-const RULES = { players: 12, rounds: [{ seconds: 180, hostages: 2 }, { seconds: 120, hostages: 1 }, { seconds: 60, hostages: 1 }], colorAllowed: true, startAfterFirstSeconds: 5, startAfterExchangeSeconds: 15 };
+const RULES = { players: 12, rounds: [{ seconds: 180, hostages: 2 }, { seconds: 120, hostages: 1 }, { seconds: 60, hostages: 1 }], colorAllowed: true, shareMethod: "both" as const, startAfterFirstSeconds: 5, startAfterExchangeSeconds: 15 };
 const blueCard: Card = { team: "blue", character: "blue-member" };
 
 const me = (over: Partial<Me> = {}): Me => ({
@@ -90,6 +92,11 @@ const me = (over: Partial<Me> = {}): Me => ({
   travel: null,
   canShare: true,
   colorAllowed: true,
+  appSwap: true,
+  qrSwap: false,
+  qrCode: null,
+  scanOut: null,
+  scanIn: [],
   incoming: [],
   outgoing: null,
   known: [],
@@ -122,6 +129,10 @@ export function bottoScene(scene: BottoSceneId, now: number): { typeId: string; 
     case "scb-offer": {
       const v = base("round", now, 12, 87_000);
       return { typeId, screen: v, phone: phone(v, me({ incoming: [{ seq: 4, kind: "card", at: now, from: person(3) }] })) };
+    }
+    case "scb-swap": {
+      const v = base("round", now, 12, 87_000);
+      return { typeId, screen: v, phone: phone(v, me({ qrSwap: true, qrCode: "K7M2P9", scanIn: [person(3)] })) };
     }
     case "scb-known": {
       const v = base("round", now, 12, 87_000);

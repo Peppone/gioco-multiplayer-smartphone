@@ -325,6 +325,58 @@ test("stanze col botto: con più di 10 giocatori il solo colore è ammesso e non
   expect(Object.keys(known[0]!.card), "il colore non porta il personaggio").toEqual(["team"]);
 });
 
+test("stanze col botto: scambio di persona con la scansione reciproca dei QR", async ({ newGame }) => {
+  const g = await newGame(config({ shareMethod: "qr" }), { playersPerTeam: 3 });
+  const { screen, admin } = g;
+  const clients = [...g.reds, ...g.blues];
+  await toDeal(g);
+  await admin.page.getByTestId("scb-start-round").click();
+  for (const c of clients) await expect(c.page.locator('.scb-ctrl[data-phase="round"]')).toBeVisible();
+  const seats = seatsOf(clients);
+  const [a, b, c] = seats.filter((s) => roomOf(s.client) === 0) as [Seat, Seat, Seat];
+  const codeOf = (s: Seat) => view(s.client).me.qrCode as string;
+
+  // Solo QR: dal foglio di un nome non si propone lo scambio; «Mostra» resta.
+  await sheetOf(a.client, b.id).click();
+  await expect(a.client.page.getByTestId("scb-action-reveal-card")).toBeVisible();
+  await expect(a.client.page.getByTestId("scb-action-share-card")).toHaveCount(0);
+  await a.client.page.getByRole("button", { name: "Annulla" }).click();
+
+  // Ognuno ha il proprio codice e il proprio QR sul telefono.
+  expect(codeOf(a)).toMatch(/^[A-Z0-9]{6}$/);
+  expect(codeOf(a)).not.toBe(codeOf(b));
+  await a.client.page.getByTestId("scb-swap-open").click();
+  await expect(a.client.page.getByTestId("scb-swap-qr")).toHaveAttribute("data-code", codeOf(a));
+  await expect(a.client.page.getByTestId("scb-swap-qr").locator("svg")).toBeVisible();
+
+  // b inquadra il QR di a con la fotocamera di sistema (apre il link): da solo non rivela nulla.
+  const origin = new URL(b.client.page.url()).origin;
+  await b.client.page.goto(`${origin}/play?scambio=${codeOf(a)}`);
+  await expect(b.client.page.getByTestId("scb-swap-out")).toContainText(`Hai inquadrato ${a.nickname}`);
+  expect(b.client.page.url()).not.toContain("scambio=");
+  await expect(a.client.page.getByTestId("scb-swap-in")).toContainText(`${b.nickname} ti ha inquadrato`);
+  expect(view(a.client).me.known, "una scansione sola non rivela la carta").toEqual([]);
+  expect(view(b.client).me.known).toEqual([]);
+
+  // a ricambia (qui scrivendo il codice): lo scambio avviene per entrambi nello stesso istante.
+  await a.client.page.getByRole("textbox", { name: "Codice dell'altro" }).fill(codeOf(b));
+  await a.client.page.getByTestId("scb-swap-enter").click();
+  for (const s of [a, b]) await expect(s.client.page.getByTestId("scb-flash")).toBeVisible();
+  const other = (s: Seat) => (s === a ? b : a);
+  for (const s of [a, b]) {
+    await expect(s.client.page.getByTestId("scb-flash")).toContainText(other(s).nickname);
+    await expect(s.client.page.getByTestId("scb-flash").getByTestId("scb-card")).toHaveAttribute("data-character", view(other(s).client).me.card.character);
+    await s.client.page.getByTestId("scb-flash").click();
+    await expect(s.client.page.getByTestId("scb-known-open")).toContainText("(1)");
+  }
+  await expect(c.client.page.getByTestId("scb-known-open")).toContainText("(0)");
+
+  // Privacy: il codice di a e di b non è arrivato al terzo della stanza, né allo schermo, né alla regia.
+  for (const [who, text] of [["il terzo", c.client.traffic.text()], ["lo schermo", screen.traffic.text()], ["la regia", admin.traffic.text()]] as const) {
+    expect(text.includes(codeOf(a)) || text.includes(codeOf(b)), `${who} non deve ricevere i QR personali`).toBe(false);
+  }
+});
+
 test("stanze col botto: l'editor della libreria crea l'istanza dal modulo, con il tema boom già scelto", async ({ browser, request }) => {
   const { adminToken, openAdmin, unique } = await import("./support");
   const admin = await openAdmin(browser, await adminToken(request));

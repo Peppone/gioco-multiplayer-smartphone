@@ -59,6 +59,16 @@ ostaggi non superano mai la stanza più piccola meno il leader.
   tutti» la mostra a tutta la stanza (mai allo schermo comune).
 - **Scambia** (condivisione): tocca un nome → «Scambia la carta». L'altro accetta o rifiuta; se accetta, entrambi
   vedono la carta dell'altro nello stesso istante. Una sola proposta in attesa per giocatore, scade dopo 20 secondi.
+- **Scambia di persona** (con i QR): ogni telefono ha un **QR personale** (pulsante «🤝 Scambia di persona»). I due
+  giocatori si **inquadrano a vicenda** i telefoni, con lo scanner dell'app, con la fotocamera di sistema oppure
+  scrivendo il codice sotto il QR. Una scansione sola non rivela nulla: chi è stato inquadrato vede «X ti ha inquadrato»
+  e deve ricambiare entro 30 secondi; appena ci sono entrambe le scansioni lo scambio avviene, identico a quello
+  accettato dall'app (le carte arrivano a entrambi nello stesso istante). Il senso è il gesto: il resto della stanza vede
+  due persone che si scambiano i telefoni e sa che un'interazione c'è stata, anche se non sa cosa si sono visti. Con due
+  scelte diverse (uno la carta, l'altro il solo colore) si scambia il colore. Il QR cambia ogni 20 secondi (si accetta
+  anche quello appena scaduto), quindi una foto non serve a lungo; si scambia solo con chi è nella tua stanza. L'istanza
+  sceglie **come si scambiano le carte**: *Dall'app* (default, si tocca un nome), *Solo con i QR* (il pulsante «Scambia
+  la carta» nell'elenco sparisce; «Mostra» a senso unico resta) oppure *Dall'app o con i QR*.
 - **Solo il colore**: «Mostra il colore» e «Scambia il colore» mandano solo la squadra, senza il personaggio. Sono
   ammessi solo con **più di 10 giocatori**, come nel gioco originale (impostazione `colorShare`).
 - Si mostra e si scambia **solo con chi è nella tua stanza**.
@@ -70,6 +80,7 @@ ostaggi non superano mai la stanza più piccola meno il leader.
 - **Nomi delle stanze** (es. Salotto e Cucina), mostrati su telefoni e schermo.
 - **Abbinamento alle stanze**: *A caso* (default), *Con i QR* o *Dalla regia* (vedi sotto).
 - **Round**: base, lungo o personalizzato; **solo colore** (automatico, sempre, mai).
+- **Come si scambiano le carte**: dall'app, solo con i QR di persona, oppure entrambi.
 - Tempi: elezione del leader a fine round, conferma degli ostaggi, avvio del round dopo il primo leader e dopo lo
   scambio, previsione del Giocatore d'azzardo.
 - Punti.
@@ -130,7 +141,9 @@ Presidente e Martire…) è nel piano (§7) e resta da fare (passo T8).
 ## Per chi sviluppa
 
 - Plugin: `packages/minigames/src/stanze-col-botto/` (`index.ts` e `stanze-col-botto.test.ts`). Tutte le funzioni sono
-  pure; **chi conosce la carta di chi** è una funzione del registro `shares` (`knownBy`).
+  pure; **chi conosce la carta di chi** è una funzione del registro `shares` (`knownBy`). Lo scambio con i QR usa
+  `qrCodes`/`qrPrev` (un codice a testa, che ruota in `onTick`) e `scans` (le scansioni a metà); il codice di un
+  giocatore sta **solo nel suo `viewFor`** e non va mai in `screenView` né in `hostView` (c'è un test anti-leak).
 - Viste: `packages/client/src/minigames/stanze-col-botto/` (`BottoViews.tsx` per schermo e telefono, `BottoHost.tsx` per
   la regia, `CardFace.tsx`, `rulesText.ts`, `previewData.ts`, `botto.css`). Il tema è `boom`.
 - **Se si cambiano le regole va aggiornato `rulesText.ts`** (le regole spiegate nell'app).

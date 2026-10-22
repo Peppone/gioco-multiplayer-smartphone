@@ -615,8 +615,178 @@ describe("stanze-col-botto: Mostra e Scambia", () => {
   });
 });
 
+describe("stanze-col-botto: scambio di persona con i QR", () => {
+  const qrCfg = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "qr" });
+  const bothCfg = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "both" });
+  const colorQr = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "qr", colorShare: "always" });
+  const scan = (s: State, who: string, whose: string, at: number, kind: "card" | "color" = "card") => input(s, who, { type: "scan-peer", code: s.qrCodes[whose]!, kind }, at);
+  type Me = { qrSwap: boolean; qrCode: string | null; appSwap: boolean; scanOut: { to: { id: string } } | null; scanIn: { id: string }[] };
+  const meOf = (s: State, p: string) => (scb.viewFor(s, p, null) as { me: Me }).me;
+
+  it("di default si scambia dall'app: nessun codice nelle viste e le scansioni sono ignorate", () => {
+    expect(config.shareMethod).toBe("app");
+    const s = inRound(8);
+    const a = inRoom(s, 0)[0]!;
+    expect(s.qrCodes).toEqual({});
+    expect(meOf(s, a)).toMatchObject({ qrSwap: false, qrCode: null, appSwap: true });
+    expect(input(s, a, { type: "scan-peer", code: "ABCDEF", kind: "card" }, 1100)).toBe(s);
+  });
+
+  it("ogni giocatore ha un codice diverso, deterministico dal seme", () => {
+    const s = scb.init(qrCfg, ctxOf(30), 0);
+    const codes = Object.values(s.qrCodes);
+    expect(codes).toHaveLength(30);
+    expect(new Set(codes).size).toBe(30);
+    for (const c of codes) expect(c).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    expect(scb.init(qrCfg, ctxOf(30), 0).qrCodes).toEqual(s.qrCodes);
+  });
+
+  it("solo QR: «Scambia» dall'app è rifiutato, «Mostra» resta; con «both» valgono entrambi", () => {
+    const s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    expect(input(s, a, { type: "share-offer", kind: "card", targetId: b }, 1100)).toBe(s);
+    expect(knownBy(input(s, a, { type: "reveal", kind: "card", targetId: b }, 1100), b)).toHaveLength(1);
+    expect(meOf(s, a)).toMatchObject({ appSwap: false, qrSwap: true });
+    const both = inRound(8, bothCfg);
+    expect(input(both, a, { type: "share-offer", kind: "card", targetId: b }, 1100).shares).toHaveLength(1);
+    expect(meOf(both, a)).toMatchObject({ appSwap: true, qrSwap: true });
+  });
+
+  it("una sola scansione non rivela nulla: la vede solo chi è stato inquadrato, come richiesta di ricambiare", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b, c] = inRoom(s, 0) as [string, string, string];
+    s = scan(s, a, b, 1100);
+    expect(s.shares).toEqual([]);
+    expect(knownBy(s, a)).toEqual([]);
+    expect(knownBy(s, b)).toEqual([]);
+    expect(meOf(s, a).scanOut?.to.id).toBe(b);
+    expect(meOf(s, b).scanIn.map((p) => p.id)).toEqual([a]);
+    expect(meOf(s, c)).toMatchObject({ scanOut: null, scanIn: [] });
+  });
+
+  it("la scansione reciproca, in qualunque ordine, dà la carta a entrambi nello stesso istante", () => {
+    for (const [first, second] of [[0, 1], [1, 0]] as const) {
+      let s = inRound(8, qrCfg);
+      const pair = inRoom(s, 0) as [string, string];
+      s = scan(s, pair[first]!, pair[second]!, 1100);
+      s = scan(s, pair[second]!, pair[first]!, 1200);
+      expect(knownBy(s, pair[0]).map((k) => [k.playerId, k.level])).toEqual([[pair[1], "card"]]);
+      expect(knownBy(s, pair[1]).map((k) => [k.playerId, k.level])).toEqual([[pair[0], "card"]]);
+      expect(s.scans).toEqual([]);
+      expect(s.shares[0]).toMatchObject({ kind: "card-share", status: "accepted" });
+      expect(meOf(s, pair[0])).toMatchObject({ scanOut: null, scanIn: [] });
+    }
+  });
+
+  it("le scansioni a un terzo non completano lo scambio e chi riscansiona sostituisce la propria", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b, c] = inRoom(s, 0) as [string, string, string];
+    s = scan(s, a, b, 1100);
+    s = scan(s, c, a, 1150);
+    expect(s.shares).toEqual([]);
+    s = scan(s, a, c, 1200); // a ha cambiato idea: ora inquadra c, che lo aveva già inquadrato
+    expect(knownBy(s, a).map((k) => k.playerId)).toEqual([c]);
+    expect(knownBy(s, b)).toEqual([]);
+  });
+
+  it("codice sbagliato, proprio, di un'altra stanza o con la stanza cambiata: ignorato", () => {
+    const s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    const far = inRoom(s, 1)[0]!;
+    expect(input(s, a, { type: "scan-peer", code: "ZZZZZZ", kind: "card" }, 1100)).toBe(s);
+    expect(scan(s, a, a, 1100)).toBe(s);
+    expect(scan(s, a, far, 1100)).toBe(s);
+    expect(input(s, a, { type: "scan-peer", code: s.qrCodes[b]!.toLowerCase(), kind: "card" }, 1100).scans).toHaveLength(1);
+    const moved = cmd(scan(s, a, b, 1100), { type: "move-player", playerId: b, room: 1 }, 1150);
+    expect(moved.scans).toEqual([]);
+  });
+
+  it("se uno dei due sceglie il solo colore, si scambia il colore; con 8 giocatori il colore è vietato", () => {
+    const [a, b] = inRoom(inRound(8, colorQr), 0) as [string, string];
+    let s = inRound(8, colorQr);
+    s = scan(s, a, b, 1100, "color");
+    s = scan(s, b, a, 1200, "card");
+    expect(knownBy(s, a).map((k) => k.level)).toEqual(["color"]);
+    expect(knownBy(s, b).map((k) => k.level)).toEqual(["color"]);
+    const plain = inRound(8, qrCfg);
+    expect(scan(plain, a, b, 1100, "color")).toBe(plain);
+  });
+
+  it("l'altro ha 30 secondi per ricambiare; poi la scansione decade", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    s = scan(s, a, b, 1100);
+    expect(scb.onTick(s, 1100 + 29_000).scans).toHaveLength(1);
+    expect(scb.onTick(s, 1100 + 30_000).scans).toEqual([]);
+    const late = scan(s, b, a, 1100 + 30_000);
+    expect(late.shares).toEqual([]);
+    expect(late.scans).toHaveLength(1); // ora è b ad aspettare
+  });
+
+  it("i QR ruotano ogni 20 secondi; il codice appena scaduto vale ancora, quello di due giri fa no", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    const first = s.qrCodes[b]!;
+    expect(scb.onTick(s, s.qrAt + 19_000)).toBe(s);
+    s = scb.onTick(s, s.qrAt + 20_000);
+    expect(s.qrCodes[b]).not.toBe(first);
+    expect(s.qrPrev[b]).toBe(first);
+    expect(input(s, a, { type: "scan-peer", code: first, kind: "card" }, s.qrAt + 1).scans).toHaveLength(1);
+    const again = scb.onTick(s, s.qrAt + 20_000);
+    expect(input(again, a, { type: "scan-peer", code: first, kind: "card" }, again.qrAt + 1)).toBe(again);
+    expect(meOf(s, b).qrCode).toBe(s.qrCodes[b]);
+  });
+
+  it("niente scambi fuori dal round, in pausa o a round chiuso; le scansioni non passano al round dopo", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    const paused = cmd(s, { type: "pause" }, 1100);
+    expect(scan(paused, a, b, 1200)).toBe(paused);
+    expect(meOf(paused, a)).toMatchObject({ qrSwap: false, qrCode: null });
+    s = scan(s, a, b, 1100);
+    s = scb.onTick(s, s.phaseEndsAt! + 1);
+    expect(s.phase).not.toBe("round");
+    expect(s.scans).toEqual([]);
+    expect(meOf(s, a).qrCode).toBeNull();
+    expect(scan(s, b, a, s.phaseEndsAt ?? 5_000_000)).toBe(s);
+  });
+
+  it("anti-leak: il QR è solo nella vista del proprietario; schermo, regia e altri non lo ricevono", () => {
+    const base = inRound(8, qrCfg);
+    const [a, b] = inRoom(base, 0) as [string, string];
+    for (const s of [base, scan(base, a, b, 1100), scan(scan(base, a, b, 1100), b, a, 1200)]) {
+      for (const p of s.players) {
+        const json = JSON.stringify(scb.viewFor(s, p, null));
+        for (const q of s.players) {
+          if (q !== p) expect(json, `${p} non deve vedere il codice di ${q}`).not.toContain(s.qrCodes[q]!);
+        }
+        expect(json).toContain(s.qrCodes[p]!);
+      }
+      for (const view of [scb.screenView(s), scb.hostView!(s), scb.hostView!({ ...s, blind: true })]) {
+        const json = JSON.stringify(view);
+        for (const code of Object.values(s.qrCodes)) expect(json).not.toContain(code);
+        expect(json).not.toContain("qrCodes");
+      }
+    }
+  });
+
+  it("anti-leak: dopo una scansione sola nessuna carta è nelle viste, né di chi scansiona né di chi è inquadrato", () => {
+    const start = inRound(8, qrCfg);
+    const [a, b] = inRoom(start, 0) as [string, string];
+    const s = scan(start, a, b, 1100);
+    const secrets = ["president", "bomber", "blue-member", "red-member", "gambler"];
+    for (const p of [a, b]) {
+      const me = meOf(s, p) as unknown as { known: unknown[] };
+      expect(me.known).toEqual([]);
+      const view = scb.viewFor(s, p, null) as { me: { card: { character: string } } };
+      const json = JSON.stringify({ ...view, me: { ...view.me, card: null } });
+      for (const secret of secrets) expect(json, `${p} vede ${secret}`).not.toContain(secret);
+    }
+  });
+});
+
 describe("stanze-col-botto: anti-leak", () => {
-  const mustNot = (v: unknown, ...secrets: string[]) => {
+  const mustNot =(v: unknown, ...secrets: string[]) => {
     const json = JSON.stringify(v);
     for (const secret of secrets) expect(json, secret).not.toContain(secret);
   };

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const THEMES = ["gameshow", "pixel", "manga", "retro80", "boom"] as const;
-const SCENES = ["scb-pairing", "scb-deal", "scb-round", "scb-round-full", "scb-offer", "scb-known", "scb-lock", "scb-leaders", "scb-hostages", "scb-travel", "scb-gamble", "scb-reveal"] as const;
+const SCENES = ["scb-pairing", "scb-deal", "scb-round", "scb-round-full", "scb-offer", "scb-swap", "scb-known", "scb-lock", "scb-leaders", "scb-hostages", "scb-travel", "scb-gamble", "scb-reveal"] as const;
 
 // Le scene dell'anteprima mostrano schermo e telefono senza giocare una partita: qui si controllano layout e privacy.
 for (const theme of THEMES) {
@@ -85,6 +85,29 @@ for (const theme of THEMES) {
       await expect(offer).toContainText("Dario vuole scambiare la carta con te");
       await expect(offer.getByTestId("scb-offer-accept")).toBeVisible();
       await expect(offer.getByTestId("scb-offer-decline")).toBeVisible();
+    });
+
+    test("scambio di persona: il pulsante apre il QR personale, la scelta carta/colore e lo scanner; niente overflow", async ({ page }) => {
+      await page.goto(`/preview?theme=${theme}&scene=scb-swap&still=1`);
+      const phone = page.locator(".phone-frame");
+      const open = phone.getByTestId("scb-swap-open");
+      await expect(open).toHaveAttribute("data-pending", "true"); // un compagno mi ha già inquadrato
+      await open.click();
+      const dialog = phone.getByTestId("scb-swap");
+      await expect(dialog.getByTestId("scb-swap-qr")).toHaveAttribute("data-code", "K7M2P9");
+      await expect(dialog.getByTestId("scb-swap-qr").locator("svg")).toBeVisible();
+      await expect(dialog.getByTestId("scb-swap-in")).toContainText("Dario ti ha inquadrato");
+      await expect(dialog.getByTestId("scb-swap-kind-card")).toHaveAttribute("aria-pressed", "true");
+      await dialog.getByTestId("scb-swap-kind-color").click();
+      await expect(dialog.getByTestId("scb-swap-kind-color")).toHaveAttribute("aria-pressed", "true");
+      await expect(dialog.getByTestId("scb-swap-scan")).toBeVisible();
+      const body = await dialog.locator(".gf-rules-body").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth }));
+      expect(body.sw, "overflow orizzontale del dialogo").toBeLessThanOrEqual(body.cw + 1);
+    });
+
+    test("senza il QR di scambio (scena normale) non c'è il pulsante «Scambia di persona»", async ({ page }) => {
+      await page.goto(`/preview?theme=${theme}&scene=scb-round&still=1`);
+      await expect(page.locator(".phone-frame").getByTestId("scb-swap-open")).toHaveCount(0);
     });
 
     test("abbinamento con i QR: due codici sullo schermo e il campo del codice sul telefono", async ({ page }) => {

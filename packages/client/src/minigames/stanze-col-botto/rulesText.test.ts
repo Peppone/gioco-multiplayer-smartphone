@@ -6,6 +6,7 @@ const rules: Rules = {
   players: 12,
   rounds: [{ seconds: 180, hostages: 2 }, { seconds: 120, hostages: 1 }, { seconds: 60, hostages: 1 }],
   colorAllowed: true,
+  shareMethod: "app",
   startAfterFirstSeconds: 5,
   startAfterExchangeSeconds: 15,
 };
@@ -25,6 +26,14 @@ describe("regole di Stanze col botto", () => {
   it("dicono se il colore si può mostrare", () => {
     expect(all(rules)).toContain("solo il colore");
     expect(all({ ...rules, colorAllowed: false })).toContain("solo la carta intera");
+  });
+
+  it("spiegano come si scambia: dall'app, di persona con i QR o in entrambi i modi", () => {
+    expect(all(rules)).toContain("tocca un nome");
+    expect(all(rules)).not.toContain("Scambia di persona");
+    expect(all({ ...rules, shareMethod: "qr" })).toContain("solo di persona");
+    expect(all({ ...rules, shareMethod: "qr" })).not.toContain("tocca un nome");
+    expect(all({ ...rules, shareMethod: "both" })).toContain("anche di persona");
   });
 
   it("«Per te» dipende dalla carta e non c'è prima della distribuzione", () => {
