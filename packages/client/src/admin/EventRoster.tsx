@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AdminPlayerView, EventDetail, TeamView } from "@gioco/shared";
+import type { AdminPlayerView, EventDetail, TeamView, TempTeam, TempTeamsInput } from "@gioco/shared";
 import { api, errorMessage } from "./api";
+import { TempTeamsPanel } from "./TempTeamsPanel";
 
 /** Chi è in serata e in quale squadra: ogni cambio vale subito, anche a partita avviata. */
 export function EventRoster({
@@ -17,6 +18,7 @@ export function EventRoster({
   run: (action: () => Promise<unknown>) => Promise<void>;
 }) {
   const assignment = new Map(event.players.map((p) => [p.playerId, p.teamId]));
+  const captains = new Set(event.players.filter((p) => p.captain).map((p) => p.playerId));
   const eventTeams = teams.filter((t) => event.teamIds.includes(t.id));
 
   return (
@@ -24,10 +26,22 @@ export function EventRoster({
       {players.map((p) => {
         const inEvent = assignment.has(p.id);
         const teamId = assignment.get(p.id) ?? "";
+        const isCaptain = captains.has(p.id);
         return (
           <li key={p.id}>
-            <span>{p.avatar} {p.nickname}</span>
+            <span>{p.avatar} {p.nickname}{isCaptain && " 👑"}</span>
             <span className="row">
+              {inEvent && teamId !== "" && (
+                <button
+                  aria-pressed={isCaptain}
+                  aria-label={`Capitano di ${p.nickname}`}
+                  title={isCaptain ? "Capitano della squadra: tocca per togliere" : "Rendi capitano della squadra"}
+                  className={isCaptain ? "primary" : ""}
+                  onClick={() => void run(() => api("PUT", `/events/${eventId}/players/${p.id}/captain`, { captain: !isCaptain }))}
+                >
+                  👑
+                </button>
+              )}
               <select
                 aria-label={`Squadra di ${p.nickname}`}
                 value={inEvent ? teamId : "__out"}
@@ -54,7 +68,21 @@ export function EventRoster({
 }
 
 /** Giocatori della serata in corso, dal pannello Live. Si rilegge quando cambia il numero di iscritti o la partita. */
-export function LiveRoster({ eventId, inRound, pending }: { eventId: string; inRound: boolean; pending: boolean }) {
+export function LiveRoster({
+  eventId,
+  inRound,
+  pending,
+  tempTeams,
+  onTempTeams,
+}: {
+  eventId: string;
+  inRound: boolean;
+  pending: boolean;
+  /** Squadre temporanee attive (dallo stato della partita). */
+  tempTeams?: TempTeam[];
+  /** Imposta le squadre temporanee, o le toglie con `null`; risponde se la regia le ha accettate. */
+  onTempTeams: (teams: TempTeamsInput | null) => Promise<boolean>;
+}) {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [teams, setTeams] = useState<TeamView[]>([]);
   const [players, setPlayers] = useState<AdminPlayerView[]>([]);
@@ -94,7 +122,10 @@ export function LiveRoster({ eventId, inRound, pending }: { eventId: string; inR
 
   if (!event) return error ? <p className="error">{error}</p> : <p>Caricamento…</p>;
 
+  const inEvent = new Set(event.players.map((p) => p.playerId));
+
   return (
+    <>
     <section className="panel">
       <h3>Giocatori della serata ({event.players.length} in serata su {players.length} registrati)</h3>
       <p className="muted">
@@ -106,5 +137,7 @@ export function LiveRoster({ eventId, inRound, pending }: { eventId: string; inR
       {error && <p className="error">{error}</p>}
       <EventRoster eventId={eventId} event={event} teams={teams} players={players} run={run} />
     </section>
+    <TempTeamsPanel people={players.filter((p) => inEvent.has(p.id))} temp={tempTeams} inRound={inRound} onApply={onTempTeams} />
+    </>
   );
 }

@@ -52,6 +52,8 @@ export const eventPlayers = sqliteTable(
     eventId: text("event_id").notNull(),
     playerId: text("player_id").notNull(),
     teamId: text("team_id"),
+    /** 1 se è il capitano della sua squadra nella serata (al massimo uno per squadra). */
+    captain: integer("is_captain").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.eventId, t.playerId] })],
 );
@@ -188,6 +190,7 @@ export function openDb(file: string) {
       event_id TEXT NOT NULL,
       player_id TEXT NOT NULL,
       team_id TEXT,
+      is_captain INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (event_id, player_id)
     );
     CREATE TABLE IF NOT EXISTS matches (
@@ -261,6 +264,10 @@ export function openDb(file: string) {
   // Database creati prima della colonna `pin`: si aggiunge senza toccare i dati (i PIN vecchi restano solo come hash).
   const playerColumns = sqlite.prepare("PRAGMA table_info(players)").all() as { name: string }[];
   if (!playerColumns.some((c) => c.name === "pin")) sqlite.exec("ALTER TABLE players ADD COLUMN pin TEXT");
+
+  // Database creati prima dei capitani delle squadre.
+  const eventPlayerColumns = sqlite.prepare("PRAGMA table_info(event_players)").all() as { name: string }[];
+  if (!eventPlayerColumns.some((c) => c.name === "is_captain")) sqlite.exec("ALTER TABLE event_players ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0");
 
   migrateDuelMatches(sqlite);
 

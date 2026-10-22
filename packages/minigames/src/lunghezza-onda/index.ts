@@ -484,6 +484,7 @@ export const lunghezzaOnda: MinigameType<LunghezzaOndaConfig, LunghezzaOndaState
   id: "lunghezza-onda",
   title: "Lunghezza d'Onda",
   defaultTheme: "gameshow",
+  teamBased: true,
   configSchema: lunghezzaOndaConfigSchema as unknown as z.ZodType<LunghezzaOndaConfig>,
   inputSchema,
   commandSchema,

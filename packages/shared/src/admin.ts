@@ -29,6 +29,8 @@ export const eventTeamsSchema = z.object({ teamIds: z.array(z.string().min(1)).m
 
 export const assignPlayerSchema = z.object({ teamId: z.string().min(1).nullable() });
 
+export const captainSchema = z.object({ captain: z.boolean() });
+
 export const matchInputSchema = z.object({
   name: z.string().trim().min(1).max(60),
 });
@@ -121,8 +123,8 @@ export interface EventSummary {
 
 export interface EventDetail extends EventSummary {
   teamIds: string[];
-  /** Giocatori della serata con il team assegnato (null = senza team). */
-  players: { playerId: string; teamId: string | null }[];
+  /** Giocatori della serata con il team assegnato (null = senza team) e se ne sono il capitano. */
+  players: { playerId: string; teamId: string | null; captain: boolean }[];
   matches: MatchView[];
 }
 

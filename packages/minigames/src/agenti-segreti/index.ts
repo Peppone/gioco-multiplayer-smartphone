@@ -480,6 +480,7 @@ export const agentiSegreti: MinigameType<AgentiSegretiConfig, AgentiSegretiState
   id: "agenti-segreti",
   title: "Agenti Segreti",
   defaultTheme: "retro80",
+  teamBased: true,
   configSchema: agentiSegretiConfigSchema as unknown as z.ZodType<AgentiSegretiConfig>,
   inputSchema,
   commandSchema,

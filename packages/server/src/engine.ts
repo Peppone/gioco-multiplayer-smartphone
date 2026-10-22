@@ -12,6 +12,8 @@ import type {
   Leaderboards,
   MinigameFrame,
   ParticipantInfo,
+  TempTeam,
+  TempTeamsInput,
   ThemeId,
 } from "@gioco/shared";
 import {
@@ -46,6 +48,8 @@ interface RoundSpec {
   title: string;
   theme: ThemeId;
   config: unknown;
+  /** Solo per i minigiochi che completano la configurazione all'avvio (`buildConfig`): quella scritta in libreria, per rifarlo con squadre temporanee. */
+  rawConfig?: unknown;
 }
 
 interface Live {
@@ -65,6 +69,11 @@ interface Live {
   seen?: string[];
   /** Giocatori e squadre della serata cambiati durante un round: valgono dalla fine del round (assente se non ci sono modifiche in attesa). */
   next?: { roster: ParticipantInfo[]; teams: TeamRow[] };
+  /** Squadre temporanee della regia: sostituiscono quelle della serata nei prossimi round a squadre. */
+  temp?: TempTeam[];
+  /** Giocatori e squadre come li ha visti il round in corso, se ha usato le squadre temporanee. */
+  roundRoster?: ParticipantInfo[];
+  roundTeams?: TeamRow[];
 }
 
 interface TeamRow {
@@ -143,6 +152,11 @@ export class Engine {
     return l && l.roundIndex >= 0 ? (l.rounds[l.roundIndex] ?? null) : null;
   }
 
+  private readonly lookup: InstanceLookup = (id) => {
+    const row = this.db.select().from(minigameInstances).where(eq(minigameInstances.id, id)).get();
+    return row ? { typeId: row.typeId, title: row.title, theme: row.theme as ThemeId, config: JSON.parse(row.configJson) as unknown } : undefined;
+  };
+
   // ---- Avvio ----
 
   startMatch(matchId: string): EngineResult {
@@ -184,15 +198,12 @@ export class Engine {
     if (missing) return fail(`Tipo di minigioco sconosciuto: ${missing.typeId}`);
 
     // I round che riferiscono altre istanze o la serata (es. il duello) si completano ora e restano fissati per tutta la partita.
-    const lookup: InstanceLookup = (id) => {
-      const row = this.db.select().from(minigameInstances).where(eq(minigameInstances.id, id)).get();
-      return row ? { typeId: row.typeId, title: row.title, theme: row.theme as ThemeId, config: JSON.parse(row.configJson) as unknown } : undefined;
-    };
     for (const round of rounds) {
       const plugin = this.deps.registry[round.typeId]!;
       if (!plugin.buildConfig) continue;
-      const built = plugin.buildConfig(round.config, lookup, { players: roster, teams: teamRows });
+      const built = plugin.buildConfig(round.config, this.lookup, { players: roster, teams: teamRows });
       if (!built.ok) return fail(`«${round.title}»: ${built.error}`);
+      round.rawConfig = round.config;
       round.config = built.config;
     }
 
@@ -220,11 +231,12 @@ export class Engine {
   /** Giocatori e squadre della serata come stanno ora nel database. */
   private loadParticipants(eventId: string): { roster: ParticipantInfo[]; teams: TeamRow[] } {
     const roster: ParticipantInfo[] = this.db
-      .select({ id: players.id, nickname: players.nickname, teamId: eventPlayers.teamId })
+      .select({ id: players.id, nickname: players.nickname, teamId: eventPlayers.teamId, captain: eventPlayers.captain })
       .from(eventPlayers)
       .innerJoin(players, eq(players.id, eventPlayers.playerId))
       .where(eq(eventPlayers.eventId, eventId))
-      .all();
+      .all()
+      .map(({ captain, ...p }): ParticipantInfo => (captain === 1 && p.teamId ? { ...p, captain: true } : p));
     const teamRows = this.db
       .select({ id: teams.id, name: teams.name, color: teams.color })
       .from(eventTeams)
@@ -269,6 +281,9 @@ export class Engine {
     if (!l) return fail("Nessuna partita in corso.");
 
     switch (cmd.type) {
+      case "temp-teams":
+        return this.setTempTeams(l, cmd.teams);
+
       case "engine":
         if (cmd.action === "next") return this.next(l);
         if (cmd.action === "finish-round") {
@@ -310,6 +325,62 @@ export class Engine {
         return OK;
       }
     }
+  }
+
+  /**
+   * Squadre temporanee: valgono dal prossimo round a squadre (i round in corso hanno già le loro) e finché la regia non le toglie.
+   * I punti restano dei giocatori e delle squadre della serata, a cui continuano ad appartenere.
+   */
+  private setTempTeams(l: Live, input: TempTeamsInput | null): EngineResult {
+    if (l.phase === "ended") return fail("La partita è conclusa.");
+    if (input === null) {
+      delete l.temp;
+      this.touch();
+      return OK;
+    }
+    const known = new Set((l.next?.roster ?? l.roster).map((p) => p.id));
+    const placed = new Set<string>();
+    const names = new Set<string>();
+    for (const t of input) {
+      const name = t.name.toLowerCase();
+      if (names.has(name)) return fail(`Due squadre si chiamano «${t.name}».`);
+      names.add(name);
+      for (const id of t.members) {
+        if (!known.has(id)) return fail("Una squadra ha un giocatore che non è in serata.");
+        if (placed.has(id)) return fail("Un giocatore è in due squadre.");
+        placed.add(id);
+      }
+      if (t.captain && !t.members.includes(t.captain)) return fail(`Il capitano di «${t.name}» deve essere uno dei suoi giocatori.`);
+    }
+    l.temp = input.map((t, i) => ({
+      id: `temp-${i + 1}`,
+      name: t.name,
+      color: t.color,
+      members: [...new Set(t.members)],
+      ...(t.captain && { captain: t.captain }),
+    }));
+    this.touch();
+    return OK;
+  }
+
+  /** Giocatori e squadre che vede il round: quelle temporanee se ci sono e il minigioco usa le squadre, altrimenti quelle della serata. */
+  private participantsFor(l: Live, plugin: AnyMinigame): { players: ParticipantInfo[]; teams: TeamRow[]; temporary: boolean } {
+    if (!l.temp || !plugin.teamBased) {
+      return { players: l.roster, teams: [...l.teamNames].map(([id, name]) => ({ id, name, color: l.teamColors.get(id) ?? "#888888" })), temporary: false };
+    }
+    const inRoster = new Set(l.roster.map((p) => p.id));
+    const teams: TeamRow[] = [];
+    const teamOf = new Map<string, string>();
+    const captains = new Set<string>();
+    for (const t of l.temp) {
+      const members = t.members.filter((id) => inRoster.has(id));
+      if (members.length === 0) continue; // tutti i suoi giocatori sono usciti dalla serata
+      teams.push({ id: t.id, name: t.name, color: t.color });
+      for (const id of members) teamOf.set(id, t.id);
+      if (t.captain && members.includes(t.captain)) captains.add(t.captain);
+    }
+    const players = l.roster.map((p): ParticipantInfo => ({ id: p.id, nickname: p.nickname, teamId: teamOf.get(p.id) ?? null, ...(captains.has(p.id) && { captain: true as const }) }));
+    return { players, teams, temporary: true };
   }
 
   private pluginCommand(l: Live, command: unknown): EngineResult {
@@ -360,18 +431,29 @@ export class Engine {
     if (max !== undefined && l.roster.length > max) {
       return fail(`${round.title}: massimo ${max} giocatori, in serata ce ne sono ${l.roster.length}.`);
     }
+    const plugin = this.plugin(round);
+    const seen = this.participantsFor(l, plugin);
+    let config = round.config;
+    // I minigiochi che fissano sfidanti o squadre all'avvio (il duello) si ricompongono con le squadre temporanee.
+    if (seen.temporary && plugin.buildConfig && round.rawConfig !== undefined) {
+      const built = plugin.buildConfig(round.rawConfig, this.lookup, { players: seen.players, teams: seen.teams });
+      if (!built.ok) return fail(`«${round.title}»: ${built.error}`);
+      config = built.config;
+    }
     const random = this.deps.random ?? Math.random;
     l.roundIndex++;
-    l.roundState = this.plugin(round).init(
-      round.config,
-      {
-        players: l.roster,
-        teams: [...l.teamNames].map(([id, name]) => ({ id, name, color: l.teamColors.get(id) })),
-        seed: Math.floor(random() * 2 ** 31),
-        seen: l.seen ?? [],
-      },
+    l.roundState = plugin.init(
+      config,
+      { players: seen.players, teams: seen.teams, seed: Math.floor(random() * 2 ** 31), seen: l.seen ?? [] },
       this.deps.now(),
     );
+    if (seen.temporary) {
+      l.roundRoster = seen.players;
+      l.roundTeams = seen.teams;
+    } else {
+      delete l.roundRoster;
+      delete l.roundTeams;
+    }
     l.phase = "round";
     this.afterRoundChange(l);
     return OK;
@@ -417,6 +499,7 @@ export class Engine {
   private finalizeRound(l: Live): void {
     const round = this.currentRound!;
     this.saveMessages(l);
+    // I punti vanno ai giocatori e alle squadre della serata, anche se il round è stato giocato con squadre temporanee.
     const teamOf = new Map(l.roster.map((p) => [p.id, p.teamId]));
     const entries: NewScoreEntry[] = this.plugin(round)
       .scores(l.roundState)
@@ -435,6 +518,8 @@ export class Engine {
     if (shown?.length) l.seen = [...new Set([...(l.seen ?? []), ...shown])];
     l.phase = "results";
     l.roundState = null;
+    delete l.roundRoster;
+    delete l.roundTeams;
     if (l.next) this.applyParticipants(l, l.next); // i punti del round sono già registrati con le squadre di prima
     this.touch();
   }
@@ -509,18 +594,16 @@ export class Engine {
       return { phase: l.phase, matchName: l.matchName, inRoster: false, ...(joining && { joining }) };
     }
     const row = this.leaderboards(l).players.find((r) => r.id === playerId);
+    // In un round giocato con squadre temporanee il giocatore appartiene a quella temporanea.
+    const teamId = l.phase === "round" && l.roundRoster ? (l.roundRoster.find((p) => p.id === playerId)?.teamId ?? null) : me.teamId;
+    const teamName = teamId ? (l.roundTeams?.find((t) => t.id === teamId)?.name ?? l.teamNames.get(teamId) ?? null) : null;
     return {
       phase: l.phase,
       matchName: l.matchName,
       inRoster: true,
       roundNumber: l.roundIndex + 1,
-      frame: this.frame(l, (p) => p.viewFor(l.roundState, playerId, me.teamId)),
-      me: {
-        points: row?.points ?? 0,
-        rank: row?.rank ?? null,
-        teamId: me.teamId,
-        teamName: me.teamId ? (l.teamNames.get(me.teamId) ?? null) : null,
-      },
+      frame: this.frame(l, (p) => p.viewFor(l.roundState, playerId, teamId)),
+      me: { points: row?.points ?? 0, rank: row?.rank ?? null, teamId, teamName },
     };
   }
 
@@ -561,6 +644,7 @@ export class Engine {
       matchId: l.matchId,
       eventId: l.eventId,
       ...(l.next && { rosterPending: true }),
+      ...(l.temp && { tempTeams: l.temp }),
       rounds: l.rounds.map((r) => ({ id: r.roundId, title: r.title, typeId: r.typeId })),
       host,
       master: this.masterAvailable,

@@ -360,6 +360,7 @@ export function createKnightDuel(children: Record<string, AnyMinigame>): Minigam
     id: "knight-duel",
     title: "Duello dei Cavalieri",
     defaultTheme: "pixel",
+    teamBased: true,
     configSchema: duelConfigSchema as unknown as z.ZodType<DuelConfig>,
     inputSchema,
     commandSchema,

@@ -317,6 +317,7 @@ export const pilotaCieco: MinigameType<PilotaConfig, PilotaState, Input, Command
   id: "pilota-cieco",
   title: "Pilota alla cieca",
   defaultTheme: "pixel",
+  teamBased: true,
   configSchema: pilotaConfigSchema as unknown as z.ZodType<PilotaConfig>,
   inputSchema,
   commandSchema,

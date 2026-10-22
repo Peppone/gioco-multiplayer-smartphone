@@ -32,6 +32,8 @@ const INFO_LABEL: Record<string, string> = {
   points: "Punti in palio",
   answering: "Risponde",
   queue: "Coda",
+  category: "Categoria",
+  chooser: "Sceglie la categoria",
 };
 
 function InfoView({ info }: { info: unknown }) {
@@ -186,10 +188,12 @@ export function LivePanel() {
   const [points, setPoints] = useState("100");
   const [reason, setReason] = useState("");
 
-  const run = async (cmd: HostCommand | { type: "plugin"; command: Record<string, unknown> }) => {
+  /** Risponde se il comando è stato accettato; altrimenti l'errore compare in alto. */
+  const run = async (cmd: HostCommand | { type: "plugin"; command: Record<string, unknown> }): Promise<boolean> => {
     setError(null);
     const ack = await command(cmd);
     if (!ack.ok) setError(ack.error);
+    return ack.ok;
   };
 
   const adjust = async (e: React.FormEvent) => {
@@ -279,7 +283,13 @@ export function LivePanel() {
       )}
 
       {active && state.phase !== "ended" && state.eventId && (
-        <LiveRoster eventId={state.eventId} inRound={state.phase === "round"} pending={!!state.rosterPending} />
+        <LiveRoster
+          eventId={state.eventId}
+          inRound={state.phase === "round"}
+          pending={!!state.rosterPending}
+          tempTeams={state.tempTeams}
+          onTempTeams={(teams) => run({ type: "temp-teams", teams })}
+        />
       )}
 
       {state.master && state.phase === "round" && <MasterLinkBox />}

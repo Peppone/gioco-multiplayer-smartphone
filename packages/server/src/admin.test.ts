@@ -192,7 +192,7 @@ describe("serate, team e giocatori", () => {
 
     await call("PUT", `/api/admin/events/${ev.id}/teams`, { teamIds: [a.id] });
     const ok = await call("PUT", `/api/admin/events/${ev.id}/players/${p}`, { teamId: a.id });
-    expect((ok.json() as EventDetail).players).toEqual([{ playerId: p, teamId: a.id }]);
+    expect((ok.json() as EventDetail).players).toEqual([{ playerId: p, teamId: a.id, captain: false }]);
 
     const bad = await call("PUT", `/api/admin/events/${ev.id}/players/${p}`, { teamId: b.id });
     expect(bad.statusCode).toBe(409);
@@ -205,7 +205,59 @@ describe("serate, team e giocatori", () => {
     await call("PUT", `/api/admin/events/${ev.id}/teams`, { teamIds: [a.id] });
     await call("PUT", `/api/admin/events/${ev.id}/players/${p}`, { teamId: a.id });
     const res = await call("PUT", `/api/admin/events/${ev.id}/teams`, { teamIds: [] });
-    expect((res.json() as EventDetail).players).toEqual([{ playerId: p, teamId: null }]);
+    expect((res.json() as EventDetail).players).toEqual([{ playerId: p, teamId: null, captain: false }]);
+  });
+
+  describe("capisquadra", () => {
+    const setup = async () => {
+      const ev = await newEvent();
+      const a = await newTeam("A");
+      const b = await newTeam("B");
+      await call("PUT", `/api/admin/events/${ev.id}/teams`, { teamIds: [a.id, b.id] });
+      const [g1, g2, g3] = [mkPlayer("Gina"), mkPlayer("Gigi"), mkPlayer("Gea")];
+      await call("PUT", `/api/admin/events/${ev.id}/players/${g1}`, { teamId: a.id });
+      await call("PUT", `/api/admin/events/${ev.id}/players/${g2}`, { teamId: a.id });
+      await call("PUT", `/api/admin/events/${ev.id}/players/${g3}`, { teamId: b.id });
+      const captains = async () =>
+        ((await call("GET", `/api/admin/events/${ev.id}`)).json() as EventDetail).players.filter((x) => x.captain).map((x) => x.playerId);
+      const setCaptain = (id: string, captain: boolean) => call("PUT", `/api/admin/events/${ev.id}/players/${id}/captain`, { captain });
+      return { ev, a, b, g1, g2, g3, captains, setCaptain };
+    };
+
+    it("ogni squadra ha al massimo un capitano: il nuovo sostituisce il vecchio, le altre squadre non cambiano", async () => {
+      const { g1, g2, g3, captains, setCaptain } = await setup();
+      expect((await setCaptain(g1, true)).statusCode).toBe(200);
+      expect((await setCaptain(g3, true)).statusCode).toBe(200);
+      expect((await captains()).sort()).toEqual([g1, g3].sort());
+      await setCaptain(g2, true);
+      expect((await captains()).sort()).toEqual([g2, g3].sort());
+      await setCaptain(g2, false);
+      expect(await captains()).toEqual([g3]);
+    });
+
+    it("serve una squadra: chi non ne ha una (o non è in serata) non può essere capitano", async () => {
+      const { ev, setCaptain } = await setup();
+      const solo = mkPlayer("Solo");
+      await call("PUT", `/api/admin/events/${ev.id}/players/${solo}`, { teamId: null });
+      expect((await setCaptain(solo, true)).statusCode).toBe(409);
+      expect((await setCaptain(mkPlayer("Fuori"), true)).statusCode).toBe(404);
+      expect((await call("PUT", `/api/admin/events/${ev.id}/players/${solo}/captain`, { captain: "sì" })).statusCode).toBe(400);
+    });
+
+    it("cambiando squadra, togliendo la squadra dalla serata o eliminandola si smette di essere capitano", async () => {
+      const { ev, a, b, g1, g2, captains, setCaptain } = await setup();
+      await setCaptain(g1, true);
+      await call("PUT", `/api/admin/events/${ev.id}/players/${g1}`, { teamId: a.id }); // stessa squadra: resta capitano
+      expect(await captains()).toEqual([g1]);
+      await call("PUT", `/api/admin/events/${ev.id}/players/${g1}`, { teamId: b.id });
+      expect(await captains()).toEqual([]);
+      await setCaptain(g2, true);
+      await call("PUT", `/api/admin/events/${ev.id}/teams`, { teamIds: [b.id] });
+      expect(await captains()).toEqual([]);
+      await setCaptain(g1, true);
+      await call("DELETE", `/api/admin/teams/${b.id}`);
+      expect(await captains()).toEqual([]);
+    });
   });
 
   it("eliminare un team lo toglie dalle serate", async () => {

@@ -3,6 +3,7 @@ import { type ZodType, z } from "zod";
 import {
   type AdminError,
   assignPlayerSchema,
+  captainSchema,
   eventInputSchema,
   eventPatchSchema,
   instanceInputSchema,
@@ -123,6 +124,13 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
       async (req, reply) => {
         const body = parse(assignPlayerSchema, req.body, reply);
         if (body) return send(reply, service.assignPlayer(req.params.id, req.params.playerId, body.teamId));
+      },
+    );
+    api.put<{ Params: IdParams & { playerId: string } }>(
+      "/api/admin/events/:id/players/:playerId/captain",
+      async (req, reply) => {
+        const body = parse(captainSchema, req.body, reply);
+        if (body) return send(reply, service.setCaptain(req.params.id, req.params.playerId, body.captain));
       },
     );
     api.delete<{ Params: IdParams & { playerId: string } }>(

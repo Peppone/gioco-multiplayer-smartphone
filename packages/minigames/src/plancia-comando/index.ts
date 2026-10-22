@@ -319,6 +319,7 @@ export const planciaComando: MinigameType<PlanciaConfig, PlanciaState, Input, Co
   id: "plancia-comando",
   title: "Plancia di Comando",
   defaultTheme: "retro80",
+  teamBased: true,
   configSchema: planciaConfigSchema as unknown as z.ZodType<PlanciaConfig>,
   inputSchema,
   commandSchema,

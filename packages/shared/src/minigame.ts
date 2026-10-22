@@ -6,6 +6,8 @@ export interface ParticipantInfo {
   id: string;
   nickname: string;
   teamId: string | null;
+  /** Capitano della sua squadra, designato dalla regia (assente se non lo è). Al massimo uno per squadra. */
+  captain?: true;
 }
 
 export interface TeamInfo {
@@ -131,6 +133,11 @@ export interface MinigameType<Config = unknown, State = unknown, Input = unknown
 
   /** Il round ha un'interfaccia per il Game Master: senza, il link del GM non si genera e i suoi comandi sono rifiutati. */
   master?: true;
+  /**
+   * Il round usa le squadre (le forma da `ctx.teams` e dal `teamId` dei giocatori): la regia può sostituire per quel round
+   * le squadre della serata con squadre temporanee. Chi non lo dichiara riceve sempre le squadre della serata.
+   */
+  teamBased?: true;
   /** Numero massimo di giocatori del round: l'engine rifiuta l'avvio se la serata ne ha di più. */
   maxPlayers?: number;
   /** Numero minimo di giocatori del round: l'engine rifiuta l'avvio se la serata ne ha di meno. */

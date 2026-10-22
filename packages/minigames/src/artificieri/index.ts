@@ -486,6 +486,7 @@ export const artificieri: MinigameType<ArtificieriConfig, ArtificieriState, Inpu
   id: "artificieri",
   title: "Artificieri",
   defaultTheme: "boom",
+  teamBased: true,
   configSchema: artificieriConfigSchema as unknown as z.ZodType<ArtificieriConfig>,
   inputSchema,
   commandSchema,

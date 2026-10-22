@@ -55,9 +55,21 @@ export interface GamePlayerState {
   me?: { points: number; rank: number | null; teamId: string | null; teamName: string | null };
 }
 
+/** Squadra temporanea: vale al posto delle squadre della serata, ma solo per i round a squadre. */
+export interface TempTeam {
+  /** Assegnato dal server (`temp-1`, `temp-2`…). */
+  id: string;
+  name: string;
+  color: string;
+  members: string[];
+  captain?: string;
+}
+
 export interface GameAdminState extends GameScreenState {
   matchId?: string;
   eventId?: string;
+  /** Squadre temporanee attive: valgono dal prossimo round a squadre, finché la regia non le toglie o la partita finisce. */
+  tempTeams?: TempTeam[];
   /** Giocatori della serata cambiati durante il round: valgono dal prossimo. */
   rosterPending?: boolean;
   rounds: { id: string; title: string; typeId: string }[];
@@ -85,8 +97,23 @@ export type MasterCommand = z.infer<typeof masterCommandSchema>;
 
 // ---- Comandi della regia ----
 
+export const tempTeamsInputSchema = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1).max(24),
+      color: z.string().regex(/^#[0-9a-f]{6}$/i),
+      members: z.array(z.string().min(1)).min(1).max(100),
+      captain: z.string().min(1).optional(),
+    }),
+  )
+  .min(1)
+  .max(12);
+export type TempTeamsInput = z.infer<typeof tempTeamsInputSchema>;
+
 export const hostCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start"), matchId: z.string().min(1) }),
+  /** Imposta le squadre temporanee, oppure (`teams: null`) le toglie e si torna alle squadre della serata. */
+  z.object({ type: z.literal("temp-teams"), teams: tempTeamsInputSchema.nullable() }),
   z.object({ type: z.literal("engine"), action: z.enum(["next", "finish-round", "end-match", "close"]) }),
   z.object({ type: z.literal("plugin"), command: z.record(z.string(), z.unknown()) }),
   z.object({

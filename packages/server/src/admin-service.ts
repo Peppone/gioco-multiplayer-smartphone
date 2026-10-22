@@ -116,7 +116,7 @@ export class AdminService {
   deleteTeam(id: string): Result<null> {
     if (!this.db.select().from(teams).where(eq(teams.id, id)).get()) return fail("not_found");
     this.db.transaction((tx) => {
-      tx.update(eventPlayers).set({ teamId: null }).where(eq(eventPlayers.teamId, id)).run();
+      tx.update(eventPlayers).set({ teamId: null, captain: 0 }).where(eq(eventPlayers.teamId, id)).run();
       tx.delete(eventTeams).where(eq(eventTeams.teamId, id)).run();
       tx.delete(teams).where(eq(teams.id, id)).run();
     });
@@ -147,7 +147,7 @@ export class AdminService {
         .from(eventPlayers)
         .where(eq(eventPlayers.eventId, id))
         .all()
-        .map((r) => ({ playerId: r.playerId, teamId: r.teamId })),
+        .map((r) => ({ playerId: r.playerId, teamId: r.teamId, captain: r.captain === 1 })),
       matches: this.db.select().from(matches).where(eq(matches.eventId, id)).orderBy(asc(matches.order)).all().map((m) => toMatch(m, this.library.rounds(m.id))),
     });
   }
@@ -189,7 +189,7 @@ export class AdminService {
       for (const p of stale) {
         if (p.teamId && !unique.includes(p.teamId)) {
           tx.update(eventPlayers)
-            .set({ teamId: null })
+            .set({ teamId: null, captain: 0 })
             .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.playerId, p.playerId)))
             .run();
         }
@@ -211,11 +211,44 @@ export class AdminService {
         .get();
       if (!inEvent) return fail("conflict");
     }
+    const current = this.db
+      .select()
+      .from(eventPlayers)
+      .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.playerId, playerId)))
+      .get();
+    // Cambiando squadra non si resta capitano di quella di prima.
+    const captain = current && current.teamId === teamId ? current.captain : 0;
     this.db
       .insert(eventPlayers)
-      .values({ eventId, playerId, teamId })
-      .onConflictDoUpdate({ target: [eventPlayers.eventId, eventPlayers.playerId], set: { teamId } })
+      .values({ eventId, playerId, teamId, captain })
+      .onConflictDoUpdate({ target: [eventPlayers.eventId, eventPlayers.playerId], set: { teamId, captain } })
       .run();
+    this.onRosterChange(eventId);
+    return this.getEvent(eventId);
+  }
+
+  /** Designa (o toglie) il capitano di una squadra della serata: ce n'è al massimo uno per squadra, il nuovo sostituisce il vecchio. */
+  setCaptain(eventId: string, playerId: string, captain: boolean): Result<EventDetail> {
+    if (!this.db.select().from(events).where(eq(events.id, eventId)).get()) return fail("not_found");
+    const row = this.db
+      .select()
+      .from(eventPlayers)
+      .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.playerId, playerId)))
+      .get();
+    if (!row) return fail("not_found");
+    if (captain && row.teamId === null) return fail("conflict", "Il capitano deve far parte di una squadra");
+    this.db.transaction((tx) => {
+      if (captain) {
+        tx.update(eventPlayers)
+          .set({ captain: 0 })
+          .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.teamId, row.teamId!)))
+          .run();
+      }
+      tx.update(eventPlayers)
+        .set({ captain: captain ? 1 : 0 })
+        .where(and(eq(eventPlayers.eventId, eventId), eq(eventPlayers.playerId, playerId)))
+        .run();
+    });
     this.onRosterChange(eventId);
     return this.getEvent(eventId);
   }

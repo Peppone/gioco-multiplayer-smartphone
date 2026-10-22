@@ -150,7 +150,7 @@ test("la regia assegna punti a mano e la classifica si aggiorna", async ({ brows
   await admin.page.locator("li", { hasText: matchName }).getByRole("button", { name: "Avvia" }).click();
 
   await admin.page.getByRole("combobox").filter({ hasText: "Assegna punti a…" }).selectOption({ label: `🦊 ${nick}` });
-  await admin.page.locator('input[type="number"]').fill("250");
+  await admin.page.locator("form").filter({ has: admin.page.getByPlaceholder("Motivo") }).locator('input[type="number"]').fill("250");
   await admin.page.getByPlaceholder("Motivo").fill("Bonus simpatia");
   await admin.page.getByRole("button", { name: "Assegna" }).click();
 
