@@ -1,4 +1,4 @@
-import { MAX_AUDIO_BYTES, type MediaItem } from "@gioco/shared";
+import { MAX_AUDIO_BYTES, type MediaItem, mediaContentType } from "@gioco/shared";
 
 const TOKEN_KEY = "gioco.admin.token";
 
@@ -54,7 +54,7 @@ export async function uploadAudio(file: File): Promise<MediaItem> {
   const res = await fetch("/api/admin/media", {
     method: "POST",
     headers: {
-      "Content-Type": file.type || "audio/mpeg",
+      "Content-Type": mediaContentType(file.name, file.type),
       "X-File-Name": encodeURIComponent(file.name),
       ...(token && { Authorization: `Bearer ${token}` }),
     },

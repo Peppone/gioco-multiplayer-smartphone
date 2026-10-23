@@ -76,6 +76,34 @@ describe("mediateca dei brani", () => {
     expect(list.find((m) => m.name === "Secondo.ogg")!.file.endsWith(".ogg")).toBe(true);
   });
 
+  it("accetta un video mp4 (se ne usa solo l'audio): estensione .mp4, tipo video/mp4 e Range", async () => {
+    const data = Buffer.from("ftypisom".repeat(500));
+    const res = await upload(data, "video/mp4", "Videoclip.mp4");
+    expect(res.statusCode).toBe(201);
+    const item = res.json() as MediaItem;
+    expect(item.file).toMatch(MEDIA_FILE_PATTERN);
+    expect(item.file.endsWith(".mp4")).toBe(true);
+    expect(item.name).toBe("Videoclip.mp4");
+
+    const full = await app.inject({ method: "GET", url: `/media/${item.file}` });
+    expect(full.statusCode).toBe(200);
+    expect(full.headers["content-type"]).toContain("video/mp4");
+    expect(full.rawPayload.equals(data)).toBe(true);
+    const part = await app.inject({ method: "GET", url: `/media/${item.file}`, headers: { range: "bytes=0-7" } });
+    expect(part.statusCode).toBe(206);
+    expect(part.body).toBe("ftypisom");
+    const list = (await app.inject({ method: "GET", url: "/api/admin/media", headers: { authorization: `Bearer ${token}` } })).json() as MediaItem[];
+    expect(list.map((m) => m.name)).toEqual(["Videoclip.mp4"]);
+  });
+
+  it("un mp4 dichiarato come audio/mp4 resta un .m4a; altri video non si accettano", async () => {
+    const audioMp4 = (await upload(Buffer.from("abc"), "audio/mp4", "Brano.mp4")).json() as MediaItem;
+    expect(audioMp4.file.endsWith(".m4a")).toBe(true);
+    for (const type of ["video/webm", "video/quicktime", "video/x-matroska"]) {
+      expect((await upload(Buffer.from("abc"), type, "Clip.mov")).statusCode).toBeGreaterThanOrEqual(400);
+    }
+  });
+
   it("rifiuta file che non sono audio o sono vuoti", async () => {
     expect((await upload(Buffer.from("<html>"), "text/html", "x.html")).statusCode).toBeGreaterThanOrEqual(400);
     expect((await upload(Buffer.alloc(0))).statusCode).toBe(400);

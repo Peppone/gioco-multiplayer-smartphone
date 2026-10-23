@@ -150,7 +150,7 @@ function AudioField({ schema, value, onChange, labelText }: Pick<FieldProps, "sc
   return (
     <div className="field audio-field">
       <span className="label">{labelText}</span>
-      <input type="file" accept="audio/*" aria-label={`Carica ${labelText}`} disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
+      <input type="file" accept="audio/*,video/mp4,.mp4" aria-label={`Carica ${labelText}`} disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
       {busy && <small className="muted">Caricamento in corso…</small>}
       {library.length > 0 && (
         <select aria-label={`Scegli ${labelText} già caricato`} value={file ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}>

@@ -35,7 +35,7 @@ export const indovinaCanzoneConfigSchema = z
               .string()
               .regex(MEDIA_FILE_PATTERN)
               .optional()
-              .meta({ title: "Brano", description: "File audio caricato dalla regia (mp3, m4a, ogg, wav…). In alternativa usa il link YouTube", widget: "audio" }),
+              .meta({ title: "Brano", description: "File caricato dalla regia (mp3, m4a, ogg, wav… o un video mp4, di cui si usa solo l'audio). In alternativa usa il link YouTube", widget: "audio" }),
             youtube: z
               .string()
               .trim()

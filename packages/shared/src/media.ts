@@ -1,7 +1,11 @@
-/** Estensioni audio accettate e relativo tipo MIME (quelli che i browser riproducono senza plugin). */
+/**
+ * Estensioni accettate e relativo tipo MIME (quelli che i browser riproducono senza plugin). L'mp4 è un video: del file
+ * si usa solo la traccia audio, l'immagine non si mostra mai (rivelerebbe il brano).
+ */
 export const AUDIO_TYPES: Record<string, string> = {
   mp3: "audio/mpeg",
   m4a: "audio/mp4",
+  mp4: "video/mp4",
   aac: "audio/aac",
   ogg: "audio/ogg",
   wav: "audio/wav",
@@ -10,10 +14,21 @@ export const AUDIO_TYPES: Record<string, string> = {
 };
 
 /** Nome di un file della mediateca: id casuale + estensione (non rivela il titolo del brano). */
-export const MEDIA_FILE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp3|m4a|aac|ogg|wav|webm|flac)$/;
+export const MEDIA_FILE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(mp3|m4a|mp4|aac|ogg|wav|webm|flac)$/;
 
-/** Dimensione massima di un brano caricato (byte). */
-export const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+/** Dimensione massima di un file caricato (byte): un mp4 pesa molto più di un mp3 della stessa durata. */
+export const MAX_AUDIO_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Tipo MIME da dichiarare nel caricamento di un file. Quello del browser vale solo se il server lo riconosce; altrimenti
+ * (Windows lascia vuoto il tipo di alcuni file, o ne dà uno inatteso come `video/x-m4v`) si ricava dall'estensione del nome.
+ */
+export function mediaContentType(fileName: string, browserType: string): string {
+  const mime = browserType.split(";")[0]!.trim().toLowerCase();
+  if (Object.values(AUDIO_TYPES).includes(mime)) return mime;
+  const ext = /\.([a-z0-9]+)$/i.exec(fileName)?.[1]?.toLowerCase();
+  return (ext && AUDIO_TYPES[ext]) || mime || "audio/mpeg";
+}
 
 export interface MediaItem {
   /** Nome del file nella mediateca (è il valore salvato nelle configurazioni). */

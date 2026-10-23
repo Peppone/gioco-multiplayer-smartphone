@@ -43,14 +43,14 @@ export function registerMediaRoutes(app: FastifyInstance, auth: AdminAuth, media
       if (!auth.verify(token)) return reply.code(401).send({ error: "unauthorized" satisfies AdminError });
     });
     // Il corpo del caricamento è il file grezzo (nessun multipart: niente dipendenze in più).
-    api.addContentTypeParser(/^audio\//, { parseAs: "buffer", bodyLimit: MAX_AUDIO_BYTES }, (_req, body, done) => done(null, body));
+    api.addContentTypeParser(/^(audio\/|video\/mp4)/, { parseAs: "buffer", bodyLimit: MAX_AUDIO_BYTES }, (_req, body, done) => done(null, body));
 
     api.post("/api/admin/media", { bodyLimit: MAX_AUDIO_BYTES }, async (req, reply) => {
       const name = decodeURIComponent(String(req.headers["x-file-name"] ?? "brano")).slice(0, 120);
       const ext = extensionFor(String(req.headers["content-type"] ?? ""), name);
       const body = req.body;
       if (!ext || !Buffer.isBuffer(body) || body.length === 0) {
-        return reply.code(400).send({ error: "invalid" satisfies AdminError, detail: "Formato audio non supportato (usa mp3, m4a, ogg, wav…)." });
+        return reply.code(400).send({ error: "invalid" satisfies AdminError, detail: "Formato non supportato (usa mp3, m4a, mp4, ogg, wav…)." });
       }
       const file = `${randomUUID()}.${ext}`;
       writeFileSync(join(filesDir, file), body);

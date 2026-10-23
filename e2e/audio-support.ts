@@ -1,4 +1,4 @@
-import { type APIRequestContext, type Page, expect } from "@playwright/test";
+import { type APIRequestContext, type Browser, type Page, expect } from "@playwright/test";
 import { adminToken } from "./support";
 
 /** WAV mono 8 kHz di silenzio (circa mezzo secondo): basta a essere un audio valido. */
@@ -48,6 +48,56 @@ export function stereoTone(leftHz: number | number[], rightHz: number | number[]
   header.write("data", 36);
   header.writeUInt32LE(data.length, 40);
   return Buffer.concat([header, data]);
+}
+
+/**
+ * Un vero video mp4 (H.264 + AAC) con un tono a `hz` Hz, registrato da Edge con MediaRecorder: nessun file da tenere nel
+ * repository né programma di codifica. Il codificatore AAC è quello di Windows, quindi vale solo dove gira Edge.
+ */
+export async function recordMp4(browser: Browser, hz = 440, seconds = 3): Promise<Buffer> {
+  const page = await browser.newPage();
+  try {
+    await page.goto("about:blank");
+    const base64 = await page.evaluate(
+      async ({ hz, seconds }) => {
+        const mime = "video/mp4;codecs=avc1,mp4a.40.2";
+        if (!MediaRecorder.isTypeSupported(mime)) throw new Error("Questo browser non registra mp4 con audio AAC");
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        osc.frequency.value = hz;
+        const dest = ctx.createMediaStreamDestination();
+        osc.connect(dest);
+        osc.start();
+        const canvas = document.createElement("canvas");
+        canvas.width = 64;
+        canvas.height = 64;
+        const g = canvas.getContext("2d")!;
+        const paint = setInterval(() => {
+          g.fillStyle = `hsl(${Math.random() * 360} 80% 50%)`;
+          g.fillRect(0, 0, 64, 64);
+        }, 50);
+        const rec = new MediaRecorder(new MediaStream([...dest.stream.getAudioTracks(), ...canvas.captureStream(15).getVideoTracks()]), { mimeType: mime });
+        const chunks: Blob[] = [];
+        rec.ondataavailable = (e) => chunks.push(e.data);
+        const stopped = new Promise((resolve) => (rec.onstop = resolve));
+        rec.start();
+        await new Promise((r) => setTimeout(r, seconds * 1000));
+        rec.stop();
+        await stopped;
+        clearInterval(paint);
+        const bytes = new Uint8Array(await new Blob(chunks).arrayBuffer());
+        let text = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(text);
+      },
+      { hz, seconds },
+    );
+    const bytes = Buffer.from(base64, "base64");
+    expect(bytes.subarray(4, 8).toString("latin1"), "il file registrato è un mp4").toBe("ftyp");
+    return bytes;
+  } finally {
+    await page.close();
+  }
 }
 
 /** Inserisce un analizzatore davanti all'uscita di ogni AudioContext e ne espone il livello (`__db(hz)`, in decibel). */
@@ -103,9 +153,9 @@ export async function unlockAudio(page: Page) {
 }
 
 /** Carica un file nella mediateca della regia e restituisce il suo nome. */
-export async function uploadTone(request: APIRequestContext, name: string, wav: Buffer): Promise<string> {
+export async function uploadTone(request: APIRequestContext, name: string, wav: Buffer, contentType = "audio/wav"): Promise<string> {
   const res = await request.post("/api/admin/media", {
-    headers: { Authorization: `Bearer ${await adminToken(request)}`, "Content-Type": "audio/wav", "X-File-Name": name },
+    headers: { Authorization: `Bearer ${await adminToken(request)}`, "Content-Type": contentType, "X-File-Name": name },
     data: wav,
   });
   expect(res.status()).toBe(201);

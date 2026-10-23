@@ -4,6 +4,14 @@ La musica suona **solo sullo schermo condiviso**; i telefoni sono buzzer. Chi si
 
 Questa guida riguarda le funzioni che rendono il brano più o meno riconoscibile e la scelta della categoria. Per il resto (file o link YouTube, punti, penalità) vedi il modulo dell'istanza: ogni campo ha la sua descrizione.
 
+## File accettati: audio e video mp4
+
+Il brano si carica come file dal modulo (mp3, m4a, aac, ogg, wav, webm, flac) oppure come **video mp4**, per esempio un videoclip scaricato: del file si usa **solo la traccia audio**, il video non compare mai né sullo schermo né sui telefoni (rivelerebbe il brano). L'mp4 si comporta come ogni altro file: effetti sul suono, «Svela gradualmente» e spezzoni crescenti funzionano uguale.
+
+- Limite di **100 MB** a file (un mp4 pesa molto più di un mp3 della stessa durata); l'anteprima nel modulo suona l'audio del video.
+- Vanno bene gli mp4 con audio AAC (quelli di quasi tutti i telefoni e dei siti di download): il browser dello **schermo** deve saperli decodificare, e Edge e Chrome su Windows lo fanno. Con gli spezzoni crescenti lo schermo scarica e decodifica tutto il file prima di suonare, quindi un video molto lungo ci mette qualche secondo in più a essere pronto.
+- Il tipo del file si riconosce anche dall'estensione, perché Windows a volte non dichiara il tipo di un `.mp4`.
+
 ## Svelare gradualmente il suono
 
 Ogni brano può avere un **effetto sull'audio** (sfocato, molto sfocato, senza voce). Di solito l'effetto resta uguale per tutto l'ascolto. Con **«Svela gradualmente il suono»** (impostazione del round) l'effetto si attenua col passare del tempo, fino al brano intero:
@@ -49,4 +57,5 @@ Il quiz è un minigioco **a squadre** (`teamBased`): con le [squadre temporanee]
 
 - `indovina-canzone.test.ts`: funzioni pure (spezzoni, anticipo, scelta, turni, sorte, regia, brani esauriti) e **anti-leak**.
 - `packages/shared/src/playback.test.ts`: tempi degli spezzoni e curva della nitidezza.
+- E2E `e2e/indovina-canzone-mp4.spec.ts`: veri mp4 (H.264 + AAC) registrati da Edge con un tono a 440 Hz; si misura che l'elemento audio parta senza errori, che il tono esca dal grafo Web Audio con un effetto e negli spezzoni, che il caricamento dal modulo funzioni anche senza tipo dichiarato e che i telefoni non ricevano file né titolo. Il codificatore AAC è quello di Windows: il test gira solo dove c'è Edge.
 - E2E `e2e/indovina-canzone.spec.ts` (base, YouTube, effetti) e `e2e/indovina-canzone-categorie.spec.ts` (categorie, capitani, spezzoni misurati sulle sorgenti Web Audio, svelamento misurato sul segnale in uscita).
