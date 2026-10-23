@@ -22,7 +22,7 @@ export type { Result };
 
 
 
-const toTeam = (t: typeof teams.$inferSelect): TeamView => ({
+const toTeam = (t: Omit<typeof teams.$inferSelect, "test">): TeamView => ({
   id: t.id,
   name: t.name,
   color: t.color,
@@ -37,7 +37,7 @@ const toMatch = (m: typeof matches.$inferSelect, rounds: RoundView[]): MatchView
   rounds,
 });
 
-const toSummary = (e: typeof events.$inferSelect): EventSummary => ({
+const toSummary = (e: Omit<typeof events.$inferSelect, "test">): EventSummary => ({
   id: e.id,
   name: e.name,
   status: e.status as EventStatus,
@@ -64,6 +64,7 @@ export class AdminService {
     return this.db
       .select({ id: players.id, nickname: players.nickname, avatar: players.avatar, color: players.color })
       .from(players)
+      .where(eq(players.test, 0))
       .orderBy(asc(players.nickname))
       .all();
   }
@@ -73,6 +74,7 @@ export class AdminService {
     return this.db
       .select({ id: players.id, nickname: players.nickname, avatar: players.avatar, color: players.color, pin: players.pin, createdAt: players.createdAt })
       .from(players)
+      .where(eq(players.test, 0))
       .orderBy(asc(players.nickname))
       .all();
   }
@@ -87,7 +89,7 @@ export class AdminService {
   // ---- Squadre ----
 
   listTeams(): TeamView[] {
-    return this.db.select().from(teams).orderBy(asc(teams.name)).all().map(toTeam);
+    return this.db.select().from(teams).where(eq(teams.test, 0)).orderBy(asc(teams.name)).all().map(toTeam);
   }
 
   private teamNameTaken(name: string, exceptId?: string): boolean {
@@ -127,7 +129,7 @@ export class AdminService {
   // ---- Serate ----
 
   listEvents(): EventSummary[] {
-    return this.db.select().from(events).orderBy(sql`${events.createdAt} desc`).all().map(toSummary);
+    return this.db.select().from(events).where(eq(events.test, 0)).orderBy(sql`${events.createdAt} desc`).all().map(toSummary);
   }
 
   createEvent(input: EventInput): EventSummary {

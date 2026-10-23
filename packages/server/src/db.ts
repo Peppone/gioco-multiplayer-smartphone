@@ -15,6 +15,8 @@ export const players = sqliteTable("players", {
   /** PIN leggibile dalla regia, per ricordarlo a chi lo dimentica. Vuoto per i profili creati prima di questa funzione. */
   pin: text("pin"),
   createdAt: integer("created_at").notNull(),
+  /** 1 per ciò che appartiene a una prova rapida di minigioco: non compare negli elenchi e sparisce a fine prova. */
+  test: integer("test").notNull().default(0),
 });
 
 /** Impostazioni chiave/valore (es. hash della password admin). */
@@ -28,6 +30,8 @@ export const teams = sqliteTable("teams", {
   name: text("name").notNull(),
   color: text("color").notNull(),
   emblem: text("emblem").notNull(),
+  /** Vedi `players.test`. */
+  test: integer("test").notNull().default(0),
 });
 
 export const events = sqliteTable("events", {
@@ -35,6 +39,8 @@ export const events = sqliteTable("events", {
   name: text("name").notNull(),
   status: text("status").notNull(),
   createdAt: integer("created_at").notNull(),
+  /** Vedi `players.test`. */
+  test: integer("test").notNull().default(0),
 });
 
 export const eventTeams = sqliteTable(
@@ -164,7 +170,8 @@ export function openDb(file: string) {
       token_hash TEXT NOT NULL UNIQUE,
       pin_hash TEXT NOT NULL,
       pin TEXT,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      test INTEGER NOT NULL DEFAULT 0
     );
     CREATE UNIQUE INDEX IF NOT EXISTS players_nickname_nocase ON players (lower(nickname));
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -172,14 +179,16 @@ export function openDb(file: string) {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       color TEXT NOT NULL,
-      emblem TEXT NOT NULL
+      emblem TEXT NOT NULL,
+      test INTEGER NOT NULL DEFAULT 0
     );
     CREATE UNIQUE INDEX IF NOT EXISTS teams_name_nocase ON teams (lower(name));
     CREATE TABLE IF NOT EXISTS events (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       status TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      test INTEGER NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS event_teams (
       event_id TEXT NOT NULL,
@@ -268,6 +277,12 @@ export function openDb(file: string) {
   // Database creati prima dei capitani delle squadre.
   const eventPlayerColumns = sqlite.prepare("PRAGMA table_info(event_players)").all() as { name: string }[];
   if (!eventPlayerColumns.some((c) => c.name === "is_captain")) sqlite.exec("ALTER TABLE event_players ADD COLUMN is_captain INTEGER NOT NULL DEFAULT 0");
+
+  // Database creati prima delle prove rapide dei minigiochi.
+  for (const table of ["players", "teams", "events"]) {
+    const columns = sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === "test")) sqlite.exec(`ALTER TABLE ${table} ADD COLUMN test INTEGER NOT NULL DEFAULT 0`);
+  }
 
   migrateDuelMatches(sqlite);
 

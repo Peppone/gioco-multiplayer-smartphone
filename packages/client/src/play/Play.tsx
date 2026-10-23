@@ -17,7 +17,14 @@ import { ProfileForm } from "./ProfileForm";
 
 const TOKEN_KEY = "gioco.token";
 
+/**
+ * Telefono di prova (`/play?as=<token>`, dalla pagina di prova della regia): entra con quel profilo senza toccare
+ * quello salvato nel browser, che è condiviso da tutte le pagine dello stesso indirizzo.
+ */
+const FIXED_TOKEN = new URLSearchParams(window.location.search).get("as");
+
 const readToken = () => {
+  if (FIXED_TOKEN) return FIXED_TOKEN;
   try {
     return localStorage.getItem(TOKEN_KEY);
   } catch {
@@ -25,6 +32,7 @@ const readToken = () => {
   }
 };
 const writeToken = (token: string | null) => {
+  if (FIXED_TOKEN) return;
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);

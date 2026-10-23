@@ -17,6 +17,7 @@ import { Presence } from "./presence.js";
 import { attachRealtime } from "./realtime.js";
 import { ScoreService } from "./scores.js";
 import { SnapshotStore } from "./snapshots.js";
+import { TestSession } from "./test-session.js";
 import { TunnelManager, findCloudflared } from "./tunnel.js";
 
 // GIOCO_ROOT: cartella dell'app (nel pacchetto portabile è quella dell'eseguibile; in sviluppo la radice del repository).
@@ -56,15 +57,23 @@ const engine = new Engine({
   rttOf: (playerId) => presence.getRtt(playerId),
 });
 
+const adminService = new AdminService(db);
+const playerService = new PlayerService(db);
+// Le prove rapide dei minigiochi non sopravvivono a un riavvio: si cancellano prima di riprendere la partita vera.
+const testSession = new TestSession(db, engine, adminService, playerService, minigames);
+testSession.purge();
+
 // Se il PC si è riavviato a metà partita, si riprende da dove era (i giocatori rientrano da soli col token).
 const snapshots = new SnapshotStore(db, engine);
 const recovery = snapshots.restoreOnStart();
 if (recovery.restored) console.log("Partita in corso ripresa dopo il riavvio.");
 if (recovery.abandoned.length > 0) console.log(`${recovery.abandoned.length} partite interrotte senza salvataggio sono state chiuse.`);
-const snapshotTimer = setInterval(() => snapshots.sync(), 1000);
+const snapshotTimer = setInterval(() => {
+  testSession.sweep();
+  snapshots.sync();
+}, 1000);
 
 const masterAuth = new MasterAuth(db, () => engine.activeMatchId);
-const adminService = new AdminService(db);
 adminService.onRosterChange = (eventId) => engine.syncRoster(eventId);
 // Contenuti iniziali della libreria (le parole di Agenti Segreti): nel database, una volta sola.
 if (seedLibrary(db, adminService.library)) console.log(`Libreria: creata la lista «${AGENTI_WORDS_TITLE}».`);
@@ -73,10 +82,10 @@ const app = buildApp({
   lanAddress,
   getTunnel: () => tunnel.current,
   clientDir: resolve(rootDir, process.env.CLIENT_DIR ?? "packages/client/dist"),
-  admin: { auth: adminAuth, service: adminService, master: { auth: masterAuth, engine } },
+  admin: { auth: adminAuth, service: adminService, master: { auth: masterAuth, engine }, test: testSession },
   mediaDir: resolve(dirname(dbFile), "media"),
 });
-const realtime = attachRealtime(app.server, { service: new PlayerService(db), presence, engine, adminAuth, masterAuth });
+const realtime = attachRealtime(app.server, { service: playerService, presence, engine, adminAuth, masterAuth });
 const ticker = setInterval(realtime.tick, 100);
 
 try {

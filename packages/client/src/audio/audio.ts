@@ -5,7 +5,14 @@ export type SoundName = "tick" | "start" | "buzz" | "correct" | "wrong" | "revea
 
 const MUTE_KEY = "gioco.muted";
 
+/**
+ * `?silent` (i telefoni di prova nella pagina della regia): sei telefoni che suonano insieme coprirebbero lo schermo.
+ * L'audio resta spento e la preferenza salvata nel browser non si tocca.
+ */
+const SILENT = new URLSearchParams(window.location.search).has("silent");
+
 function readMuted(): boolean {
+  if (SILENT) return true;
   try {
     return localStorage.getItem(MUTE_KEY) === "1";
   } catch {
@@ -33,6 +40,7 @@ class AudioManager {
   setMuted(muted: boolean): void {
     this.muted = muted;
     Howler.mute(muted);
+    if (SILENT) return;
     try {
       localStorage.setItem(MUTE_KEY, muted ? "1" : "0");
     } catch {

@@ -39,9 +39,19 @@ Dalla regia (`/admin`):
 1. **Squadre**: crea le squadre (nome, emblema, colore).
 2. **Libreria**: crea i minigiochi che vuoi usare (quiz, buzzer, vero/falso, stima, sondaggio). Parti dall'esempio già compilato e modificalo dal modulo; puoi anche esportare e importare file JSON per riusare i contenuti.
 3. **Serate**: crea la serata, scegli le squadre e aggiungi le **partite**. Una partita classica è una sequenza di minigiochi presi dalla libreria; il **Duello dei Cavalieri** ha una guida a parte ([DUELLO-DEI-CAVALIERI.md](DUELLO-DEI-CAVALIERI.md)).
-4. **Prova**: apri `/play` da un telefono, crea un profilo e fai una partita di prova da solo.
+4. **Prova**: apri `/play` da un telefono, crea un profilo e fai una partita di prova da solo. Per provare **un solo minigioco** senza preparare nulla usa la prova rapida (qui sotto).
 
 I giocatori si registrano da soli dal telefono (nome, avatar, colore). Poi li assegni alle squadre dalla scheda della serata.
+
+### Prova rapida di un minigioco
+
+Nella **Libreria**, accanto a ogni minigioco c'è **🧪 Prova**: scegli quanti telefoni finti vuoi (di solito 6) e se dividerli in due squadre, poi **Avvia la prova**. Non servono serata, squadre, partita né giocatori veri.
+
+- Si apre la scheda **🧪 Prova** con lo **schermo** e un **telefono per ogni giocatore di prova** nella stessa pagina (la dimensione dei telefoni si regola, e si possono nascondere), e accanto i **comandi della regia** del minigioco. La prova parte già dal primo round.
+- Tocca i telefoni con il mouse come farebbero gli ospiti. I telefoni di prova sono muti; per sentire i suoni usa l'audio dello schermo (un clic dentro lo schermo lo sblocca) oppure **Apri lo schermo in una finestra** per proiettarlo su un'altra finestra o sulla TV.
+- Nessun punto resta registrato: giocatori, squadre e partita di prova non compaiono negli elenchi e spariscono a fine prova (anche se il PC si riavvia). Chiudi con **Chiudi la prova**, oppure dal pannello Live con *Termina la partita* e *Torna alla lobby*.
+- Si prova un minigioco alla volta e non mentre se ne gioca uno vero. I minigiochi con un limite di giocatori ti propongono numeri validi.
+- Se ricarichi la pagina della regia durante la prova, la ritrovi al suo posto.
 
 ## Durante la serata
 

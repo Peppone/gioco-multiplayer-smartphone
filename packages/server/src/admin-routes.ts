@@ -14,12 +14,14 @@ import {
   matchPatchSchema,
   passwordBody,
   teamInputSchema,
+  testSessionInputSchema,
 } from "@gioco/shared";
 import type { AdminAuth, AuthResult } from "./admin-auth.js";
 import type { Result } from "./result.js";
 import type { AdminService } from "./admin-service.js";
 import type { Engine } from "./engine.js";
 import type { MasterAuth } from "./master-auth.js";
+import type { TestSession } from "./test-session.js";
 
 /** Funzioni legate al Game Master: link limitato e archivio dei messaggi. */
 export interface MasterDeps {
@@ -59,7 +61,7 @@ type IdParams = { id: string };
 /** Salvataggio della configurazione del round in corso: con `title` come nuova istanza, senza nell'istanza del round. */
 const saveAsBody = z.object({ title: z.string().trim().min(1).max(80).optional() });
 
-export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, service: AdminService, master?: MasterDeps): void {
+export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, service: AdminService, master?: MasterDeps, testSession?: TestSession): void {
   // ---- Pubbliche: stato, prima configurazione, login ----
   app.get("/api/admin/status", async () => ({ configured: auth.isConfigured() }));
 
@@ -165,6 +167,19 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
       });
       api.get<{ Params: IdParams }>("/api/admin/events/:id/messages", async (req) => master.engine.messageStore.list(req.params.id));
       api.delete<{ Params: IdParams }>("/api/admin/events/:id/messages", async (req) => ({ removed: master.engine.messageStore.deleteForEvent(req.params.id) }));
+    }
+
+    // ---- Prova rapida di un minigioco: giocatori finti, nessuna serata da allestire ----
+    if (testSession) {
+      api.get("/api/admin/test-session", async () => ({ session: testSession.get() }));
+      api.post("/api/admin/test-session", async (req, reply) => {
+        const body = parse(testSessionInputSchema, req.body, reply);
+        if (body) return send(reply, testSession.start(body), 201);
+      });
+      api.delete("/api/admin/test-session", async (_req, reply) => {
+        testSession.stop();
+        return reply.code(204).send();
+      });
     }
 
     // ---- Libreria minigiochi e round ----

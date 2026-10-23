@@ -101,6 +101,34 @@ export interface InstanceView {
   config: unknown;
 }
 
+/** Prova rapida di un minigioco: giocatori finti e (facoltative) due squadre, senza allestire serata e partita. */
+export const testSessionInputSchema = z.object({
+  instanceId: z.string().min(1),
+  /** Quanti telefoni di prova; assente = un numero adatto al minigioco. */
+  players: z.number().int().min(1).max(30).optional(),
+  /** Due squadre di prova (assente = sì, quando i giocatori sono almeno due). */
+  teams: z.boolean().optional(),
+});
+export type TestSessionInput = z.infer<typeof testSessionInputSchema>;
+
+export interface TestPlayer {
+  id: string;
+  nickname: string;
+  /** Per aprire il telefono di prova di questo giocatore (`/play?as=…`); vale solo finché dura la prova. */
+  token: string;
+  teamName: string | null;
+  teamColor: string | null;
+}
+
+export interface TestSessionInfo {
+  eventId: string;
+  matchId: string;
+  instanceId: string;
+  title: string;
+  typeId: string;
+  players: TestPlayer[];
+}
+
 export interface MinigameTypeView {
   id: string;
   /** minigame: si aggiunge come round · content: contenuto della libreria (es. mazzo di carte) */
@@ -112,6 +140,10 @@ export interface MinigameTypeView {
   draftConfig?: unknown;
   /** JSON Schema della configurazione (da `configSchema`): genera il form dell editor. */
   configJsonSchema: unknown;
+  /** Solo per i minigiochi: limiti di giocatori e uso delle squadre, per proporre una prova adatta. */
+  minPlayers?: number;
+  maxPlayers?: number;
+  teamBased?: boolean;
 }
 
 export interface EventSummary {

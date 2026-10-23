@@ -33,6 +33,9 @@ export class LibraryService {
       sampleConfig: t.libraryConfigSchema ? t.draftLibraryConfig : t.sampleConfig,
       draftConfig: t.libraryConfigSchema ? t.draftLibraryConfig : t.draftConfig,
       configJsonSchema: schema(t.libraryConfigSchema ?? t.configSchema),
+      ...(t.minPlayers !== undefined && { minPlayers: t.minPlayers }),
+      ...(t.maxPlayers !== undefined && { maxPlayers: t.maxPlayers }),
+      ...(t.teamBased && { teamBased: true }),
     }));
     const content = Object.values(this.content).map((t): MinigameTypeView => ({
       id: t.id,

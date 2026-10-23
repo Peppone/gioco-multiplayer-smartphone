@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
-import type { AdminStatus, AdminSession } from "@gioco/shared";
+import { useCallback, useEffect, useState } from "react";
+import type { AdminStatus, AdminSession, TestSessionInfo } from "@gioco/shared";
 import { EventsPanel } from "./EventsPanel";
 import { LibraryPanel } from "./LibraryPanel";
 import { LivePanel } from "./LivePanel";
 import { MessagesPanel } from "./MessagesPanel";
 import { PlayersPanel } from "./PlayersPanel";
 import { TeamsPanel } from "./TeamsPanel";
+import { TestPanel } from "./TestPanel";
 import { api, errorMessage, getAdminToken, setAdminToken } from "./api";
 
 function AuthForm({ configured, onDone }: { configured: boolean; onDone: () => void }) {
@@ -45,12 +46,14 @@ function AuthForm({ configured, onDone }: { configured: boolean; onDone: () => v
   );
 }
 
-type Tab = "live" | "events" | "library" | "teams" | "players" | "messages";
+type Tab = "live" | "events" | "library" | "teams" | "players" | "messages" | "test";
 
 export function Admin() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [authed, setAuthed] = useState(getAdminToken() !== null);
   const [tab, setTab] = useState<Tab>("live");
+  /** Prova rapida di un minigioco in corso: ha una scheda tutta sua finché dura. */
+  const [test, setTest] = useState<TestSessionInfo | null>(null);
 
   useEffect(() => {
     api<AdminStatus>("GET", "/status").then((s) => setConfigured(s.configured), () => setConfigured(null));
@@ -65,6 +68,36 @@ export function Admin() {
     if (authed) api("GET", "/teams").catch(refreshAuth);
   }, [authed]);
 
+  // Una prova rimasta aperta (pagina ricaricata) si ritrova al rientro.
+  useEffect(() => {
+    if (!authed) return;
+    api<{ session: TestSessionInfo | null }>("GET", "/test-session").then(
+      (r) => {
+        setTest(r.session);
+        if (r.session) setTab("test");
+      },
+      () => undefined,
+    );
+  }, [authed]);
+
+  const testClosed = useCallback(() => {
+    setTest(null);
+    setTab((t) => (t === "test" ? "library" : t));
+  }, []);
+
+  // La prova finisce anche dal pannello Live («Torna alla lobby»): il server la ripulisce e qui si toglie la scheda, da qualunque scheda.
+  const testMatchId = test?.matchId;
+  useEffect(() => {
+    if (!testMatchId) return;
+    const timer = setInterval(() => {
+      api<{ session: TestSessionInfo | null }>("GET", "/test-session").then(
+        (r) => r.session?.matchId !== testMatchId && testClosed(),
+        () => undefined,
+      );
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [testMatchId, testClosed]);
+
   if (configured === null) return <main className="center"><p>Connessione al server…</p></main>;
 
   if (!authed) {
@@ -76,10 +109,11 @@ export function Admin() {
   }
 
   return (
-    <main className="admin">
+    <main className={tab === "test" ? "admin wide" : "admin"}>
       <header>
         <h1>Regia</h1>
         <nav>
+          {test && <button className={tab === "test" ? "primary" : ""} onClick={() => setTab("test")}>🧪 Prova</button>}
           <button className={tab === "live" ? "primary" : ""} onClick={() => setTab("live")}>Live</button>
           <button className={tab === "events" ? "primary" : ""} onClick={() => setTab("events")}>Serate</button>
           <button className={tab === "library" ? "primary" : ""} onClick={() => setTab("library")}>Libreria</button>
@@ -91,7 +125,8 @@ export function Admin() {
       </header>
       {tab === "live" && <LivePanel />}
       {tab === "events" && <EventsPanel onAuthLost={refreshAuth} />}
-      {tab === "library" && <LibraryPanel onAuthLost={refreshAuth} />}
+      {tab === "library" && <LibraryPanel onAuthLost={refreshAuth} onTest={(session) => { setTest(session); setTab("test"); }} />}
+      {tab === "test" && test && <TestPanel session={test} onClosed={testClosed} />}
       {tab === "teams" && <TeamsPanel onAuthLost={refreshAuth} />}
       {tab === "messages" && <MessagesPanel onAuthLost={refreshAuth} />}
       {tab === "players" && <PlayersPanel onAuthLost={refreshAuth} />}

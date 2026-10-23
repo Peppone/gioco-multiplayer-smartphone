@@ -180,7 +180,8 @@ function hostLibrary(typeId: string): HostLibrary {
   };
 }
 
-export function LivePanel() {
+/** `embedded`: dentro la pagina di prova di un minigioco, senza scelta della partita, giocatori della serata, link del GM e rettifiche. */
+export function LivePanel({ embedded = false }: { embedded?: boolean }) {
   const { state, connected, command, socket } = useAdminGame();
   const clock = useClockSync(socket, true);
   const [error, setError] = useState<string | null>(null);
@@ -222,7 +223,7 @@ export function LivePanel() {
       {!connected && <p className="error">Connessione persa: riconnessione in corso…</p>}
       {error && <p className="error">{error}</p>}
 
-      {(!active || state.phase === "ended") && (
+      {!embedded && (!active || state.phase === "ended") && (
         <StartPicker onStart={(matchId) => void run({ type: "start", matchId })} />
       )}
 
@@ -282,7 +283,7 @@ export function LivePanel() {
         </section>
       )}
 
-      {active && state.phase !== "ended" && state.eventId && (
+      {!embedded && active && state.phase !== "ended" && state.eventId && (
         <LiveRoster
           eventId={state.eventId}
           inRound={state.phase === "round"}
@@ -292,7 +293,7 @@ export function LivePanel() {
         />
       )}
 
-      {state.master && state.phase === "round" && <MasterLinkBox />}
+      {!embedded && state.master && state.phase === "round" && <MasterLinkBox />}
 
       {qrCodes && state.phase === "round" && <ZoneQrSheet codes={qrCodes} />}
 
@@ -300,7 +301,7 @@ export function LivePanel() {
         <section className="panel">
           <h3>Classifiche</h3>
           <Leaderboard data={state.leaderboards} />
-          {state.phase !== "ended" && (
+          {!embedded && state.phase !== "ended" && (
             <form className="row" onSubmit={adjust}>
               <select value={target} onChange={(e) => setTarget(e.target.value)} required>
                 <option value="">Assegna punti a…</option>

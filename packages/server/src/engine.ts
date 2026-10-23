@@ -121,6 +121,11 @@ export class Engine {
     return this.live && this.live.phase !== "ended" ? this.live.matchId : null;
   }
 
+  /** Id della partita che occupa l'engine, anche conclusa ma non ancora chiusa con «Torna alla lobby». */
+  get currentMatchId(): string | null {
+    return this.live?.matchId ?? null;
+  }
+
   /**
    * Fotografia dello stato della partita, per riprenderla dopo un riavvio. Nessuna fotografia a partita
    * conclusa o assente. Gli stati dei plugin sono JSON puro per contratto, quindi basta serializzare.

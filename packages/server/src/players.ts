@@ -25,11 +25,12 @@ export class PlayerService {
     return this.db.select().from(players).where(eq(players.id, id)).get();
   }
 
+  /** Giocatori veri: quelli delle prove rapide non compaiono in lobby né negli elenchi. */
   list(): PlayerRow[] {
-    return this.db.select().from(players).all();
+    return this.db.select().from(players).where(eq(players.test, 0)).all();
   }
 
-  create(input: CreatePlayerInput): PlayerResult {
+  create(input: CreatePlayerInput, opts: { test?: boolean } = {}): PlayerResult {
     const taken = this.db
       .select({ id: players.id })
       .from(players)
@@ -48,6 +49,7 @@ export class PlayerService {
       pinHash: hashSecret(pin),
       pin,
       createdAt: this.now(),
+      test: opts.test ? 1 : 0,
     };
     this.db.insert(players).values(row).run();
     return { ok: true, player: row, token, pin };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { InstanceView, MinigameTypeView, ThemeId } from "@gioco/shared";
+import type { InstanceView, MinigameTypeView, TestSessionInfo, ThemeId } from "@gioco/shared";
 import { ApiError, api, errorMessage } from "./api";
 import { SchemaForm } from "./schema-form/SchemaForm";
 import { type JsonSchema, defaultValue, parseImport, serializeInstance } from "./schema-form/logic";
@@ -33,8 +33,11 @@ interface Draft {
   config: unknown;
 }
 
-/** Libreria delle istanze di minigioco: form generato dal `configSchema` del plugin, import/export JSON. */
-export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
+/** Telefoni di prova proposti per un minigioco: sei, entro i suoi limiti. */
+const suggestedPlayers = (t: MinigameTypeView | undefined): number => Math.min(Math.max(6, t?.minPlayers ?? 1), t?.maxPlayers ?? 30, 30);
+
+/** Libreria delle istanze di minigioco: form generato dal `configSchema` del plugin, import/export JSON, prova rapida. */
+export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; onTest: (session: TestSessionInfo) => void }) {
   const [types, setTypes] = useState<MinigameTypeView[]>([]);
   const [instances, setInstances] = useState<InstanceView[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -42,6 +45,8 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
   const [jsonText, setJsonText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Istanza di cui si sta preparando la prova rapida, con i suoi parametri. */
+  const [testing, setTesting] = useState<{ id: string; players: number; teams: boolean; busy: boolean } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -136,6 +141,21 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
       await api("POST", "/instances", { typeId: i.typeId, title: `${i.title} (copia)`, theme: i.theme, config: i.config });
       await load();
     } catch (err) {
+      setError(errorMessage(err));
+    }
+  };
+
+  const startTest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!testing) return;
+    setError(null);
+    setTesting({ ...testing, busy: true });
+    try {
+      const session = await api<TestSessionInfo>("POST", "/test-session", { instanceId: testing.id, players: testing.players, teams: testing.teams });
+      setTesting(null);
+      onTest(session);
+    } catch (err) {
+      setTesting((t) => t && { ...t, busy: false });
       setError(errorMessage(err));
     }
   };
@@ -238,19 +258,53 @@ export function LibraryPanel({ onAuthLost }: { onAuthLost: () => void }) {
       )}
 
       <ul className="list">
-        {instances.map((i) => (
+        {instances.map((i) => {
+          const type = typeOf(i.typeId);
+          return (
           <li key={i.id}>
             <span>
-              {i.title} <small className="muted">· {typeOf(i.typeId)?.title ?? i.typeId} · {THEMES.find((t) => t.id === i.theme)?.label}</small>
+              {i.title} <small className="muted">· {type?.title ?? i.typeId} · {THEMES.find((t) => t.id === i.theme)?.label}</small>
             </span>
             <span className="row">
+              {type?.kind === "minigame" && (
+                <button
+                  className="primary"
+                  aria-label={`Prova ${i.title}`}
+                  title="Provalo subito con giocatori finti, senza preparare serata e partita"
+                  onClick={() => setTesting(testing?.id === i.id ? null : { id: i.id, players: suggestedPlayers(type), teams: true, busy: false })}
+                >
+                  🧪 Prova
+                </button>
+              )}
               <button onClick={() => openInstance(i)}>Modifica</button>
               <button onClick={() => void duplicate(i)}>Duplica</button>
               <button onClick={() => download(`${slug(i.title)}.json`, serializeInstance(i))}>Esporta</button>
               <button onClick={() => void remove(i)}>Elimina</button>
             </span>
+            {testing?.id === i.id && (
+              <form className="test-form" onSubmit={startTest} aria-label={`Prova di ${i.title}`}>
+                <label>
+                  Telefoni di prova{" "}
+                  <input
+                    type="number"
+                    min={type?.minPlayers ?? 1}
+                    max={Math.min(type?.maxPlayers ?? 30, 30)}
+                    value={testing.players}
+                    onChange={(e) => setTesting({ ...testing, players: Number(e.target.value) })}
+                    required
+                  />
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={testing.teams} onChange={(e) => setTesting({ ...testing, teams: e.target.checked })} /> Due squadre
+                </label>
+                <button className="primary" type="submit" disabled={testing.busy}>{testing.busy ? "Avvio…" : "Avvia la prova"}</button>
+                <button type="button" onClick={() => setTesting(null)}>Annulla</button>
+                <small className="muted">Senza preparare serata e partita: giocatori finti, nessun punto salvato.</small>
+              </form>
+            )}
           </li>
-        ))}
+          );
+        })}
         {instances.length === 0 && <li className="muted">Nessuna istanza: creane una con i pulsanti in alto.</li>}
       </ul>
     </section>
