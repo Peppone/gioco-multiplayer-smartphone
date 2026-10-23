@@ -615,7 +615,7 @@ describe("stanze-col-botto: Mostra e Scambia", () => {
   });
 });
 
-describe("stanze-col-botto: scambio di persona con i QR", () => {
+describe("stanze-col-botto: scambio con i QR", () => {
   const qrCfg = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "qr" });
   const bothCfg = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "both" });
   const colorQr = scb.configSchema.parse({ ...scb.sampleConfig, shareMethod: "qr", colorShare: "always" });
@@ -641,15 +641,29 @@ describe("stanze-col-botto: scambio di persona con i QR", () => {
     expect(scb.init(qrCfg, ctxOf(30), 0).qrCodes).toEqual(s.qrCodes);
   });
 
-  it("solo QR: «Scambia» dall'app è rifiutato, «Mostra» resta; con «both» valgono entrambi", () => {
+  it("solo QR: dall'app non passa nulla (né «Scambia», né «Mostra» a uno o a tutti); con «both» valgono entrambi", () => {
     const s = inRound(8, qrCfg);
     const [a, b] = inRoom(s, 0) as [string, string];
     expect(input(s, a, { type: "share-offer", kind: "card", targetId: b }, 1100)).toBe(s);
-    expect(knownBy(input(s, a, { type: "reveal", kind: "card", targetId: b }, 1100), b)).toHaveLength(1);
+    expect(input(s, a, { type: "reveal", kind: "card", targetId: b }, 1100)).toBe(s);
+    expect(input(s, a, { type: "reveal", kind: "card", targetId: null }, 1100)).toBe(s);
+    expect(knownBy(input(s, a, { type: "reveal", kind: "card", targetId: b }, 1100), b)).toHaveLength(0);
     expect(meOf(s, a)).toMatchObject({ appSwap: false, qrSwap: true });
     const both = inRound(8, bothCfg);
     expect(input(both, a, { type: "share-offer", kind: "card", targetId: b }, 1100).shares).toHaveLength(1);
+    expect(knownBy(input(both, a, { type: "reveal", kind: "card", targetId: b }, 1100), b)).toHaveLength(1);
     expect(meOf(both, a)).toMatchObject({ appSwap: true, qrSwap: true });
+  });
+
+  it("solo QR: la carta si vede solo dopo che entrambi si sono inquadrati", () => {
+    let s = inRound(8, qrCfg);
+    const [a, b] = inRoom(s, 0) as [string, string];
+    s = scan(s, a, b, 1100);
+    expect(knownBy(s, a)).toHaveLength(0);
+    expect(knownBy(s, b)).toHaveLength(0);
+    s = scan(s, b, a, 1200);
+    expect(knownBy(s, a).map((k) => k.playerId)).toEqual([b]);
+    expect(knownBy(s, b).map((k) => k.playerId)).toEqual([a]);
   });
 
   it("una sola scansione non rivela nulla: la vede solo chi è stato inquadrato, come richiesta di ricambiare", () => {

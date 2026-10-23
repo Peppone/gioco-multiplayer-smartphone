@@ -74,11 +74,13 @@ export function rulesSections(card: Card | null, r: Rules): RulesSection[] {
     {
       title: "Mostrare la carta",
       lines: [
-        "«Mostra» fa vedere la tua carta a un giocatore della stanza (o a tutti): lui non deve ricambiare. «Scambia» è reciproco: vedete la carta l'uno dell'altro nello stesso istante.",
+        ...(r.shareMethod === "qr"
+          ? ["Una carta si vede solo se entrambi siete d'accordo: nessuno può mostrarla da solo."]
+          : ["«Mostra» fa vedere la tua carta a un giocatore della stanza (o a tutti): lui non deve ricambiare. «Scambia» è reciproco: vedete la carta l'uno dell'altro nello stesso istante."]),
         ...(r.shareMethod === "app"
           ? ["«Scambia» si propone dall'app: tocca un nome e l'altro accetta."]
           : [
-              `${r.shareMethod === "qr" ? "«Scambia» si fa solo di persona" : "«Scambia» si può fare anche di persona"}: apri «Scambia di persona» e inquadratevi a vicenda i QR dei telefoni.`,
+              `${r.shareMethod === "qr" ? "Si scambia solo con i QR" : "«Scambia» si può fare anche con i QR"}: apri «Scambia con i QR» e inquadratevi a vicenda i QR dei telefoni.`,
               "La carta si vede solo quando vi siete inquadrati entrambi, così tutta la stanza vede che lo scambio è avvenuto.",
             ]),
         r.colorAllowed ? "Si può mostrare anche solo il colore della squadra, senza il personaggio." : "Con questo numero di giocatori si può mostrare solo la carta intera, non il solo colore.",

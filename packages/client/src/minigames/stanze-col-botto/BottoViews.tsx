@@ -374,6 +374,7 @@ function Sheet({ person, actions, onClose }: { person: Person; actions: SheetAct
     <div className="scb-sheet" role="dialog" aria-label={`Azioni su ${person.nickname}`} data-testid="scb-sheet">
       <h3>{person.nickname}</h3>
       <div className="scb-sheet-actions">
+        {actions.length === 0 && <p className="muted">Nessuna azione disponibile adesso.</p>}
         {actions.map((a) => (
           <button key={a.id} className={a.primary ? "primary" : ""} disabled={a.disabled} data-testid={`scb-action-${a.id}`} onClick={() => { a.run(); onClose(); }}>
             {a.label}
@@ -402,13 +403,12 @@ function RoomPeople({ v, me, send }: { v: PhoneView; me: Me; send: ControllerPro
       );
     }
     if (me.canAppoint) list.push({ id: "appoint", label: "Nomina leader", run: () => send({ type: "appoint", targetId: p.id }) });
-    if (me.canShare) {
+    // Con «Solo con i QR» (`appSwap` spento) dal foglio di un nome non si mostra né si scambia nulla.
+    if (me.canShare && me.appSwap) {
       list.push({ id: "reveal-card", label: "Mostra la carta", primary: true, run: () => send({ type: "reveal", kind: "card", targetId: p.id }) });
       if (me.colorAllowed) list.push({ id: "reveal-color", label: "Mostra il colore", run: () => send({ type: "reveal", kind: "color", targetId: p.id }) });
-      if (me.appSwap) {
-        list.push({ id: "share-card", label: "Scambia la carta", run: () => send({ type: "share-offer", kind: "card", targetId: p.id }), disabled: !!me.outgoing });
-        if (me.colorAllowed) list.push({ id: "share-color", label: "Scambia il colore", run: () => send({ type: "share-offer", kind: "color", targetId: p.id }), disabled: !!me.outgoing });
-      }
+      list.push({ id: "share-card", label: "Scambia la carta", run: () => send({ type: "share-offer", kind: "card", targetId: p.id }), disabled: !!me.outgoing });
+      if (me.colorAllowed) list.push({ id: "share-color", label: "Scambia il colore", run: () => send({ type: "share-offer", kind: "color", targetId: p.id }), disabled: !!me.outgoing });
     }
     if (me.canAbdicate && me.isLeader) list.push({ id: "abdicate", label: "Passa la leadership", run: () => send({ type: "abdicate", targetId: p.id }) });
     if (me.canPickHostages) {
@@ -455,15 +455,15 @@ function ShowAll({ me, send, onSwap }: { me: Me; send: ControllerProps["send"]; 
   if (!me.canShare) return null;
   return (
     <div className="scb-showall row">
-      <button data-testid="scb-show-all-card" onClick={() => send({ type: "reveal", kind: "card", targetId: null })}>📢 Mostra la carta a tutti</button>
-      {me.colorAllowed && <button data-testid="scb-show-all-color" onClick={() => send({ type: "reveal", kind: "color", targetId: null })}>🎨 Il colore a tutti</button>}
-      {me.qrSwap && <button data-testid="scb-swap-open" data-pending={(me.scanIn?.length ?? 0) > 0} onClick={onSwap}>🤝 Scambia di persona</button>}
+      {me.appSwap && <button data-testid="scb-show-all-card" onClick={() => send({ type: "reveal", kind: "card", targetId: null })}>📢 Mostra la carta a tutti</button>}
+      {me.appSwap && me.colorAllowed && <button data-testid="scb-show-all-color" onClick={() => send({ type: "reveal", kind: "color", targetId: null })}>🎨 Il colore a tutti</button>}
+      {me.qrSwap && <button data-testid="scb-swap-open" data-pending={(me.scanIn?.length ?? 0) > 0} onClick={onSwap}>🤝 Scambia con i QR</button>}
     </div>
   );
 }
 
 /**
- * Scambio di persona: ognuno mostra il proprio QR e inquadra quello dell'altro. Il telefono non rivela nulla finché non
+ * Scambio con i QR: ognuno mostra il proprio QR e inquadra quello dell'altro. Il telefono non rivela nulla finché non
  * si sono inquadrati entrambi, quindi chi guarda la stanza vede due persone che si inquadrano i telefoni: lo scambio
  * è avvenuto, anche se non sa che carte si siano viste.
  */
@@ -475,9 +475,9 @@ function SwapDialog({ me, send, onClose }: { me: Me; send: ControllerProps["send
   const [code, setCode] = useState("");
   const scan = (c: string) => send({ type: "scan-peer", code: c, kind });
   return (
-    <div className="gf-rules scb-swap" role="dialog" aria-modal="true" aria-label="Scambio di persona" data-testid="scb-swap">
+    <div className="gf-rules scb-swap" role="dialog" aria-modal="true" aria-label="Scambia con i QR" data-testid="scb-swap">
       <div className="gf-rules-body">
-        <h2>Scambia di persona</h2>
+        <h2>Scambia con i QR</h2>
         <p className="muted">Fatevi inquadrare a vicenda: ognuno scansiona il QR dell'altro. Finché non vi siete inquadrati entrambi non si vede nulla.</p>
         {me.qrCode && (
           <figure className="scb-swap-qr" data-testid="scb-swap-qr" data-code={me.qrCode}>

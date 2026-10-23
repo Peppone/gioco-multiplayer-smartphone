@@ -87,7 +87,7 @@ for (const theme of THEMES) {
       await expect(offer.getByTestId("scb-offer-decline")).toBeVisible();
     });
 
-    test("scambio di persona: il pulsante apre il QR personale, la scelta carta/colore e lo scanner; niente overflow", async ({ page }) => {
+    test("scambio con i QR: il pulsante apre il QR personale, la scelta carta/colore e lo scanner; niente overflow", async ({ page }) => {
       await page.goto(`/preview?theme=${theme}&scene=scb-swap&still=1`);
       const phone = page.locator(".phone-frame");
       const open = phone.getByTestId("scb-swap-open");
@@ -105,7 +105,7 @@ for (const theme of THEMES) {
       expect(body.sw, "overflow orizzontale del dialogo").toBeLessThanOrEqual(body.cw + 1);
     });
 
-    test("senza il QR di scambio (scena normale) non c'è il pulsante «Scambia di persona»", async ({ page }) => {
+    test("senza il QR di scambio (scena normale) non c'è il pulsante «Scambia con i QR»", async ({ page }) => {
       await page.goto(`/preview?theme=${theme}&scene=scb-round&still=1`);
       await expect(page.locator(".phone-frame").getByTestId("scb-swap-open")).toHaveCount(0);
     });

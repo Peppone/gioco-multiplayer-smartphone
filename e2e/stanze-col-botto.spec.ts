@@ -325,7 +325,7 @@ test("stanze col botto: con più di 10 giocatori il solo colore è ammesso e non
   expect(Object.keys(known[0]!.card), "il colore non porta il personaggio").toEqual(["team"]);
 });
 
-test("stanze col botto: scambio di persona con la scansione reciproca dei QR", async ({ newGame }) => {
+test("stanze col botto: scambio con la scansione reciproca dei QR", async ({ newGame }) => {
   const g = await newGame(config({ shareMethod: "qr" }), { playersPerTeam: 3 });
   const { screen, admin } = g;
   const clients = [...g.reds, ...g.blues];
@@ -336,11 +336,14 @@ test("stanze col botto: scambio di persona con la scansione reciproca dei QR", a
   const [a, b, c] = seats.filter((s) => roomOf(s.client) === 0) as [Seat, Seat, Seat];
   const codeOf = (s: Seat) => view(s.client).me.qrCode as string;
 
-  // Solo QR: dal foglio di un nome non si propone lo scambio; «Mostra» resta.
+  // Solo QR: dal foglio di un nome non si mostra né si scambia nulla, e non c'è «a tutti»; resta il pulsante dei QR.
   await sheetOf(a.client, b.id).click();
-  await expect(a.client.page.getByTestId("scb-action-reveal-card")).toBeVisible();
-  await expect(a.client.page.getByTestId("scb-action-share-card")).toHaveCount(0);
+  await expect(a.client.page.getByTestId("scb-sheet")).toBeVisible();
+  for (const id of ["reveal-card", "reveal-color", "share-card", "share-color"]) await expect(a.client.page.getByTestId(`scb-action-${id}`)).toHaveCount(0);
   await a.client.page.getByRole("button", { name: "Annulla" }).click();
+  await expect(a.client.page.getByTestId("scb-show-all-card")).toHaveCount(0);
+  await expect(a.client.page.getByTestId("scb-show-all-color")).toHaveCount(0);
+  await expect(a.client.page.getByTestId("scb-swap-open")).toBeVisible();
 
   // Ognuno ha il proprio codice e il proprio QR sul telefono.
   expect(codeOf(a)).toMatch(/^[A-Z0-9]{6}$/);

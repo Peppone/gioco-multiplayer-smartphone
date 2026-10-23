@@ -95,7 +95,7 @@ export interface Me {
   colorAllowed?: boolean;
   /** «Scambia» dall'app (tocca un nome). */
   appSwap?: boolean;
-  /** Scambio di persona con i QR disponibile adesso; `qrCode` è il mio codice, che ruota. */
+  /** Scambio con i QR disponibile adesso; `qrCode` è il mio codice, che ruota. */
   qrSwap?: boolean;
   qrCode?: string | null;
   /** Chi ho inquadrato e aspetto che mi inquadri; chi ha inquadrato me e aspetto di inquadrare. */

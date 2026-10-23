@@ -16,7 +16,7 @@ export type CharacterId = "president" | "bomber" | "blue-member" | "red-member" 
 export type Phase = "pairing" | "deal" | "round" | "lock" | "hostages" | "exchange" | "gamble" | "reveal" | "done";
 export type ShareKind = "card-share" | "color-share" | "card-reveal" | "color-reveal" | "public-card" | "public-color";
 export type RoomAssignment = "random" | "qr" | "host";
-/** Come si propone lo «Scambia»: dall'app (tocca un nome), con la scansione reciproca dei QR di persona, o entrambi. */
+/** Come si propone lo «Scambia»: dall'app (tocca un nome), con la scansione reciproca dei QR, o entrambi. */
 export type ShareMethod = "app" | "qr" | "both";
 
 export interface Card {
@@ -41,7 +41,7 @@ export const stanzeColBottoConfigSchema = z
     roundMode: z.enum(["base", "long", "custom"]).default("base").meta({ ...sec("Round", "Base: 3 round da 3-2-1 minuti. Lungo: 5 round da 5-4-3-2-1 (solo con più di 10 giocatori). Personalizzato: tabella qui sotto"), enumLabels: { base: "Base (3-2-1 min)", long: "Lungo (5-4-3-2-1 min)", custom: "Personalizzato" } }),
     customRounds: z.array(customRoundSchema).max(8).default([]).meta({ title: "Round personalizzati", itemLabel: "Round", description: "Solo con «Personalizzato»" }),
     colorShare: z.enum(["auto", "always", "never"]).default("auto").meta({ ...sec("Mostrare solo il colore", "Automatico: ammesso solo con più di 10 giocatori, come nel gioco originale"), enumLabels: { auto: "Automatico", always: "Sempre", never: "Mai" } }),
-    shareMethod: z.enum(["app", "qr", "both"]).default("app").meta({ ...sec("Come si scambiano le carte", "Dall'app: si tocca un nome. Con i QR: ci si scansiona a vicenda di persona, così la stanza vede che lo scambio è avvenuto"), enumLabels: { app: "Dall'app", qr: "Solo con i QR (di persona)", both: "Dall'app o con i QR" } }),
+    shareMethod: z.enum(["app", "qr", "both"]).default("app").meta({ ...sec("Come si scambiano le carte", "Dall'app: si tocca un nome. Con i QR: ci si inquadra a vicenda i telefoni, così la stanza vede che lo scambio è avvenuto. «Solo con i QR» toglie dall'app anche «Mostra» e «Mostra a tutti»: le carte si vedono solo inquadrandosi a vicenda"), enumLabels: { app: "Dall'app", qr: "Solo con i QR", both: "Dall'app o con i QR" } }),
     lockSeconds: z.number().int().min(5).max(120).default(20).meta(sec("Tempo per eleggere un leader a fine round (s)", "Se una stanza ne è senza, allo scadere lo estrae il server")),
     hostageSeconds: z.number().int().min(5).max(180).default(20).meta(sec("Tempo per confermare gli ostaggi (s)", "Allo scadere completa le scelte il server")),
     startAfterFirstSeconds: z.number().int().min(0).max(60).default(5).meta(sec("Avvio del round dopo il primo leader (s)", "Il round successivo parte questi secondi dopo che il primo leader preme «Avvia il round»")),
@@ -161,7 +161,7 @@ export interface StanzeColBottoState {
   exchanges: Exchange[];
   shares: Share[];
   nextSeq: number;
-  /** QR personali per lo scambio di persona: un codice a testa, che ruota; si accetta anche quello appena scaduto. */
+  /** QR personali per lo scambio con i QR: un codice a testa, che ruota; si accetta anche quello appena scaduto. */
   qrCodes: Record<string, string>;
   qrPrev: Record<string, string>;
   qrEpoch: number;
@@ -535,6 +535,7 @@ function addShare(s: StanzeColBottoState, share: Omit<Share, "seq">): StanzeColB
   return { ...s, shares: [...s.shares, { ...share, seq: s.nextSeq }], nextSeq: s.nextSeq + 1 };
 }
 
+/** Dall'app (tocca un nome): «Mostra», «Mostra a tutti» e «Scambia». Con «Solo con i QR» nessuna informazione passa di qui. */
 const appSwap = (s: StanzeColBottoState) => s.cfg.shareMethod !== "qr";
 const qrSwap = (s: StanzeColBottoState) => s.cfg.shareMethod !== "app";
 
@@ -564,7 +565,7 @@ function rotateCodes(s: StanzeColBottoState, now: number): StanzeColBottoState {
 }
 
 /**
- * Scambio di persona: ognuno inquadra il QR dell'altro. La prima scansione si ricorda soltanto; quando arriva quella
+ * Scambio con i QR: ognuno inquadra il QR dell'altro. La prima scansione si ricorda soltanto; quando arriva quella
  * nel verso opposto (entro `SCAN_MS`) lo scambio avviene come un «Scambia» accettato. Se uno dei due ha scelto il solo
  * colore, si scambia il colore.
  */
@@ -594,7 +595,7 @@ function answerShare(s: StanzeColBottoState, pid: string, seq: number, accept: b
 }
 
 function revealCard(s: StanzeColBottoState, pid: string, kind: "card" | "color", target: string | null, at: number): StanzeColBottoState {
-  if (!canInteract(s, pid) || !allowedKind(s, kind)) return s;
+  if (!appSwap(s) || !canInteract(s, pid) || !allowedKind(s, kind)) return s;
   const r = s.room[pid]!;
   let audience: string[];
   if (target === null) audience = playersIn(s, r).filter((p) => p !== pid);

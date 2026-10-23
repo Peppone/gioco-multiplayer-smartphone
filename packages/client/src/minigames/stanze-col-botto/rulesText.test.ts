@@ -28,12 +28,16 @@ describe("regole di Stanze col botto", () => {
     expect(all({ ...rules, colorAllowed: false })).toContain("solo la carta intera");
   });
 
-  it("spiegano come si scambia: dall'app, di persona con i QR o in entrambi i modi", () => {
+  it("spiegano come si scambia: dall'app, con i QR o in entrambi i modi", () => {
     expect(all(rules)).toContain("tocca un nome");
-    expect(all(rules)).not.toContain("Scambia di persona");
-    expect(all({ ...rules, shareMethod: "qr" })).toContain("solo di persona");
+    expect(all(rules)).not.toContain("Scambia con i QR");
+    expect(all({ ...rules, shareMethod: "qr" })).toContain("solo con i QR");
     expect(all({ ...rules, shareMethod: "qr" })).not.toContain("tocca un nome");
-    expect(all({ ...rules, shareMethod: "both" })).toContain("anche di persona");
+    // solo QR: nessun «Mostra» a senso unico
+    expect(all({ ...rules, shareMethod: "qr" })).not.toContain("lui non deve ricambiare");
+    expect(all({ ...rules, shareMethod: "qr" })).toContain("entrambi siete d'accordo");
+    expect(all({ ...rules, shareMethod: "both" })).toContain("lui non deve ricambiare");
+    expect(all({ ...rules, shareMethod: "both" })).toContain("anche con i QR");
   });
 
   it("«Per te» dipende dalla carta e non c'è prima della distribuzione", () => {

@@ -22,7 +22,7 @@ export const BOTTO_SCENES: { id: BottoSceneId; label: string }[] = [
   { id: "scb-round", label: "Botto: round (12 giocatori)" },
   { id: "scb-round-full", label: "Botto: round (30 giocatori)" },
   { id: "scb-offer", label: "Botto: proposta di scambio" },
-  { id: "scb-swap", label: "Botto: scambio di persona con i QR" },
+  { id: "scb-swap", label: "Botto: scambio con i QR" },
   { id: "scb-known", label: "Botto: carte viste" },
   { id: "scb-lock", label: "Botto: attesa del blocco" },
   { id: "scb-leaders", label: "Botto: leader rivelati" },
