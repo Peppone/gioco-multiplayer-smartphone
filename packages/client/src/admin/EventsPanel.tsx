@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import type { EventStatus, EventSummary } from "@gioco/shared";
+import type { EventListItem, EventStatus, EventSummary } from "@gioco/shared";
+import { EventBrowser } from "./EventBrowser";
 import { EventEditor } from "./EventEditor";
 import { api, errorMessage } from "./api";
 
@@ -10,14 +11,14 @@ export const STATUS_LABEL: Record<EventStatus, string> = {
 };
 
 export function EventsPanel({ onAuthLost }: { onAuthLost: () => void }) {
-  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [events, setEvents] = useState<EventListItem[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setEvents(await api<EventSummary[]>("GET", "/events"));
+      setEvents(await api<EventListItem[]>("GET", "/events"));
     } catch (e) {
       setError(errorMessage(e));
       onAuthLost();
@@ -57,15 +58,23 @@ export function EventsPanel({ onAuthLost }: { onAuthLost: () => void }) {
         <button className="primary" type="submit">Crea serata</button>
       </form>
       {error && <p className="error">{error}</p>}
-      <ul className="list">
-        {events.map((ev) => (
-          <li key={ev.id}>
-            <span>{ev.name} <small className="muted">· {STATUS_LABEL[ev.status]}</small></span>
-            <button onClick={() => setSelected(ev.id)}>Apri</button>
-          </li>
-        ))}
-        {events.length === 0 && <li className="muted">Nessuna serata ancora.</li>}
-      </ul>
+      <EventBrowser
+        events={events}
+        actions={(ev) => <button onClick={() => setSelected(ev.id)}>Apri</button>}
+        body={(ev) =>
+          ev.matches.length > 0 && (
+            <p className="event-summary muted">
+              {ev.matches.map((m, i) => (
+                <span key={m.id} className={m.status === "running" ? "running" : undefined}>
+                  {i > 0 && " · "}
+                  {m.status === "running" ? "▶ " : m.status === "done" ? "✓ " : ""}
+                  {m.name}
+                </span>
+              ))}
+            </p>
+          )
+        }
+      />
     </section>
   );
 }

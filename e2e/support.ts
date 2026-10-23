@@ -167,7 +167,7 @@ export async function createGame(
   }
 
   const admin = await openAdmin(browser, token);
-  await admin.page.locator("select").first().selectOption({ label: eventName });
+  await admin.page.getByLabel("Cerca una serata o una partita").fill(eventName);
   await admin.page.locator("li", { hasText: matchName }).getByRole("button", { name: "Avvia" }).click();
   await expect(screen.page.getByText("Si comincia tra poco!")).toBeVisible();
 

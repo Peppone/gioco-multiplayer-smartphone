@@ -213,6 +213,8 @@ export class Engine {
     }
 
     this.db.update(matches).set({ status: "running" }).where(eq(matches.id, matchId)).run();
+    // Una serata con una partita avviata è attiva: così la regia la ritrova tra le «attive».
+    if (event.status === "draft") this.db.update(events).set({ status: "live" }).where(eq(events.id, event.id)).run();
     this.live = {
       eventId: event.id,
       eventName: event.name,

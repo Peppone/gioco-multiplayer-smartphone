@@ -286,6 +286,29 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .pick-btn { background: var(--primary); color: #fff; font-weight: 700; font-size: 1.2rem; padding: 1rem; overflow-wrap: anywhere; }
 .song-loop[data-sounding="true"] { color: var(--accent); font-weight: 700; }
 
+/* Elenco delle serate: ricerca, filtri e gruppi */
+.event-browser { display: grid; gap: .8rem; }
+.event-search { width: 100%; box-sizing: border-box; }
+.chips.filters { gap: .4rem; }
+.chip-btn { font-size: .9rem; padding: .35rem .8rem; border-radius: 2rem; border: 2px solid transparent; }
+.chip-btn small { opacity: .7; margin-left: .2rem; }
+.chip-btn.on { border-color: var(--primary); background: var(--panel); font-weight: 700; }
+.chip-btn.running.on { border-color: var(--good); }
+.event-group h4 { margin: .2rem 0 .4rem; opacity: .75; font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; }
+.event-group summary { cursor: pointer; opacity: .75; margin-bottom: .4rem; }
+.event-card { display: grid !important; gap: .4rem; border-left: 5px solid var(--panel-2); }
+.event-card.running { border-left-color: var(--good); }
+.event-card.live { border-left-color: var(--accent); }
+.event-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 1rem; background: var(--panel-2); }
+.badge.running { background: var(--good); color: #fff; }
+.badge.live { background: var(--accent); color: #000; }
+.event-matches { display: grid; gap: .3rem; }
+.match-row { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; background: var(--panel-2); border-radius: .5rem; padding: .35rem .6rem; }
+.match-row button { padding: .4rem .9rem; }
+.event-summary { margin: 0; font-size: .85rem; }
+.event-summary .running { color: var(--good-ring, inherit); font-weight: 600; opacity: 1; }
+
 /* Prova rapida di un minigioco */
 .test-form { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; background: var(--panel-2); border-radius: .5rem; padding: .5rem .7rem; }
 .test-form input[type="number"] { width: 5rem; }

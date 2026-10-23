@@ -56,7 +56,7 @@ Nella **Libreria**, accanto a ogni minigioco c'è **🧪 Prova**: scegli quanti 
 ## Durante la serata
 
 1. **Lobby**: i giocatori inquadrano il QR e compaiono sullo schermo con il loro ping. Se un nome è grigio, quel telefono si è disconnesso (rientra da solo).
-2. Nella scheda **Live** scegli la serata e premi **Avvia** sulla partita, poi **Avvia round N**.
+2. Nella scheda **Live** cerca la serata (scrivi una parte del nome della serata o della partita; maiuscole e accenti non contano) e premi **Avvia** sulla partita, poi **Avvia round N**. Le serate sono raggruppate in *In corso*, *Attive*, *Bozze* e *Chiuse* (le chiuse stanno ripiegate in fondo) e i pulsanti in alto le filtrano, con il conto di quante ce ne sono. Una serata diventa *Attiva* da sola quando ne avvii una partita; la scheda **Serate** ha lo stesso elenco con ricerca e filtri.
 3. Ogni minigioco ha i **suoi pulsanti** nella regia (per esempio *Apri il buzzer*, *Risposta corretta*, *Prossima domanda*). Lo schermo e i telefoni seguono da soli.
 4. Tra un round e l'altro compare la classifica (giocatori e squadre). Puoi **assegnare o togliere punti a mano** con un motivo; resta tutto registrato.
 5. A fine partita premi **Concludi la partita** e poi **Torna alla lobby**: lo schermo rimostra i QR per chi arriva dopo.

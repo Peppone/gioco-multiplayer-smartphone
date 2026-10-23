@@ -153,6 +153,21 @@ export interface EventSummary {
   createdAt: number;
 }
 
+/** Partita di una serata in breve, per scegliere cosa avviare senza aprire la serata. */
+export interface EventMatchBrief {
+  id: string;
+  order: number;
+  name: string;
+  status: MatchView["status"];
+  roundCount: number;
+}
+
+/** Serata nell'elenco: con le partite e i giocatori, così basta una chiamata per cercarla e avviarla. */
+export interface EventListItem extends EventSummary {
+  playerCount: number;
+  matches: EventMatchBrief[];
+}
+
 export interface EventDetail extends EventSummary {
   teamIds: string[];
   /** Giocatori della serata con il team assegnato (null = senza team) e se ne sono il capitano. */

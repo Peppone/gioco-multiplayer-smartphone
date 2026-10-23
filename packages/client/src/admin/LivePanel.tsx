@@ -1,12 +1,14 @@
 import { Suspense, useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import type { EventDetail, EventSummary, HostCommand, InstanceView, MasterLink } from "@gioco/shared";
+import type { EventListItem, HostCommand, InstanceView, MasterLink } from "@gioco/shared";
 import { minigameViews } from "../minigames/registry";
 import type { HostLibrary } from "../minigames/types";
 import { useClockSync } from "../net/useClockSync";
 import { useServerInfo } from "../screen/useServerInfo";
 import { Leaderboard } from "../ui/Leaderboard";
 import { ApiError, api, errorMessage } from "./api";
+import { MATCH_STATUS_LABEL } from "./eventList";
+import { EventBrowser } from "./EventBrowser";
 import { parseImport, serializeInstance } from "./schema-form/logic";
 import { LiveRoster } from "./EventRoster";
 import { useAdminGame } from "./useAdminGame";
@@ -52,40 +54,43 @@ function InfoView({ info }: { info: unknown }) {
   );
 }
 
-/** Scelta e avvio di una partita pronta. */
+/**
+ * Scelta e avvio di una partita pronta: le serate si cercano per nome (o per nome della partita) e si raggruppano per
+ * tipo, con in alto quelle in corso e attive; ogni partita da giocare ha il suo «Avvia» senza aprire la serata.
+ */
 function StartPicker({ onStart }: { onStart: (matchId: string) => void }) {
-  const [events, setEvents] = useState<EventSummary[]>([]);
-  const [eventId, setEventId] = useState("");
-  const [detail, setDetail] = useState<EventDetail | null>(null);
+  const [events, setEvents] = useState<EventListItem[] | null>(null);
 
   useEffect(() => {
-    api<EventSummary[]>("GET", "/events").then(setEvents, () => undefined);
+    api<EventListItem[]>("GET", "/events").then(setEvents, () => setEvents([]));
   }, []);
-  useEffect(() => {
-    if (!eventId) return setDetail(null);
-    api<EventDetail>("GET", `/events/${eventId}`).then(setDetail, () => setDetail(null));
-  }, [eventId]);
 
   return (
     <section className="panel">
       <h3>Avvia una partita</h3>
-      <select value={eventId} onChange={(e) => setEventId(e.target.value)}>
-        <option value="">Scegli la serata…</option>
-        {events.map((ev) => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-      </select>
-      <ul className="list">
-        {detail?.matches.map((m) => (
-          <li key={m.id}>
-            <span>
-              {m.order}. {m.name} <small className="muted">· {m.rounds.length} round ·{m.status === "pending" ? "pronta" : m.status === "running" ? "avviata" : "conclusa"}</small>
-            </span>
-            <button className="primary" disabled={m.status !== "pending" || m.rounds.length === 0} onClick={() => onStart(m.id)}>
-              Avvia
-            </button>
-          </li>
-        ))}
-        {detail && detail.matches.length === 0 && <li className="muted">Questa serata non ha partite.</li>}
-      </ul>
+      {events === null ? (
+        <p className="muted">Caricamento delle serate…</p>
+      ) : (
+        <EventBrowser
+          events={events}
+          emptyText="Nessuna serata: creane una dalla scheda «Serate»."
+          body={(ev) => (
+            <div className="event-matches">
+              {ev.matches.map((m) => (
+                <div key={m.id} className="match-row">
+                  <span>
+                    {m.order}. {m.name} <small className="muted">· {m.roundCount === 1 ? "1 round" : `${m.roundCount} round`} · {MATCH_STATUS_LABEL[m.status]}</small>
+                  </span>
+                  <button className="primary" disabled={m.status !== "pending" || m.roundCount === 0} onClick={() => onStart(m.id)}>
+                    Avvia
+                  </button>
+                </div>
+              ))}
+              {ev.matches.length === 0 && <p className="muted">Questa serata non ha partite.</p>}
+            </div>
+          )}
+        />
+      )}
     </section>
   );
 }

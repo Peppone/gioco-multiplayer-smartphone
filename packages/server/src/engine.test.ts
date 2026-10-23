@@ -28,6 +28,22 @@ describe("Engine: avvio", () => {
     expect(start().ok).toBe(false);
   });
 
+  it("avviare una partita rende attiva la serata in bozza, ma non riapre una chiusa", () => {
+    expect(w.admin.getEvent(w.event.id)).toMatchObject({ ok: true, value: { status: "draft" } });
+    start();
+    expect(w.admin.getEvent(w.event.id)).toMatchObject({ value: { status: "live" } });
+    expect(w.admin.listEvents()[0]!.matches.map((m) => m.status)).toEqual(["running"]);
+
+    w.engine.hostCommand({ type: "engine", action: "end-match" });
+    w.engine.hostCommand({ type: "engine", action: "close" });
+    w.admin.patchEvent(w.event.id, { status: "closed" });
+    const next2 = w.admin.createMatch(w.event.id, { name: "Bis" });
+    if (!next2.ok) throw new Error();
+    w.admin.library.addRound(next2.value.id, w.admin.library.listInstances()[0]!.id);
+    w.engine.startMatch(next2.value.id);
+    expect(w.admin.getEvent(w.event.id)).toMatchObject({ value: { status: "closed" } });
+  });
+
   it("a partita avviata i round non si possono aggiungere, togliere o riordinare", () => {
     start();
     const lib = w.admin.library;

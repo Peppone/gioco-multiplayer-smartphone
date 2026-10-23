@@ -47,7 +47,7 @@ test("partita completa: quiz e buzzer, dal telefono alla classifica finale", asy
 
   // ---- La regia avvia la partita dal pannello Live ----
   const admin = await openAdmin(browser, await adminToken(request));
-  await admin.page.locator("select").first().selectOption({ label: eventName });
+  await admin.page.getByLabel("Cerca una serata o una partita").fill(eventName);
   await admin.page.locator("li", { hasText: matchName }).getByRole("button", { name: "Avvia" }).click();
   await expect(screen.page.getByText("Si comincia tra poco!")).toBeVisible();
   await expect(a.page.getByText("Guarda lo schermo")).toBeVisible();
@@ -146,7 +146,7 @@ test("la regia assegna punti a mano e la classifica si aggiorna", async ({ brows
 
   const screen = await openScreen(browser);
   const admin = await openAdmin(browser, await adminToken(request));
-  await admin.page.locator("select").first().selectOption({ label: eventName });
+  await admin.page.getByLabel("Cerca una serata o una partita").fill(eventName);
   await admin.page.locator("li", { hasText: matchName }).getByRole("button", { name: "Avvia" }).click();
 
   await admin.page.getByRole("combobox").filter({ hasText: "Assegna punti a…" }).selectOption({ label: `🦊 ${nick}` });

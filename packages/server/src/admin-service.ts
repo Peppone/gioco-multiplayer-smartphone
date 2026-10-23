@@ -6,6 +6,8 @@ import type {
   AdminPlayerView,
   EventDetail,
   EventInput,
+  EventListItem,
+  EventMatchBrief,
   EventStatus,
   EventSummary,
   MatchView,
@@ -128,8 +130,33 @@ export class AdminService {
 
   // ---- Serate ----
 
-  listEvents(): EventSummary[] {
-    return this.db.select().from(events).where(eq(events.test, 0)).orderBy(sql`${events.createdAt} desc`).all().map(toSummary);
+  /** Le serate (le prove rapide dei minigiochi no) con le loro partite e il numero di giocatori, dalla più recente. */
+  listEvents(): EventListItem[] {
+    const rows = this.db.select().from(events).where(eq(events.test, 0)).orderBy(sql`${events.createdAt} desc`).all();
+    if (rows.length === 0) return [];
+    const roundCounts = new Map(
+      this.db
+        .select({ matchId: matchRounds.matchId, n: sql<number>`count(*)` })
+        .from(matchRounds)
+        .groupBy(matchRounds.matchId)
+        .all()
+        .map((r) => [r.matchId, r.n]),
+    );
+    const matchesByEvent = new Map<string, EventMatchBrief[]>();
+    for (const m of this.db.select().from(matches).orderBy(asc(matches.order)).all()) {
+      const list = matchesByEvent.get(m.eventId) ?? [];
+      list.push({ id: m.id, order: m.order, name: m.name, status: m.status as MatchView["status"], roundCount: roundCounts.get(m.id) ?? 0 });
+      matchesByEvent.set(m.eventId, list);
+    }
+    const playerCounts = new Map(
+      this.db
+        .select({ eventId: eventPlayers.eventId, n: sql<number>`count(*)` })
+        .from(eventPlayers)
+        .groupBy(eventPlayers.eventId)
+        .all()
+        .map((r) => [r.eventId, r.n]),
+    );
+    return rows.map((e) => ({ ...toSummary(e), playerCount: playerCounts.get(e.id) ?? 0, matches: matchesByEvent.get(e.id) ?? [] }));
   }
 
   createEvent(input: EventInput): EventSummary {

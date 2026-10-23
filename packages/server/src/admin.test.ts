@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { EventDetail, TeamView } from "@gioco/shared";
+import type { EventDetail, EventListItem, TeamView } from "@gioco/shared";
 import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
 import { buildApp } from "./app.js";
@@ -182,6 +182,31 @@ describe("serate, team e giocatori", () => {
     const patched = await call("PATCH", `/api/admin/events/${ev.id}`, { status: "live" });
     expect(patched.json().status).toBe("live");
     expect((await call("PATCH", `/api/admin/events/${ev.id}`, { status: "boh" })).statusCode).toBe(400);
+  });
+
+  it("l'elenco delle serate porta con sé partite, round e giocatori, dalla più recente", async () => {
+    const first = (await call("POST", "/api/admin/events", { name: "Prima" })).json();
+    now = 2_000;
+    const second = (await call("POST", "/api/admin/events", { name: "Seconda" })).json();
+    const team = await newTeam("A");
+    await call("PUT", `/api/admin/events/${second.id}/teams`, { teamIds: [team.id] });
+    await call("PUT", `/api/admin/events/${second.id}/players/${mkPlayer("Gina")}`, { teamId: team.id });
+    await call("PUT", `/api/admin/events/${second.id}/players/${mkPlayer("Hugo")}`, { teamId: null });
+    const m1 = (await call("POST", `/api/admin/events/${second.id}/matches`, { name: "Girone" })).json();
+    const m2 = (await call("POST", `/api/admin/events/${second.id}/matches`, { name: "Finale" })).json();
+    const inst = (await call("POST", "/api/admin/instances", { typeId: "buzzer", title: "B", config: { questions: [{ text: "Q", answer: "A" }] } })).json();
+    await call("POST", `/api/admin/matches/${m1.id}/rounds`, { instanceId: inst.id });
+    await call("POST", `/api/admin/matches/${m1.id}/rounds`, { instanceId: inst.id });
+
+    const list = (await call("GET", "/api/admin/events")).json() as EventListItem[];
+    expect(list.map((e) => e.name)).toEqual(["Seconda", "Prima"]);
+    expect(list[0]).toMatchObject({ id: second.id, status: "draft", playerCount: 2 });
+    expect(list[0]!.matches).toEqual([
+      { id: m1.id, order: 1, name: "Girone", status: "pending", roundCount: 2 },
+      { id: m2.id, order: 2, name: "Finale", status: "pending", roundCount: 0 },
+    ]);
+    expect(list[1]).toMatchObject({ id: first.id, playerCount: 0, matches: [] });
+    expect((await call("GET", "/api/admin/events", undefined, false)).statusCode).toBe(401);
   });
 
   it("assegna i giocatori solo a team presenti nella serata", async () => {
