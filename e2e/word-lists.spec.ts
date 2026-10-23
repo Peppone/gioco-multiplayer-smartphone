@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { adminToken, openAdmin, unique } from "./support";
 
-const LIST_TYPE = "+ Lista di parole (Reazione a catena, Agenti Segreti)";
+const LIST_TYPE = "+ Lista di parole (Reazione a catena, Agenti Segreti, Parole Mannare)";
 
 test.describe("liste di parole nella libreria (nel database)", () => {
   test("la lista di Agenti Segreti è nel database dal primo avvio e si apre come testo, una parola per riga", async ({ browser, request }) => {
@@ -60,6 +60,12 @@ test.describe("liste di parole nella libreria (nel database)", () => {
     await page.getByRole("button", { name: "+ Agenti Segreti" }).click();
     await expect(page.getByLabel("Lista di parole (facoltativo)").locator("option", { hasText: title })).toHaveCount(1);
     await expect(page.getByLabel("Lista di parole (facoltativo)").locator("option", { hasText: "Parole di Agenti Segreti" })).toHaveCount(1);
+    await page.getByRole("button", { name: "Annulla" }).click();
+
+    // Anche Parole Mannare la sceglie dal menu, con la difficoltà da dare alle sue parole.
+    await page.getByRole("button", { name: "+ Parole Mannare" }).click();
+    await expect(page.getByLabel("Lista di parole (facoltativo)").locator("option", { hasText: title })).toHaveCount(1);
+    await expect(page.getByLabel("Difficoltà delle parole della lista")).toBeVisible();
     await page.getByRole("button", { name: "Annulla" }).click();
   });
 });

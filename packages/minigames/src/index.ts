@@ -79,7 +79,7 @@ export const libraryContentTypes: Record<string, LibraryContentType> = {
   },
   "word-list": {
     id: "word-list",
-    title: "Lista di parole (Reazione a catena, Agenti Segreti)",
+    title: "Lista di parole (Reazione a catena, Agenti Segreti, Parole Mannare)",
     defaultTheme: "gameshow",
     configSchema: wordListSchema as unknown as import("zod").ZodType<unknown>,
     sampleConfig: { words: ["Pizza", "Spiaggia", "Telefono", "Montagna", "Chitarra", "Gelato"] },

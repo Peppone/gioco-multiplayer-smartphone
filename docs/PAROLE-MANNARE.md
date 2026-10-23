@@ -35,6 +35,13 @@ viene ridotto se lascerebbe meno di 3 non-Lupi.
 - **Parole** (testo e difficoltà facile/media/difficile) e **difficoltà** usata per le proposte (o «mista»). Servono
   almeno tante parole della difficoltà scelta quante ne vede il Sindaco. Le parole già mostrate nei round precedenti
   della stessa partita non si ripropongono (se non bastano, si riusano le vecchie).
+- **Lista di parole**: invece di scrivere le parole una a una si sceglie una **«Lista di parole»** della libreria (la stessa
+  di Reazione a catena, Agenti Segreti e Artificieri). Si crea da **Libreria → «+ Lista di parole»**: si incolla un elenco,
+  una parola per riga, e si salva. Le parole della lista non hanno una difficoltà: prendono quella scelta in **«Difficoltà
+  delle parole della lista»** (default «media»). Si può usare la lista da sola o insieme alle **parole proprie**
+  dell'istanza, che in caso di doppione tengono la loro difficoltà. Doppioni (anche con maiuscole diverse) e parole più
+  lunghe di 30 lettere vengono saltati. Se la lista non esiste più o non basta per la difficoltà scelta, la partita non
+  parte e la regia vede il motivo.
 - Tempi: scelta della parola, notte, domande, finestra per annullare un «Esatto», caccia al Veggente, voto, ballottaggio.
 - Gettoni: riserva di Sì/No, di Forse (o illimitati), numero di «Ci sei quasi» e «Lontanissimo» (0 = disattivati).
 - Numero di Lupi e punti.

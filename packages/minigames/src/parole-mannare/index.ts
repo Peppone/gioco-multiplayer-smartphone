@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { MinigameType, ParticipantInfo, ScoreDelta } from "@gioco/shared";
 import { makeRng, shuffle } from "../knight-duel/rng.js";
 import { rankByPoints } from "../util.js";
+import { lookupWordList } from "../word-list.js";
 
 /**
  * Parole Mannare: deduzione sociale in stile Werewords, senza scatola.
@@ -17,10 +18,11 @@ export type Phase = "deal" | "word" | "night" | "questions" | "correct-grace" | 
 export type Winner = "village" | "werewolves";
 
 const DIFFICULTIES = ["facile", "media", "difficile"] as const;
+const MAX_WORD_LENGTH = 30;
 const sec = (title: string, description?: string) => ({ title, ...(description && { description }) });
 
 const wordSchema = z.object({
-  text: z.string().trim().min(1).max(30).meta({ title: "Parola" }),
+  text: z.string().trim().min(1).max(MAX_WORD_LENGTH).meta({ title: "Parola" }),
   difficulty: z.enum(DIFFICULTIES).default("media").meta({ title: "Difficoltà" }),
 });
 
@@ -30,9 +32,7 @@ export const DEFAULT_WORDS: { text: string; difficulty: (typeof DIFFICULTIES)[nu
   ...["Nostalgia", "Labirinto", "Burocrazia", "Eclissi", "Equilibrio", "Ingranaggio", "Miraggio", "Prospettiva"].map((text) => ({ text, difficulty: "difficile" as const })),
 ];
 
-export const paroleMannareConfigSchema = z
-  .object({
-    words: z.array(wordSchema).min(3).max(300).default(DEFAULT_WORDS).meta({ title: "Parole", itemLabel: "Parola", description: "Le parole che il Sindaco può scegliere. Almeno tre per la difficoltà usata" }),
+const settingsShape = {
     difficulty: z.enum(["facile", "media", "difficile", "mista"]).default("media").meta({ ...sec("Difficoltà", "Da quale gruppo si estraggono le proposte"), enumLabels: { facile: "Facile", media: "Media", difficile: "Difficile", mista: "Mista" } }),
     wordChoices: z.number().int().min(1).max(4).default(3).meta(sec("Parole proposte al Sindaco")),
     wordPickSeconds: z.number().int().min(5).max(120).default(20).meta(sec("Tempo per scegliere la parola (s)", "Allo scadere sceglie il server")),
@@ -50,13 +50,51 @@ export const paroleMannareConfigSchema = z
     runoffSeconds: z.number().int().min(5).max(120).default(30).meta(sec("Durata di un ballottaggio (s)")),
     winPoints: z.number().int().min(0).max(10_000).default(100).meta(sec("Punti a ogni membro della fazione vincitrice")),
     mayorBonus: z.number().int().min(0).max(10_000).default(0).meta(sec("Bonus al Sindaco della fazione vincitrice")),
+};
+
+const enoughWords = (c: { words: { difficulty: string }[]; difficulty: string; wordChoices: number }) =>
+  (c.difficulty === "mista" ? c.words.length : c.words.filter((w) => w.difficulty === c.difficulty).length) >= c.wordChoices;
+const ENOUGH = "Servono almeno tante parole della difficoltà scelta quante ne vede il Sindaco";
+
+/** Configurazione completa con cui parte il plugin: le parole sono già risolte (lista della libreria più quelle proprie). */
+export const paroleMannareConfigSchema = z
+  .object({
+    words: z.array(wordSchema).min(3).max(500).default(DEFAULT_WORDS).meta({ title: "Parole", itemLabel: "Parola", description: "Le parole che il Sindaco può scegliere. Almeno tre per la difficoltà usata" }),
+    ...settingsShape,
   })
-  .refine((c) => (c.difficulty === "mista" ? c.words.length : c.words.filter((w) => w.difficulty === c.difficulty).length) >= c.wordChoices, {
-    message: "Servono almeno tante parole della difficoltà scelta quante ne vede il Sindaco",
-    path: ["words"],
-  });
+  .refine(enoughWords, { message: ENOUGH, path: ["words"] });
 
 export type ParoleMannareConfig = z.infer<typeof paroleMannareConfigSchema>;
+
+/**
+ * Istanza in libreria, come la compila la regia: le parole possono stare in una «Lista di parole» della libreria
+ * (importata o incollata una volta, riusabile in più round e in altri giochi) e/o nell'istanza stessa. Le parole della
+ * lista non hanno difficoltà: prendono quella scelta qui. All'avvio della partita `buildConfig` le risolve.
+ */
+export const paroleMannareLibrarySchema = z
+  .object({
+    wordList: z
+      .string()
+      .min(1)
+      .optional()
+      .meta({ title: "Lista di parole", widget: "instance", instanceKind: "word-list", description: `Contenuto della libreria, riusabile in più round. Le parole più lunghe di ${MAX_WORD_LENGTH} lettere si saltano` }),
+    wordListDifficulty: z
+      .enum(DIFFICULTIES)
+      .default("media")
+      .meta({ ...sec("Difficoltà delle parole della lista", "Le liste non distinguono la difficoltà: tutte le sue parole prendono questa"), enumLabels: { facile: "Facile", media: "Media", difficile: "Difficile" } }),
+    words: z.array(wordSchema).max(300).default([]).meta({ title: "Parole proprie di questa istanza", description: "In più rispetto alla lista, ognuna con la sua difficoltà", itemLabel: "Parola" }),
+    ...settingsShape,
+  })
+  .refine((c) => !!c.wordList || (c.words.length >= 3 && enoughWords(c)), { message: `Scegli una lista di parole, oppure scrivine qui: ${ENOUGH.toLowerCase()} (almeno 3 in tutto)`, path: ["wordList"] });
+
+/** Parole proprie (con la loro difficoltà) e della lista (con quella scelta), senza doppioni né parole troppo lunghe. Le proprie vincono. */
+export function mergeWords(own: z.infer<typeof wordSchema>[], listWords: string[], listDifficulty: (typeof DIFFICULTIES)[number]): z.infer<typeof wordSchema>[] {
+  const seen = new Set<string>();
+  return [...own, ...listWords.map((text) => ({ text, difficulty: listDifficulty }))]
+    .map((w) => ({ ...w, text: w.text.trim() }))
+    .filter((w) => w.text.length > 0 && w.text.length <= MAX_WORD_LENGTH)
+    .filter((w) => !seen.has(w.text.toLowerCase()) && !!seen.add(w.text.toLowerCase()));
+}
 
 const tokenSchema = z.enum(["yes", "no", "maybe", "close", "far", "correct"]);
 const inputSchema = z.discriminatedUnion("type", [
@@ -396,6 +434,20 @@ export const paroleMannare: MinigameType<ParoleMannareConfig, ParoleMannareState
   commandSchema,
   minPlayers: 4,
   maxPlayers: 12,
+
+  // Le parole possono stare in una «Lista di parole» della libreria: l'istanza la riferisce per id.
+  libraryConfigSchema: paroleMannareLibrarySchema as unknown as z.ZodType<unknown>,
+  draftLibraryConfig: { words: DEFAULT_WORDS, difficulty: "media" },
+  buildConfig(raw, lookup) {
+    const parsed = paroleMannareLibrarySchema.safeParse(raw);
+    if (!parsed.success) return { ok: false, error: parsed.error.issues.map((i) => `${i.path.join(".") || "config"}: ${i.message}`).join("; ") };
+    const { wordList, wordListDifficulty, words: own, ...rest } = parsed.data;
+    const listWords = wordList ? lookupWordList(lookup, wordList) : [];
+    if (!listWords) return { ok: false, error: "Lista di parole non valida o non trovata" };
+    const config = paroleMannareConfigSchema.safeParse({ ...rest, words: mergeWords(own, listWords, wordListDifficulty) });
+    return config.success ? { ok: true, config: config.data } : { ok: false, error: ENOUGH };
+  },
+
   sampleConfig: {
     words: DEFAULT_WORDS,
     difficulty: "media",

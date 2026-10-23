@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MinigameContext } from "@gioco/shared";
-import { type ParoleMannareState as State, type Role, autoWerewolves, paroleMannare as pm, playerSummary, reserves, werewolfCount } from "./index.js";
+import { type ParoleMannareState as State, type Role, autoWerewolves, paroleMannare as pm, paroleMannareLibrarySchema, playerSummary, reserves, werewolfCount } from "./index.js";
 
 const ids = ["p1", "p2", "p3", "p4", "p5"];
 const make = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `p${i + 1}`, nickname: `Nick-p${i + 1}`, teamId: null }));
@@ -24,6 +24,51 @@ function inQuestions(cfg = config, n = 5) {
   const others = s.players.filter((id) => id !== s.mayorId);
   return { s: { ...s, phaseStartedAt: 1000, phaseEndsAt: 1000 + cfg.questionSeconds * 1000 } as State, wolves: roleOf("werewolf"), seer: roleOf("seer")[0]!, others };
 }
+
+describe("parole-mannare: lista di parole della libreria", () => {
+  const lists: Record<string, { typeId: string; title: string; theme: "manga"; config: unknown }> = {
+    L1: { typeId: "word-list", title: "Cibo", theme: "manga", config: { words: ["Spaghetti", "Lasagna", "  Risotto ", "spaghetti", "Una parola decisamente troppo lunga per stare", "Tiramisù"] } },
+    X1: { typeId: "quiz", title: "Non è una lista", theme: "manga", config: {} },
+  };
+  const lookup = (id: string) => lists[id];
+  const build = (raw: unknown) => pm.buildConfig!(raw, lookup, { players: [], teams: [] });
+
+  it("le parole della lista prendono la difficoltà scelta, senza doppioni né parole troppo lunghe", () => {
+    const built = build({ wordList: "L1", wordListDifficulty: "facile", difficulty: "facile", words: [] });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.config.words).toEqual(["Spaghetti", "Lasagna", "Risotto", "Tiramisù"].map((text) => ({ text, difficulty: "facile" })));
+    expect(pm.configSchema.safeParse(built.config).success).toBe(true);
+  });
+
+  it("le parole proprie si sommano alla lista e, se ripetute, tengono la loro difficoltà", () => {
+    const built = build({ wordList: "L1", wordListDifficulty: "media", difficulty: "mista", words: [{ text: "lasagna", difficulty: "difficile" }, { text: "Torta", difficulty: "facile" }] });
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.config.words.map((w) => w.text)).toEqual(["lasagna", "Torta", "Spaghetti", "Risotto", "Tiramisù"]);
+    expect(built.config.words[0]!.difficulty).toBe("difficile");
+  });
+
+  it("la lista manca, non è una lista o non basta per la difficoltà: l'avvio è rifiutato con un errore chiaro", () => {
+    expect(build({ wordList: "nope", words: [] })).toMatchObject({ ok: false, error: "Lista di parole non valida o non trovata" });
+    expect(build({ wordList: "X1", words: [] })).toMatchObject({ ok: false, error: "Lista di parole non valida o non trovata" });
+    // 4 parole utili, ma tutte «media» e si chiedono «difficile»
+    expect(build({ wordList: "L1", wordListDifficulty: "media", difficulty: "difficile", words: [] }).ok).toBe(false);
+  });
+
+  it("un'istanza senza lista deve avere abbastanza parole proprie (le vecchie istanze con le sole parole restano valide)", () => {
+    expect(paroleMannareLibrarySchema.safeParse({ words: [] }).success).toBe(false);
+    expect(paroleMannareLibrarySchema.safeParse({ wordList: "L1" }).success).toBe(true);
+    expect(paroleMannareLibrarySchema.safeParse(pm.sampleConfig).success).toBe(true);
+    const old = build(pm.sampleConfig);
+    expect(old.ok && old.config.words).toEqual(pm.sampleConfig.words);
+  });
+
+  it("la bozza dell'editor è valida e costruibile", () => {
+    expect(paroleMannareLibrarySchema.safeParse(pm.draftLibraryConfig).success).toBe(true);
+    expect(build(pm.draftLibraryConfig).ok).toBe(true);
+  });
+});
 
 describe("parole-mannare: configurazione e ruoli", () => {
   it("la configurazione di esempio è valida; servono abbastanza parole per la difficoltà", () => {
