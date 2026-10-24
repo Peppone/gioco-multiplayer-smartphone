@@ -4,7 +4,7 @@ import { type BombSetup, MODULES, buildManual, generateBomb, judgeModule } from 
 import { type ButtonData, type ButtonRules, RELEASE_TOLERANCE_MS, buttonMode, releaseOk, timerDigit } from "./modules/button.js";
 import { type SymbolRules, type SymbolsData, SYMBOL_COLUMNS, SYMBOLS_PER_COLUMN, symbolOrder } from "./modules/symbols.js";
 import { DIFFICULTIES, type Difficulty, MODULE_KINDS, type ModuleAction, type ModuleInstance } from "./modules/types.js";
-import { type WireRules, describeWireRule, matchingWireRule, wireSolution } from "./modules/wires.js";
+import { type WireRule, type WireRules, describeWireCond, describeWireRule, isShadowedBy, matchingWireRule, wireSolution } from "./modules/wires.js";
 import type { WiresData } from "./modules/wires.js";
 
 const ALL = { modules: 6, enabled: MODULE_KINDS, content: { words: TEST_WORDS } };
@@ -109,6 +109,33 @@ describe("fili", () => {
         }
       }
     }
+  });
+
+  it("nello stesso elenco nessuna regola ripete le condizioni di un'altra né è oscurata da una precedente", () => {
+    for (const difficulty of DIFFICULTIES) {
+      for (let seed = 1; seed <= 2000; seed++) {
+        const rules = generateBomb(seed, { difficulty, modules: 3, enabled: ["wires"] }).rules.wires as WireRules;
+        for (const list of rules.byCount) {
+          list.forEach((r, i) => {
+            if (r.when.length === 0) return;
+            expect(isShadowedBy(r, list.slice(0, i)), `${difficulty} #${seed}: ${describeWireRule(r)}`).toBe(false);
+          });
+          const texts = list.slice(0, -1).map((r) => r.when.map(describeWireCond).sort().join(" e "));
+          expect(new Set(texts).size).toBe(texts.length);
+        }
+      }
+    }
+  });
+
+  it("isShadowedBy riconosce condizioni identiche e condizioni più larghe messe prima", () => {
+    const rule = (when: WireRule["when"], color: "red" | "blue"): WireRule => ({ when, cut: { color, which: "first" } });
+    const four = { type: "count", color: "red", op: "eq", n: 1 } as const;
+    expect(isShadowedBy(rule([four], "blue"), [rule([four], "red")])).toBe(true);
+    expect(isShadowedBy(rule([{ type: "count", color: "red", op: "gte", n: 3 }], "blue"), [rule([{ type: "count", color: "red", op: "gte", n: 2 }], "red")])).toBe(true);
+    expect(isShadowedBy(rule([{ type: "count", color: "red", op: "gte", n: 2 }], "blue"), [rule([{ type: "count", color: "red", op: "gte", n: 3 }], "red")])).toBe(false);
+    expect(isShadowedBy(rule([four, { type: "serial-odd" }], "blue"), [rule([four], "red")])).toBe(true);
+    expect(isShadowedBy(rule([four], "blue"), [rule([four, { type: "serial-odd" }], "red")])).toBe(false);
+    expect(isShadowedBy(rule([{ type: "last", color: "red" }], "blue"), [rule([{ type: "last", color: "blue" }], "red")])).toBe(false);
   });
 
   it("i fili sono 3–4 in facile, 3–5 in media e 3–6 in difficile, e tutte le regole scattano ogni tanto", () => {

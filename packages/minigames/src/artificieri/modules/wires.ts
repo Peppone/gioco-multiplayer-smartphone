@@ -142,10 +142,52 @@ function genPositionalTarget(rng: () => number, count: number): WireTarget {
   return { color: null, which: r === 0 ? "first" : r === count - 1 ? "last" : r + 1 };
 }
 
+/** Vero se, quando `b` è vera, `a` è per forza vera (stessa condizione o una più larga, es. «almeno 3» implica «almeno 2»). */
+export function condImplies(b: WireCond, a: WireCond): boolean {
+  if (b.type !== a.type) return false;
+  switch (a.type) {
+    case "no":
+    case "last":
+      return (b as typeof a).color === a.color;
+    case "count": {
+      const bc = b as typeof a;
+      if (bc.color !== a.color) return false;
+      return a.op === "eq" ? bc.op === "eq" && bc.n === a.n : bc.n >= a.n;
+    }
+    case "batteries": {
+      const bb = b as typeof a;
+      return a.op === "gte" ? bb.op === "gte" && bb.n >= a.n : bb.op === "lte" && bb.n <= a.n;
+    }
+    case "indicator": {
+      const bi = b as typeof a;
+      return bi.label === a.label && bi.lit === a.lit;
+    }
+    case "port": {
+      const bp = b as typeof a;
+      return bp.port === a.port && bp.present === a.present;
+    }
+    default:
+      return true;
+  }
+}
+
+/**
+ * Una regola non scatterebbe mai se una regola precedente vale ogni volta che vale lei: succede con condizioni
+ * identiche (due «se ci sono 4 fili… taglia il blu / taglia il rosso») o con una condizione più larga prima di una più stretta.
+ */
+export function isShadowedBy(rule: WireRule, earlier: WireRule[]): boolean {
+  return earlier.some((e) => e.when.every((a) => rule.when.some((b) => condImplies(b, a))));
+}
+
 function genRules(rng: () => number, difficulty: Difficulty): WireRules {
   const byCount: WireRule[][] = [];
   for (let count = 3; count <= MAX_WIRES[difficulty]; count++) {
-    const list = Array.from({ length: RULES_PER_COUNT[difficulty] }, () => genRule(rng, difficulty, count));
+    const list: WireRule[] = [];
+    while (list.length < RULES_PER_COUNT[difficulty]) {
+      let rule = genRule(rng, difficulty, count);
+      for (let attempt = 0; attempt < 200 && (rule.when.length === 0 || isShadowedBy(rule, list)); attempt++) rule = genRule(rng, difficulty, count);
+      list.push(rule);
+    }
     list.push({ when: [], cut: genPositionalTarget(rng, count) });
     byCount.push(list);
   }
