@@ -4,6 +4,7 @@ import fastifyStatic from "@fastify/static";
 import type { ServerInfo, TunnelInfo } from "@gioco/shared";
 import type { AdminAuth } from "./admin-auth.js";
 import { registerMediaRoutes } from "./media-routes.js";
+import { type SchemeLibrary, registerSchemeRoutes } from "./pianeta-schemi.js";
 import { registerAdminRoutes } from "./admin-routes.js";
 import type { AdminService } from "./admin-service.js";
 import type { MasterDeps } from "./admin-routes.js";
@@ -18,6 +19,8 @@ export interface AppOptions {
   admin?: { auth: AdminAuth; service: AdminService; master?: MasterDeps; test?: TestSession };
   /** Cartella dei brani caricati dalla regia (richiede `admin` per il login). */
   mediaDir?: string;
+  /** Schemi dell'app ufficiale per Il Pianeta Nascosto (richiede `admin` per il login). */
+  schemes?: SchemeLibrary;
 }
 
 export function buildApp(opts: AppOptions): FastifyInstance {
@@ -31,6 +34,7 @@ export function buildApp(opts: AppOptions): FastifyInstance {
   if (opts.admin) registerAdminRoutes(app, opts.admin.auth, opts.admin.service, opts.admin.master, opts.admin.test);
 
   if (opts.admin && opts.mediaDir) registerMediaRoutes(app, opts.admin.auth, opts.mediaDir);
+  if (opts.admin && opts.schemes) registerSchemeRoutes(app, opts.admin.auth, opts.schemes);
 
   if (opts.clientDir && existsSync(opts.clientDir)) {
     app.register(fastifyStatic, { root: opts.clientDir });

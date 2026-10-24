@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { InstanceView, MinigameTypeView, TestSessionInfo, ThemeId } from "@gioco/shared";
 import { ApiError, api, errorMessage } from "./api";
+import { PianetaSchemiPanel } from "./PianetaSchemiPanel";
 import { SchemaForm } from "./schema-form/SchemaForm";
 import { type JsonSchema, defaultValue, parseImport, serializeInstance } from "./schema-form/logic";
 
@@ -231,6 +232,8 @@ export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; o
             <button type="button" className={mode === "form" ? "primary" : ""} onClick={() => switchMode("form")}>Modulo</button>
             <button type="button" className={mode === "json" ? "primary" : ""} onClick={() => switchMode("json")}>JSON avanzato</button>
           </div>
+
+          {draft.typeId === "pianeta-nascosto" && <PianetaSchemiPanel onAuthLost={onAuthLost} />}
 
           {mode === "form" ? (
             <SchemaForm

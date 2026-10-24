@@ -12,6 +12,7 @@ import { backupDatabase } from "./backup.js";
 import { openDb } from "./db.js";
 import { Engine } from "./engine.js";
 import { pickLanAddress } from "./network.js";
+import { SchemeLibrary } from "./pianeta-schemi.js";
 import { PlayerService } from "./players.js";
 import { Presence } from "./presence.js";
 import { attachRealtime } from "./realtime.js";
@@ -77,6 +78,10 @@ const masterAuth = new MasterAuth(db, () => engine.activeMatchId);
 adminService.onRosterChange = (eventId) => engine.syncRoster(eventId);
 // Contenuti iniziali della libreria (le parole di Agenti Segreti): nel database, una volta sola.
 if (seedLibrary(db, adminService.library)) console.log(`Libreria: creata la lista «${AGENTI_WORDS_TITLE}».`);
+// Schemi dell'app ufficiale importati dalla regia (mai nel progetto): si ricaricano a ogni avvio.
+const schemes = new SchemeLibrary(resolve(dirname(dbFile), "pianeta-schemi"));
+const loaded = schemes.load();
+if (loaded.standard + loaded.expert > 0) console.log(`Pianeta Nascosto: ${loaded.standard} schemi Base e ${loaded.expert} Esperto importati.`);
 const app = buildApp({
   port,
   lanAddress,
@@ -84,6 +89,7 @@ const app = buildApp({
   clientDir: resolve(rootDir, process.env.CLIENT_DIR ?? "packages/client/dist"),
   admin: { auth: adminAuth, service: adminService, master: { auth: masterAuth, engine }, test: testSession },
   mediaDir: resolve(dirname(dbFile), "media"),
+  schemes,
 });
 const realtime = attachRealtime(app.server, { service: playerService, presence, engine, adminAuth, masterAuth });
 const ticker = setInterval(realtime.tick, 100);
