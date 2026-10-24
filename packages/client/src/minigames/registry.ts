@@ -9,6 +9,7 @@ import { ScalataController, ScalataScreen } from "./scalata/ScalataViews";
 import { AgentiController, AgentiScreen } from "./agenti-segreti/AgentiViews";
 import { ArtificieriController, ArtificieriScreen } from "./artificieri/ArtificieriViews";
 import { PilotaController, PilotaScreen } from "./pilota-cieco/PilotaViews";
+import { PianetaController, PianetaScreen } from "./pianeta-nascosto/PianetaViews";
 import { PlanciaController, PlanciaScreen } from "./plancia-comando/PlanciaViews";
 import { OndaController, OndaScreen } from "./lunghezza-onda/OndaViews";
 import { ParoleController, ParoleScreen } from "./parole-mannare/ParoleViews";
@@ -78,6 +79,11 @@ export const minigameViews: Record<string, MinigameViews> = {
     Screen: PlanciaScreen,
     Controller: PlanciaController,
     Host: lazy(() => import("./plancia-comando/PlanciaHost").then((m) => ({ default: m.PlanciaHost }))),
+  },
+  "pianeta-nascosto": {
+    Screen: PianetaScreen,
+    Controller: PianetaController,
+    Host: lazy(() => import("./pianeta-nascosto/PianetaHost").then((m) => ({ default: m.PianetaHost }))),
   },
   "stanze-col-botto": {
     Screen: BottoScreen,

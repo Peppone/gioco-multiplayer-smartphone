@@ -7,6 +7,7 @@ import { ONDA_SCENES, type OndaSceneId, ondaScene } from "../minigames/lunghezza
 import { AGENTI_SCENES, type AgentiSceneId, agentiScene } from "../minigames/agenti-segreti/previewData";
 import { ARTIFICIERI_SCENES, type ArtificieriSceneId, artificieriScene } from "../minigames/artificieri/previewData";
 import { PILOTA_SCENES, type PilotaSceneId, pilotaScene } from "../minigames/pilota-cieco/previewData";
+import { PIANETA_SCENES, type PianetaSceneId, pianetaScene } from "../minigames/pianeta-nascosto/previewData";
 import { PLANCIA_SCENES, type PlanciaSceneId, planciaScene } from "../minigames/plancia-comando/previewData";
 import { PAROLE_SCENES, type ParoleSceneId, paroleScene } from "../minigames/parole-mannare/previewData";
 import { SHADOW_SCENES, type ShadowSceneId, shadowScene } from "../minigames/shadow-tournament/previewData";
@@ -78,6 +79,7 @@ type Scene =
   | ArtificieriSceneId
   | PilotaSceneId
   | PlanciaSceneId
+  | PianetaSceneId
   | "results";
 
 const SCENES: { id: Scene; label: string }[] = [
@@ -114,6 +116,7 @@ const SCENES: { id: Scene; label: string }[] = [
   ...ARTIFICIERI_SCENES,
   ...PILOTA_SCENES,
   ...PLANCIA_SCENES,
+  ...PIANETA_SCENES,
   { id: "results", label: "Classifica" },
 ];
 
@@ -317,6 +320,13 @@ function sceneViews(scene: Scene, now: number) {
     case "pdc-jump":
     case "pdc-final":
       return planciaScene(scene, now);
+    case "px-board":
+    case "px-expert":
+    case "px-action":
+    case "px-theory":
+    case "px-review":
+    case "px-final":
+      return pianetaScene(scene, now);
     case "results":
       return { typeId: null, screen: null, phone: null };
   }
