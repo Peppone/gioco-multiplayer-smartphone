@@ -7,6 +7,7 @@ import { indovinaCanzone } from "./indovina-canzone/index.js";
 import { DEFAULT_DECK, createKnightDuel, deckSchema } from "./knight-duel/index.js";
 import { lunghezzaOnda } from "./lunghezza-onda/index.js";
 import { paroleMannare } from "./parole-mannare/index.js";
+import { pianetaNascosto } from "./pianeta-nascosto/index.js";
 import { pilotaCieco } from "./pilota-cieco/index.js";
 import { planciaComando } from "./plancia-comando/index.js";
 import { quizMultipla } from "./quiz-multipla/index.js";
@@ -21,8 +22,10 @@ import { veroFalso } from "./vero-falso/index.js";
 import { zombieHunt } from "./zombie-hunt/index.js";
 import { wordListSchema } from "./word-list.js";
 
+export { importedSchemes } from "./pianeta-nascosto/schemes.js";
+export { officialCodeFromFileName, parseOfficialMap } from "./pianeta-nascosto/official-map.js";
 export { normalizeWord } from "./agenti-segreti/clue.js";
-export { agentiSegreti, artificieri, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, pilotaCieco, planciaComando, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
+export { agentiSegreti, artificieri, buzzer, ghostHunt, indovinaCanzone, lunghezzaOnda, paroleMannare, pianetaNascosto, pilotaCieco, planciaComando, quizMultipla, reazioneACatena, scalata, shadowTournament, sondaggio, stanzeColBotto, stanzeSegrete, stima, veroFalso, zombieHunt };
 export * as duel from "./knight-duel/index.js";
 
 /** Minigiochi che si giocano come round di una partita (e che il duello può orchestrare). */
@@ -58,6 +61,7 @@ export const minigames: Record<string, AnyMinigame> = {
   [artificieri.id]: artificieri,
   [pilotaCieco.id]: pilotaCieco,
   [planciaComando.id]: planciaComando,
+  [pianetaNascosto.id]: pianetaNascosto,
 };
 
 /** Tipi di contenuto della libreria che non sono minigiochi (hanno solo un form di configurazione). */
