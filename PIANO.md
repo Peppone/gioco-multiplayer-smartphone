@@ -350,6 +350,13 @@ Gioco caotico in stile *Spaceteam*: ogni telefono è un **pannello** di 4–6 co
 - **Privacy**: ogni telefono riceve solo i propri comandi e il proprio ordine; la TV né pannelli né ordini in corso (solo l'ultimo eseguito, in ritardo). Coperto da `plancia-leak.test.ts`, e2e sui frame WebSocket e stress. La vista del telefono resta essenziale per non annullare la deduplicazione di `realtime.ts`.
 - **Regia**: vede l'ordine di ogni membro; ripara gli scafi, rimescola i pannelli, salta il settore e segna un telefono **fuori uso** (📵).
 - **Regole in app**: bottone «ℹ️» del telefono, testo in `rulesText.ts`: **se si cambiano le regole va aggiornato**.
+
+### 🔭 Il Pianeta Nascosto (`pianeta-nascosto`, tema `retro80`): deduzione a squadre
+Fedele alle regole ufficiali di *The Search for Planet X* (nome, testi e grafica nostri): ogni squadra è un **osservatorio** che cerca il Pianeta X in un sistema di 12 o 18 settori; agisce chi è più indietro sul tracciato del tempo; risultati privati, azioni pubbliche; teorie con gettoni limitati e piste di revisione; conferenze X1/X2 solo la prima volta; informazioni iniziali 12/8/4/0 per livello; **bot** con le regole del bot dell'app (fuori dalla classifica generale). Piano completo e decisioni confermate in [docs/PIANO-PIANETA-NASCOSTO.md](docs/PIANO-PIANETA-NASCOSTO.md).
+- **Stato**: implementato (P1–P7 del piano): generatore con deducibilità garantita, risolutore, tabellone SVG sulla TV, foglio appunti sul telefono, regia cieca, robot, test (unit, anti-leak, e2e, stress, bilanciamento). Da provare con persone. Misure: Base ~20 giorni, Esperto ~24 (robot contro robot); stress a 30 telefoni in ~45 s con stato di ritorno p95 ~220 ms. Guida in [docs/PIANETA-NASCOSTO.md](docs/PIANETA-NASCOSTO.md).
+- **Schemi dell'app**: mai nel progetto né nel pacchetto; import locale facoltativo dalla propria copia dell'app (Libreria → riquadro «Schemi dell'app ufficiale»), salvati in `pianeta-schemi/` accanto al database; nell'istanza «Origine del sistema» e «Codice». Di default i sistemi si **generano dal seme**.
+- **Verificato con gli schemi veri dell'app** (7739 letti, robot sul campione, browser): vedi la guida. 11 schemi Esperto sono ambigui per le sole regole: il robot li risolve tentando il candidato più probabile.
+- **Da fare**: prova con persone, verifica del pacchetto Windows.
 - **Misure dello stress** (30 telefoni, 4 equipaggi, ~9 comandi al secondo): ~2 aggiornamenti per comando (senza deduplicazione sarebbero ~30), stato di ritorno in mediana ~30 ms e p95 ~450 ms.
 - **Test**: unit (pannelli e nomi, plugin, anti-leak, bot), anteprima Playwright (`pdc-*` nei 5 temi), e2e con equipaggi veri e stress (`pnpm stress --players 30 --scenario plancia`).
 
@@ -408,6 +415,7 @@ Ogni fase termina con una demo prima di passare alla successiva, così puoi corr
 | Extra: Artificieri | ✅ (da provare con persone) | Disinnesco a squadre con informazioni divise (2–30 giocatori), 6 moduli, manuale diviso tra gli esperti, scommesse; tema `boom`; guida `docs/ARTIFICIERI.md` |
 | Extra: Pilota alla cieca | ✅ (da provare con persone) | Gara a squadre in labirinto con strati di informazioni divisi tra i navigatori (2–30 giocatori), corsie in contemporanea o a turno; tema `pixel`; guida `docs/PILOTA-CIECO.md` |
 | Extra: Plancia di Comando | ✅ (da provare con persone) | Ordini gridati tra telefoni in stile Spaceteam (2–30 giocatori), pannelli di comandi, settori, scafo ed eventi; tema `retro80`; guida `docs/PLANCIA-COMANDO.md` |
+| Extra: Il Pianeta Nascosto | ✅ (da provare con persone) | Deduzione a squadre in stile The Search for Planet X (regole ufficiali), robot, import facoltativo degli schemi dell'app; guida `docs/PIANETA-NASCOSTO.md`, piano `docs/PIANO-PIANETA-NASCOSTO.md` |
 
 **Scostamenti dal piano originale (concordati)**
 - **Test end-to-end con Playwright** (Edge, senza screenshot) oltre a Vitest.
