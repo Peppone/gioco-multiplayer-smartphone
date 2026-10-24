@@ -11,6 +11,7 @@
 //   pnpm stress --players 30 --scenario pilota         → Pilota alla cieca: 4 squadre in contemporanea, piloti simulati a raffica di passi (da 2 a 30 giocatori)
 //   pnpm stress --players 30 --scenario artificieri    → Artificieri: squadre da 5, artificieri simulati che leggono le soluzioni dalla regia (da 2 a 30 giocatori)
 //   pnpm stress --players 30 --scenario plancia        → Plancia di Comando: equipaggi da 8 che si gridano gli ordini a vicenda (da 2 a 30 giocatori)
+//   pnpm stress --players 30 --scenario pianeta        → Il Pianeta Nascosto: osservatori da 5–6 che votano le azioni, con un robot (da 1 a 30 giocatori)
 //   pnpm stress --latency 80,400 --think 200,2500      → rete più lenta, giocatori più lenti
 //   pnpm stress --url http://localhost:3000 --password ...   → contro un server già avviato (CREA dati reali: usa un server di prova!)
 import { pathToFileURL } from "node:url";
@@ -19,7 +20,7 @@ import { scoreFreeForAll, scoreTeams } from "../../../packages/minigames/src/lun
 import { AdminApi } from "./api.js";
 import { Bot } from "./bot.js";
 import { AutoHost, type MatchRun, fanout } from "./host.js";
-import { agentiMatch, artificieriMatch, bottoMatch, classicMatch, duelMatch, ondaMatch, paroleMatch, pilotaMatch, planciaMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
+import { agentiMatch, artificieriMatch, bottoMatch, classicMatch, duelMatch, ondaMatch, paroleMatch, pilotaMatch, pianetaMatch, planciaMatch, setupEvent, shadowMatch, stanzeMatch } from "./scenario.js";
 import { type StanzeRun, playStanze } from "./stanze.js";
 import { oracle } from "./strategy.js";
 import { type TestServer, startTestServer } from "./server-process.js";
@@ -29,7 +30,7 @@ export interface StressOptions {
   url?: string;
   password?: string;
   players: number;
-  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "agenti" | "onda" | "artificieri" | "pilota" | "plancia" | "all";
+  scenario: "classic" | "duel" | "stanze" | "shadow" | "parole" | "botto" | "agenti" | "onda" | "artificieri" | "pilota" | "plancia" | "pianeta" | "all";
   /** Durata della sessione di Stanze Segrete con il GM simulato, in secondi (default 20). */
   stanzeSeconds?: number;
   latencyMs: [number, number];
@@ -119,6 +120,12 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       planciaPlan = { crews: m.crews, sectors: m.sectors };
       jobs.push({ name: "Plancia di Comando", matchId: m.matchId });
     }
+    let pianetaTeams = 0;
+    if (opts.scenario === "pianeta") {
+      const m = await pianetaMatch(api, setup, bots.map((b) => b.playerId));
+      pianetaTeams = m.teams;
+      jobs.push({ name: "Il Pianeta Nascosto", matchId: m.matchId });
+    }
     let artificieriTeams = 0;
     if (opts.scenario === "artificieri") {
       const m = await artificieriMatch(api, setup, bots.map((b) => b.playerId));
@@ -143,6 +150,7 @@ export async function runStress(opts: StressOptions): Promise<StressReport> {
       if (opts.scenario === "onda" && run.reachedEnd) checkOnda(job.name, bots, check);
       if (opts.scenario === "pilota" && run.reachedEnd) checkPilota(bots, pilotaPlan, run.finalState, check, log);
       if (opts.scenario === "plancia" && run.reachedEnd) checkPlancia(bots, planciaPlan, run.finalState, check, log);
+      if (opts.scenario === "pianeta" && run.reachedEnd) checkPianeta(bots, pianetaTeams, run.finalState, check, log);
       if (opts.scenario === "artificieri" && run.reachedEnd) checkArtificieri(bots, artificieriTeams, run.finalState, check);
       if (opts.scenario === "stanze" && run.reachedEnd) await checkStanze(api, setup.eventId, run as StanzeRun, check);
     }
@@ -364,6 +372,39 @@ function checkPlancia(bots: Bot[], plan: { crews: number; sectors: number }, fin
 }
 
 /**
+ * Il Pianeta Nascosto: tutti i telefoni arrivano al punteggio; la somma in classifica torna con i punti delle squadre
+ * (i robot non contano); nessun telefono ha ricevuto il sistema solare prima della rivelazione. Misura anche il tempo tra
+ * un input e lo stato di ritorno.
+ */
+function checkPianeta(bots: Bot[], teams: number, finalState: GameAdminState | null, check: (n: string, ok: boolean, d?: string) => void, log: (l: string) => void): void {
+  type Row = { id: string; rank: number; breakdown: { total: number } };
+  type V = { phase: string; settings: { pointScale: number }; observatories: { id: string; bot: boolean; members: number }[]; scores?: Row[]; sky?: string[]; mine: { id: string } | null };
+  const views = bots.map((b) => b.lastViews.get("pianeta-nascosto") as V | undefined);
+  check("Pianeta: tutti i telefoni hanno ricevuto la vista del round", views.every((v) => v !== undefined));
+  const known = views.filter((v): v is V => v !== undefined);
+  if (known.length === 0) return;
+  check("Pianeta: i telefoni sono arrivati al punteggio", known.every((x) => x.phase === "final" || x.phase === "done"), known.map((x) => x.phase).join(","));
+  const v0 = known[0]!;
+  check("Pianeta: gli osservatori sono quelli previsti (squadre e un robot)", v0.observatories.length === teams + 1 && v0.observatories.filter((o) => o.bot).length === 1, JSON.stringify(v0.observatories.map((o) => o.id)));
+  check("Pianeta: il sistema solare compare solo alla rivelazione", known.every((x) => Array.isArray(x.sky) && x.sky.length === 12));
+  const humans = v0.observatories.filter((o) => !o.bot);
+  const lb = finalState?.leaderboards;
+  if (lb && v0.scores) {
+    const expected = humans.reduce((n, o) => n + (v0.scores!.find((r) => r.id === o.id)?.breakdown.total ?? 0) * v0.settings.pointScale * o.members, 0);
+    const sum = lb.players.reduce((n, p) => n + p.points, 0);
+    check("Pianeta: la somma dei punti in classifica torna con le squadre (i robot non contano)", sum === expected, `${sum} contro ${expected}`);
+  }
+  const leaks = bots.flatMap((b) => b.stats.leaks);
+  check("Pianeta: nessun telefono ha ricevuto il sistema solare, la soluzione o le teorie altrui", leaks.length === 0, leaks.slice(0, 3).join("; "));
+  const lat = bots.flatMap((b) => b.stats.inputToState).sort((a, b) => a - b);
+  if (lat.length > 0) {
+    const at = (p: number) => lat[Math.min(lat.length - 1, Math.floor(lat.length * p))]!;
+    log(`  Pianeta: dopo un input lo stato arriva a chi l'ha mandato in mediana ${at(0.5)} ms · p95 ${at(0.95)} ms · max ${lat.at(-1)} ms (${lat.length} input)`);
+    check("Pianeta: lo stato arriva in fretta dopo un input (p95 sotto 1,5 s)", at(0.95) < 1_500, `p95 ${at(0.95)} ms`);
+  }
+}
+
+/**
  * Artificieri: tutti i telefoni vedono la stessa cronologia, con un esito per ogni squadra; i punti di ogni turno tornano
  * con le regole; la somma dei punti in classifica torna con i turni e con le scommesse; nessuna fuga di informazioni.
  */
@@ -473,8 +514,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     return v && v.length === 2 && v.every(Number.isFinite) ? [v[0]!, v[1]!] : fallback;
   };
   const scenario = (arg("scenario") ?? "all") as StressOptions["scenario"];
-  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "agenti", "onda", "artificieri", "pilota", "plancia", "all"].includes(scenario)) {
-    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto, agenti, onda, artificieri, pilota, plancia o all");
+  if (!["classic", "duel", "stanze", "shadow", "parole", "botto", "agenti", "onda", "artificieri", "pilota", "plancia", "pianeta", "all"].includes(scenario)) {
+    console.error("--scenario deve essere classic, duel, stanze, shadow, parole, botto, agenti, onda, artificieri, pilota, plancia, pianeta o all");
     process.exit(2);
   }
   const url = arg("url");

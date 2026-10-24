@@ -224,3 +224,25 @@ export async function pilotaMatch(api: AdminApi, setup: EventSetup, playerIds: s
   await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
   return { matchId: match.id, teams, levels };
 }
+
+/**
+ * Partita con il solo round «Il Pianeta Nascosto»: i giocatori vengono ridistribuiti in squadre da 4–6 (osservatori), turni
+ * simultanei, tempi brevi e un limite di giorni, così la partita finisce con l'ipotesi finale; un robot gioca con loro.
+ */
+export async function pianetaMatch(api: AdminApi, setup: EventSetup, playerIds: string[]): Promise<{ matchId: string; teams: number }> {
+  const stamp = Date.now().toString(36);
+  const teams = playerIds.length < 4 ? 1 : Math.min(5, Math.max(2, Math.floor(playerIds.length / 5)));
+  const colors = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7"];
+  const teamIds: string[] = [];
+  for (let i = 0; i < teams; i++) teamIds.push((await api.post("/teams", { name: `Osservatorio ${i + 1} ${stamp}`, color: colors[i % colors.length], emblem: "🔭" })).id);
+  await api.put(`/events/${setup.eventId}/teams`, { teamIds });
+  for (const [i, id] of playerIds.entries()) await api.put(`/events/${setup.eventId}/players/${id}`, { teamId: teamIds[i % teams] });
+  const match = await api.post(`/events/${setup.eventId}/matches`, { name: "Il Pianeta Nascosto" });
+  const inst = await api.post("/instances", {
+    typeId: "pianeta-nascosto",
+    title: "Pianeta di prova",
+    config: { mode: "standard", turnMode: "simultaneous", decision: "vote", turnSeconds: 10, theorySeconds: 8, difficulty: "youth", maxDays: 10, bots: 1, blindHost: true },
+  });
+  await api.post(`/matches/${match.id}/rounds`, { instanceId: inst.id });
+  return { matchId: match.id, teams };
+}

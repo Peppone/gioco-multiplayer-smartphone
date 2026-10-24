@@ -103,6 +103,9 @@ function decideRound(typeId: string, v: View, rnd: Rnd): Decision | null {
     case "plancia-comando":
       return decidePlancia(v, rnd);
 
+    case "pianeta-nascosto":
+      return decidePianeta(v, rnd);
+
     case "lunghezza-onda":
       return decideOnda(v, rnd);
 
@@ -316,6 +319,7 @@ export function privacyProblem(typeId: string, view: unknown): string | null {
   if (typeId === "artificieri") return artificieriPrivacy(v);
   if (typeId === "pilota-cieco") return pilotaPrivacy(v);
   if (typeId === "plancia-comando") return planciaPrivacy(v);
+  if (typeId === "pianeta-nascosto") return pianetaPrivacy(v);
   if (typeId !== "agenti-segreti") return null;
   const over = v.phase === "reveal" || v.phase === "done";
   if (!over && (v.cards as Record<string, unknown>[]).some((c) => !c.revealed && "kind" in c)) return `colori delle carte coperte in ${v.phase}`;
@@ -383,6 +387,45 @@ function decidePilota(v: View, rnd: Rnd): Decision | null {
   const open = PILOT_DIRS.filter((d) => (lane.cells[lane.pos] & d.bit) !== 0);
   const dir = rnd() < PILOTA_ERROR_RATE && open.length > 0 ? pick([...open], rnd).dir : PILOT_DIRS.find((d) => lane.pos + d.delta(lane.w) === next)!.dir;
   return { key, inputs: [{ type: "move", dir }], thinkMs: [wait + 40, wait + 160] };
+}
+
+/**
+ * Il Pianeta Nascosto: i membri della squadra di turno propongono la stessa azione (la prima ricerca ancora da leggere, poi
+ * un puntamento, poi un rilevamento: le proposte uguali si fondono), la votano e confermano; nelle fasi di invio si
+ * conferma, a volte con una teoria a caso, e nelle ultime opportunità e nell'ipotesi finale si indica un settore a caso.
+ */
+function decidePianeta(v: View, rnd: Rnd): Decision | null {
+  const mine = v.mine;
+  if (!mine || v.pausedRemainingMs !== null) return null;
+  if (v.phase === "turn" && mine.acting && mine.turn) {
+    const t = mine.turn;
+    if (t.proposals.length === 0) {
+      const unread = (v.topics as { id: string }[]).find((x) => !(mine.research as { topic: string }[]).some((r) => r.topic === x.id));
+      const vis = mine.visible as number[];
+      const action = unread && !mine.lastWasResearch ? { type: "research", topic: unread.id } : mine.targetsLeft > 0 ? { type: "target", sector: vis[0] } : { type: "survey", object: "asteroid", from: vis[0], to: vis[2] };
+      return { key: `px-p-${mine.id}-${mine.log.length}`, inputs: [{ type: "propose", action }] };
+    }
+    if (!t.vote.confirmed) return { key: `px-v-${mine.id}-${mine.log.length}-${t.proposals.length}`, inputs: [{ type: "vote", proposalId: t.proposals[0].id }, { type: "ready" }] };
+    return null;
+  }
+  const c = mine.collect;
+  if ((v.phase === "theory" || v.phase === "lastCall" || v.phase === "finalGuess") && c && !c.ready) {
+    const n = v.settings.sectors as number;
+    const inputs: unknown[] = [];
+    if (v.phase !== "finalGuess" && c.limit > 0 && rnd() < 0.5) inputs.push({ type: "theory", sector: 1 + Math.floor(rnd() * n), object: "asteroid" });
+    if (c.canGuess && rnd() < 0.7) inputs.push({ type: "guess", sector: 1 + Math.floor(rnd() * n), left: "empty", right: "empty" });
+    return { key: `px-c-${v.phase}-${v.earth}-${mine.id}`, inputs: [...inputs, { type: "ready" }] };
+  }
+  return null;
+}
+
+/** Il Pianeta Nascosto: il sistema solare non arriva mai a un telefono prima della rivelazione, né la soluzione o i dati della regia. */
+function pianetaPrivacy(v: View): string | null {
+  const keys = deepKeys(v);
+  if (keys.has("sky") && !["reveal", "final", "done"].includes(v.phase)) return `sistema solare in ${v.phase}`;
+  for (const secret of ["solution", "details", "unlocked", "seed"]) if (keys.has(secret)) return `chiave «${secret}» sul telefono`;
+  if ((v.theories as { faceUp: boolean; object: string | null }[]).some((t) => !t.faceUp && t.object !== null)) return "oggetto di una teoria coperta";
+  return null;
 }
 
 /** Probabilità che un bot «non senta» un ordine (o l'allarme) e non faccia nulla: così gli scafi si danneggiano ogni tanto. */

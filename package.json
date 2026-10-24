@@ -11,6 +11,7 @@
     "test:e2e": "playwright test",
     "balance:caccia": "pnpm --filter @gioco/bots exec tsx src/balance-caccia-fantasmi.ts",
     "balance:shadow": "pnpm --filter @gioco/bots exec tsx src/balance-shadow-tournament.ts",
+    "balance:pianeta": "pnpm --filter @gioco/bots exec tsx src/balance-pianeta-nascosto.ts",
     "art:shadow": "node tools/art/optimize-shadow-cards.mjs",
     "test:stress": "vitest run --config vitest.stress.config.ts",
     "stress": "pnpm --filter @gioco/bots start",
