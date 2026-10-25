@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import type { MinigameContext } from "@gioco/shared";
 import { COLLECT_WINDOW_MS, LOOP_LEAD_MS, type IndovinaCanzoneState, indovinaCanzone as game } from "./index.js";
 
@@ -231,6 +232,192 @@ describe("indovina la canzone: ascolto a spezzoni crescenti", () => {
   it("per impostazione predefinita l'ascolto è continuo, con spezzoni 0,5 · 1 · 2 · 4 · 8 s pronti da usare", () => {
     const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x" }] });
     expect(cfg).toMatchObject({ playback: "continuous", loopSeconds: [0.5, 1, 2, 4, 8], loopPauseSeconds: 1.5, progressive: false, clearAtPercent: 100 });
+  });
+});
+
+describe("indovina la canzone: modalità di ascolto brano per brano", () => {
+  const parse = (extra: object, ...songs: object[]) =>
+    game.configSchema.safeParse({ songs: songs.map((s) => ({ audio: FILE_1, answer: "x", ...s })), ...extra });
+  const must = (extra: object, ...songs: object[]) => {
+    const r = parse(extra, ...songs);
+    if (!r.success) throw new Error(r.error.issues.map((i) => i.message).join("; "));
+    return r.data;
+  };
+  type MusicView = {
+    mode: string;
+    clipMs: number;
+    loop: unknown;
+    rate: unknown;
+    keepPitch: boolean;
+    stages: unknown;
+    effect: string;
+    clearAtPercent: number | null;
+    segmentStart: number;
+    stopAt: number | null;
+  };
+  const musicOf = (s: IndovinaCanzoneState) => (game.screenView(s) as { music: MusicView }).music;
+  const start = (cfg: ReturnType<typeof must>, now = 1_000) => cmd(game.init(cfg, ctx, 0), "start", now);
+
+  it("senza scelte proprie ogni brano segue il round, come prima", () => {
+    const cfg = must({ playback: "loops", loopSeconds: [1, 2], loopPauseSeconds: 1 }, {}, {});
+    expect(cfg.songs.map((s) => s.playback)).toEqual(["inherit", "inherit"]);
+    expect(musicOf(start(cfg))).toMatchObject({ mode: "loops", loop: { snippetsMs: [1_000, 2_000], pauseMs: 1_000 }, clipMs: 3_000 + 2 * 1_000, rate: null, stages: null });
+  });
+
+  it("ogni brano ha la sua modalità: il primo a spezzoni, il secondo continuo con una durata propria", () => {
+    const cfg = must(
+      { clipSeconds: 30 },
+      { playback: "loops", loopSeconds: [0.5, 1], loopPauseSeconds: 1 },
+      { playback: "continuous", clipSeconds: 12 },
+    );
+    let s = start(cfg);
+    expect(musicOf(s)).toMatchObject({ mode: "loops", clipMs: 500 + 1_000 + 2 * 1_000, loop: { snippetsMs: [500, 1_000], pauseMs: 1_000 }, segmentStart: 1_000 + LOOP_LEAD_MS });
+    s = cmd(cmd(s, "skip", 2_000), "next", 2_100);
+    s = cmd(s, "start", 3_000);
+    expect(musicOf(s)).toMatchObject({ mode: "continuous", clipMs: 12_000, loop: null, segmentStart: 3_000, stopAt: 15_000 });
+  });
+
+  it("un brano continuo può stare in un round a spezzoni, e viceversa", () => {
+    const loopRound = must({ playback: "loops", loopSeconds: [1], loopPauseSeconds: 1 }, { playback: "continuous" }, {});
+    expect(musicOf(start(loopRound)).mode).toBe("continuous");
+    const contRound = must({ playback: "continuous" }, { playback: "loops", loopSeconds: [2], loopPauseSeconds: 0.5 });
+    expect(musicOf(start(contRound))).toMatchObject({ mode: "loops", clipMs: 2_500 });
+  });
+
+  it("la durata propria del brano comanda la fine dell'ascolto e i punti", () => {
+    const cfg = must({ clipSeconds: 30, maxPoints: 100, minPoints: 0 }, { clipSeconds: 10 });
+    const s = start(cfg);
+    expect(game.onTick(s, 1_000 + 10_000)).toBe(s);
+    expect(game.onTick(s, 1_000 + 10_000 + 1_000).phase).toBe("resolved");
+    // a metà dell'ascolto del brano (5 s su 10) i punti sono a metà strada tra massimo e minimo
+    const mid = cmd(game.onTick(press(s, "a", 6_000), 8_000), "correct");
+    expect(mid.totals.a!).toBeGreaterThan(45);
+    expect(mid.totals.a!).toBeLessThan(55);
+  });
+
+  it("più lento o più veloce: lo schermo riceve la velocità e se mantenere l'intonazione", () => {
+    const cfg = must({}, { playback: "speed", speed: 1.5, keepPitch: false });
+    expect(musicOf(start(cfg))).toMatchObject({ mode: "speed", rate: { rate: 1.5, untilMs: null, transitionMs: 0 }, keepPitch: false, loop: null, stages: null, segmentStart: 1_000 });
+  });
+
+  it("la velocità cambia solo il tempo del brano: l'ascolto e i punti restano a orologio", () => {
+    const cfg = must({ clipSeconds: 20, minPoints: 0, maxPoints: 100 }, { playback: "speed", speed: 0.5 });
+    const s = start(cfg);
+    expect(musicOf(s)).toMatchObject({ clipMs: 20_000, stopAt: 21_000 });
+    const early = cmd(game.onTick(press(s, "a", 1_000 + 2_000), 5_000), "correct");
+    expect(early.totals.a!).toBeGreaterThan(85);
+  });
+
+  it("prima a una velocità, poi normale: istante e passaggio in millisecondi", () => {
+    const cfg = must({ clipSeconds: 30 }, { playback: "speed_then_normal", speed: 0.6, normalAfterSeconds: 10, speedTransitionSeconds: 3 });
+    expect(musicOf(start(cfg))).toMatchObject({ mode: "speed_then_normal", rate: { rate: 0.6, untilMs: 10_000, transitionMs: 3_000 }, keepPitch: true });
+  });
+
+  it("ovattato a fasi: lo schermo riceve le fasi e il filtro «molto sfocato» da cui partire", () => {
+    const cfg = must({ clipSeconds: 40 }, { playback: "blur_stages", stage1Seconds: 8, stage2Seconds: 6, stageTransitionSeconds: 2 });
+    expect(musicOf(start(cfg))).toMatchObject({ mode: "blur_stages", effect: "heavy_blur", stages: { firstMs: 8_000, secondMs: 6_000, transitionMs: 2_000 }, rate: null, loop: null });
+  });
+
+  it("con le fasi l'effetto del brano non vale e «Svela gradualmente» non lo schiarisce", () => {
+    const cfg = must({ clipSeconds: 40, progressive: true, clearAtPercent: 60 }, { playback: "blur_stages", effect: "no_voice" }, { effect: "blur" });
+    expect(musicOf(start(cfg))).toMatchObject({ effect: "heavy_blur", clearAtPercent: null });
+    // il brano senza fasi si schiarisce come sempre
+    const s = cmd(cmd(start(cfg), "skip", 2_000), "next", 2_100);
+    expect(musicOf(cmd(s, "start", 3_000))).toMatchObject({ mode: "continuous", effect: "blur", clearAtPercent: 60 });
+  });
+
+  it("dopo una risposta sbagliata la musica riprende dallo stesso tempo ascoltato, qualunque sia la velocità", () => {
+    const cfg = must({ clipSeconds: 30 }, { playback: "speed_then_normal", speed: 0.5, normalAfterSeconds: 5, speedTransitionSeconds: 2 });
+    let s = press(start(cfg), "a", 1_000 + 3_000);
+    s = game.onTick(s, 1_000 + 3_000 + 20 + COLLECT_WINDOW_MS + 100);
+    s = cmd(s, "wrong");
+    s = cmd(s, "resume", 20_000);
+    expect(musicOf(s)).toMatchObject({ rate: { rate: 0.5, untilMs: 5_000 } });
+    expect(game.screenView(s)).toMatchObject({ music: { playing: true, offsetMs: 3_000, segmentStart: 20_000, stopAt: 20_000 + 30_000 - 3_000 } });
+  });
+
+  it("l'impostazione dell'ascolto non arriva mai ai telefoni, e non si vede prima di scegliere il brano", () => {
+    const cfg = must({ pickCategory: true }, { playback: "speed", speed: 1.5, categories: ["A"] }, { playback: "blur_stages", categories: ["B"] });
+    const choosing = game.init(cfg, ctx, 0);
+    expect(choosing.phase).toBe("choosing");
+    expect(JSON.stringify(game.screenView(choosing))).not.toMatch(/blur_stages|"speed"|"rate"|"stages"|heavy_blur/);
+    let s = game.onHostCommand(choosing, { type: "pick:a" }, 100);
+    s = cmd(s, "start", 1_000);
+    const phone = JSON.stringify(game.viewFor(s, "a", null));
+    expect(phone).not.toMatch(/speed|rate|stages|blur|loop|clip|keepPitch/);
+    expect(JSON.stringify(game.screenView(s))).toContain('"mode":"speed"');
+  });
+
+  it("velocità fuori da 0,5–2, fasi e passaggi fuori misura sono rifiutati", () => {
+    const ok = (song: object) => parse({ clipSeconds: 120 }, song).success;
+    expect(ok({ playback: "speed", speed: 0.5 })).toBe(true);
+    expect(ok({ playback: "speed", speed: 2 })).toBe(true);
+    expect(ok({ playback: "speed", speed: 0.49 })).toBe(false);
+    expect(ok({ playback: "speed", speed: 2.01 })).toBe(false);
+    expect(ok({ playback: "speed_then_normal", normalAfterSeconds: 0.5 })).toBe(false);
+    expect(ok({ playback: "speed_then_normal", speedTransitionSeconds: -1 })).toBe(false);
+    expect(ok({ playback: "blur_stages", stage1Seconds: 0 })).toBe(false);
+    expect(ok({ playback: "blur_stages", stage2Seconds: 0, stageTransitionSeconds: 0 })).toBe(true);
+    expect(ok({ playback: "blur_stages", stageTransitionSeconds: 31 })).toBe(false);
+    expect(ok({ playback: "a caso" })).toBe(false);
+    expect(ok({ clipSeconds: 2 })).toBe(false);
+    expect(ok({ playback: "loops", loopSeconds: [0.01] })).toBe(false);
+    expect(ok({ playback: "loops", loopPauseSeconds: 0 })).toBe(false);
+  });
+
+  it("velocità e ovattato a fasi non valgono per YouTube, ma continuo e spezzoni sì", () => {
+    const yt = { audio: undefined, youtube: "https://youtu.be/_9HHju9_hMM" };
+    for (const playback of ["speed", "speed_then_normal", "blur_stages"]) {
+      const r = parse({}, { ...yt, playback });
+      expect(r.success, playback).toBe(false);
+      expect(!r.success && r.error.issues.map((i) => i.message).join(" ")).toMatch(/solo con i file caricati/);
+    }
+    expect(parse({}, { ...yt, playback: "continuous" }).success).toBe(true);
+    expect(parse({}, { ...yt, playback: "loops" }).success).toBe(true);
+  });
+
+  it("rifiuta un brano che non tornerebbe normale prima della fine dell'ascolto, e dice quale", () => {
+    const late = parse({ clipSeconds: 10 }, {}, { playback: "speed_then_normal", normalAfterSeconds: 9, speedTransitionSeconds: 2 });
+    expect(late.success).toBe(false);
+    expect(!late.success && late.error.issues[0]).toMatchObject({ path: ["songs", 1, "playback"] });
+    expect(!late.success && late.error.issues[0]!.message).toMatch(/Brano 2.*11 s.*10 s/);
+    expect(parse({ clipSeconds: 11 }, { playback: "speed_then_normal", normalAfterSeconds: 9, speedTransitionSeconds: 2 }).success).toBe(true);
+    // fasi: 8 + 8 + 2 × 3 = 22 s
+    expect(parse({ clipSeconds: 21 }, { playback: "blur_stages" }).success).toBe(false);
+    expect(parse({ clipSeconds: 22 }, { playback: "blur_stages" }).success).toBe(true);
+    // la durata propria del brano vale al posto di quella del round
+    expect(parse({ clipSeconds: 10 }, { playback: "blur_stages", clipSeconds: 30 }).success).toBe(true);
+    // a velocità costante non c'è nulla da aspettare
+    expect(parse({ clipSeconds: 5 }, { playback: "speed" }).success).toBe(true);
+  });
+
+  it("un'istanza salvata prima delle modalità per brano si gioca come prima", () => {
+    const old = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x" }], playback: "loops", loopSeconds: [1], clipSeconds: 20 });
+    expect(old.songs[0]).toMatchObject({ playback: "inherit", loopSeconds: [], speed: 0.7, keepPitch: true });
+    expect(old.songs[0]!.clipSeconds).toBeUndefined();
+    expect(musicOf(start(old))).toMatchObject({ mode: "loops", loop: { snippetsMs: [1_000], pauseMs: 1_500 } });
+  });
+
+  it("i valori dell'editor e dell'esempio sono validi e seguono il round", () => {
+    expect(game.configSchema.safeParse(game.sampleConfig).success).toBe(true);
+    expect((game.draftConfig as { songs: object[] }).songs[0]).toMatchObject({ playback: "inherit", loopSeconds: [] });
+  });
+
+  it("i campi di ogni modalità compaiono nell'editor solo con quella modalità", () => {
+    const json = z.toJSONSchema(game.configSchema, { io: "input", unrepresentable: "any" }) as unknown as {
+      properties: { songs: { items: { properties: Record<string, { showWhen?: { field: string; in: string[] } }> } } };
+    };
+    const props = json.properties.songs.items.properties;
+    const shownIn = (key: string) => props[key]!.showWhen?.in ?? "sempre";
+    expect(shownIn("loopSeconds")).toEqual(["loops"]);
+    expect(shownIn("loopPauseSeconds")).toEqual(["loops"]);
+    expect(shownIn("speed")).toEqual(["speed", "speed_then_normal"]);
+    expect(shownIn("keepPitch")).toEqual(["speed", "speed_then_normal"]);
+    expect(shownIn("normalAfterSeconds")).toEqual(["speed_then_normal"]);
+    expect(shownIn("speedTransitionSeconds")).toEqual(["speed_then_normal"]);
+    for (const k of ["stage1Seconds", "stage2Seconds", "stageTransitionSeconds"]) expect(shownIn(k)).toEqual(["blur_stages"]);
+    expect(shownIn("playback")).toBe("sempre");
+    expect(props.loopSeconds!.showWhen!.field).toBe("playback");
   });
 });
 

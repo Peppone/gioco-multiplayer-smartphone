@@ -12,9 +12,36 @@ export const CLEAR_CUTOFF_HZ = 20_000;
 /** Frequenza di taglio con nitidezza `clarity` (0 = effetto pieno, 1 = suono originale): cresce in modo esponenziale, come l'orecchio sente. */
 export const cutoffAt = (base: number, clarity: number) => base * (CLEAR_CUTOFF_HZ / base) ** clarity;
 
+/**
+ * Frequenza di taglio per un livello dell'ovattato a fasi: 0 = «molto sfocato», 1 = «sfocato», 2 = suono normale. Tra un
+ * livello e l'altro la frequenza cresce in modo esponenziale, come l'orecchio sente, quindi un livello a metà strada
+ * suona a metà strada.
+ */
+export function cutoffForStage(level: number): number {
+  const l = Math.min(2, Math.max(0, level));
+  const [from, to, x] = l <= 1 ? [BLUR_CUTOFF_HZ.heavy_blur, BLUR_CUTOFF_HZ.blur, l] : [BLUR_CUTOFF_HZ.blur, CLEAR_CUTOFF_HZ, l - 1];
+  return from * (to / from) ** x;
+}
+
+/** Compensazione di volume per una frequenza di taglio: interpola, in scala logaritmica, tra quelle dei due filtri e l'assenza di filtro. */
+export function makeupForCutoff(hz: number): number {
+  const heavy = BLUR_CUTOFF_HZ.heavy_blur;
+  const light = BLUR_CUTOFF_HZ.blur;
+  if (hz <= heavy) return BLUR_MAKEUP.heavy_blur;
+  const [from, to, gainFrom, gainTo] =
+    hz <= light ? [heavy, light, BLUR_MAKEUP.heavy_blur, BLUR_MAKEUP.blur] : [light, CLEAR_CUTOFF_HZ, BLUR_MAKEUP.blur, 1];
+  const x = Math.min(1, Math.log(hz / from) / Math.log(to / from));
+  return gainFrom + (gainTo - gainFrom) * x;
+}
+
 export interface EffectChain {
   /** Scollega tutto. */
   disconnect(): void;
+  /**
+   * Solo con un filtro passa-basso (sfocato, molto sfocato): segue una curva di frequenze di taglio (Hz), una ogni `stepMs`,
+   * a partire da adesso; con un solo valore il filtro si ferma lì. Con gli altri effetti non fa nulla.
+   */
+  setCutoffCurve(hz: number[], stepMs: number): void;
   /**
    * Porta la nitidezza da `from` a `to` (0 = effetto pieno, 1 = originale) in `durationMs`; con durata 0 il valore è subito `to`.
    * Chiamandola di nuovo si riparte dal punto indicato.
@@ -50,6 +77,7 @@ export function connectEffect(ctx: AudioContext, source: AudioNode, effect: Audi
   };
 
   let setClarity: EffectChain["setClarity"] = () => undefined;
+  let setCutoffCurve: EffectChain["setCutoffCurve"] = () => undefined;
 
   if (effect === "blur" || effect === "heavy_blur") {
     const base = BLUR_CUTOFF_HZ[effect];
@@ -67,6 +95,16 @@ export function connectEffect(ctx: AudioContext, source: AudioNode, effect: Audi
     setClarity = (from, to, durationMs) => {
       sweep(lowpass.frequency, cutoffAt(base, from), cutoffAt(base, to), durationMs / 1000, "exponential");
       sweep(makeup.gain, makeupFrom + (1 - makeupFrom) * from, makeupFrom + (1 - makeupFrom) * to, durationMs / 1000, "linear");
+    };
+    setCutoffCurve = (hz, stepMs) => {
+      const now = ctx.currentTime;
+      const follow = (param: AudioParam, values: number[]) => {
+        param.cancelScheduledValues(now);
+        if (values.length < 2) param.setValueAtTime(values[0] ?? param.value, now);
+        else param.setValueCurveAtTime(Float32Array.from(values), now, ((values.length - 1) * stepMs) / 1000);
+      };
+      follow(lowpass.frequency, hz);
+      follow(makeup.gain, hz.map(makeupForCutoff));
     };
   } else if (effect === "no_voice") {
     const splitter = chain(ctx.createChannelSplitter(2));
@@ -108,5 +146,5 @@ export function connectEffect(ctx: AudioContext, source: AudioNode, effect: Audi
     source.connect(ctx.destination);
   }
 
-  return { disconnect: () => nodes.forEach((n) => n.disconnect()), setClarity };
+  return { disconnect: () => nodes.forEach((n) => n.disconnect()), setClarity, setCutoffCurve };
 }

@@ -22,6 +22,16 @@ export interface JsonSchema {
   itemLabel?: string;
   /** Etichette leggibili per i valori di un enum (valore → testo). */
   enumLabels?: Record<string, string>;
+  /** Il campo compare solo se il campo fratello `field` ha uno di questi valori (es. i parametri di una modalità). */
+  showWhen?: { field: string; in: string[] };
+}
+
+/** Se un campo va mostrato: dipende dal valore (o dal predefinito) del campo fratello da cui dipende, se ne ha uno. */
+export function isShown(prop: JsonSchema, siblings: Record<string, unknown>, parent: JsonSchema): boolean {
+  const when = prop.showWhen;
+  if (!when) return true;
+  const current = siblings[when.field] ?? parent.properties?.[when.field]?.default;
+  return when.in.includes(String(current ?? ""));
 }
 
 /** Valore iniziale per un nuovo elemento: rispetta default, minimi e campi obbligatori. */

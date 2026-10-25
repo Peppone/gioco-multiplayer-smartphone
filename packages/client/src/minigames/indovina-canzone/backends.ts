@@ -1,7 +1,15 @@
 import { Howl, Howler } from "howler";
-import type { AudioEffect } from "@gioco/shared";
+import type { AudioEffect, Listening } from "@gioco/shared";
 import { audio } from "../../audio/audio";
 import { connectEffect } from "./effects";
+
+/** Opzioni dei lettori che passano da Web Audio. */
+export interface WebAudioOptions {
+  /** Contesto da usare al posto di quello di Howler (l'editor, dove Howler non è in uso, ne condivide uno). */
+  ctx?: AudioContext;
+  /** Con velocità diversa da 1: true = cambia solo il tempo, false = cambia anche l'intonazione. */
+  keepPitch?: boolean;
+}
 
 /** Un lettore di musica, indipendente dalla sorgente (file del server o video YouTube nascosto). */
 export interface MusicBackend {
@@ -20,17 +28,26 @@ export interface MusicBackend {
    * Senza effetto non c'è nulla da attenuare e non fa nulla.
    */
   setClarity(from: number, to: number, durationMs: number): void;
+  /** Solo con un filtro (sfocato, molto sfocato): segue una curva di frequenze di taglio (Hz), una ogni `stepMs`. Altrimenti non fa nulla. */
+  setCutoffCurve(hz: number[], stepMs: number): void;
+  /** Solo con l'elemento audio: cambia la velocità del brano (1 = normale). Gli altri lettori non la cambiano. */
+  setRate(rate: number): void;
   dispose(): void;
 }
 
 /**
- * File del server con un effetto: l'elemento audio passa per la Web Audio API (stessa origine, quindi nessun
- * problema di CORS). Usa il contesto di Howler, già sbloccato dal primo tocco sullo schermo.
+ * File del server letto da un elemento audio che passa per la Web Audio API (stessa origine, quindi nessun
+ * problema di CORS): serve per gli effetti e per cambiare la velocità del brano. Usa il contesto di Howler, già
+ * sbloccato dal primo tocco sullo schermo.
  */
-function effectFileBackend(file: string, effect: AudioEffect): MusicBackend {
+export function elementFileBackend(file: string, effect: AudioEffect, options: WebAudioOptions = {}): MusicBackend {
   const el = new Audio(`/media/${file}`);
   el.preload = "auto";
-  const ctx = (Howler.ctx as AudioContext | null) ?? new AudioContext();
+  // Cambiando velocità il browser, di norma, mantiene l'intonazione; qui lo si dice esplicitamente (Safari usa il prefisso).
+  const keepPitch = options.keepPitch ?? true;
+  el.preservesPitch = keepPitch;
+  (el as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = keepPitch;
+  const ctx = options.ctx ?? (Howler.ctx as AudioContext | null) ?? new AudioContext();
   const chain = connectEffect(ctx, ctx.createMediaElementSource(el), effect);
   return {
     whenReady(cb) {
@@ -52,6 +69,10 @@ function effectFileBackend(file: string, effect: AudioEffect): MusicBackend {
       el.currentTime = seconds;
     },
     setClarity: chain.setClarity,
+    setCutoffCurve: chain.setCutoffCurve,
+    setRate(rate) {
+      el.playbackRate = rate;
+    },
     dispose() {
       el.pause();
       chain.disconnect();
@@ -67,8 +88,8 @@ function effectFileBackend(file: string, effect: AudioEffect): MusicBackend {
  * centinaio di millisecondi a partire e a fermarsi, troppi per uno spezzone da mezzo secondo. Gli effetti passano da
  * un nodo d'ingresso fisso, a cui si collega ogni spezzone.
  */
-export function bufferFileBackend(file: string, effect: AudioEffect = "none"): MusicBackend {
-  const ctx = (Howler.ctx as AudioContext | null) ?? new AudioContext();
+export function bufferFileBackend(file: string, effect: AudioEffect = "none", options: WebAudioOptions = {}): MusicBackend {
+  const ctx = options.ctx ?? (Howler.ctx as AudioContext | null) ?? new AudioContext();
   const input = ctx.createGain();
   const chain = connectEffect(ctx, input, effect);
   let buffer: AudioBuffer | null = null;
@@ -123,6 +144,8 @@ export function bufferFileBackend(file: string, effect: AudioEffect = "none"): M
     pause: stop,
     cue: () => undefined, // ogni spezzone riparte da sé: non c'è nulla da preparare
     setClarity: chain.setClarity,
+    setCutoffCurve: chain.setCutoffCurve,
+    setRate: () => undefined, // gli spezzoni suonano sempre a velocità normale
     dispose() {
       disposed = true;
       waiting.clear();
@@ -133,7 +156,7 @@ export function bufferFileBackend(file: string, effect: AudioEffect = "none"): M
 }
 
 export function fileBackend(file: string, effect: AudioEffect = "none"): MusicBackend {
-  if (effect !== "none") return effectFileBackend(file, effect);
+  if (effect !== "none") return elementFileBackend(file, effect);
   const h = new Howl({ src: [`/media/${file}`], html5: true, preload: true });
   return {
     whenReady(cb) {
@@ -151,8 +174,17 @@ export function fileBackend(file: string, effect: AudioEffect = "none"): MusicBa
     pause: () => void h.pause(),
     cue: (seconds) => void h.seek(seconds),
     setClarity: () => undefined,
+    setCutoffCurve: () => undefined,
+    setRate: () => undefined,
     dispose: () => void h.unload(),
   };
+}
+
+/** Il lettore giusto per il brano: spezzoni decodificati in memoria, elemento audio con Web Audio (effetti, velocità, fasi) o lettore semplice. */
+export function fileBackendFor(file: string, effect: AudioEffect, listening: Pick<Listening, "loop" | "rate" | "stages" | "keepPitch">, options: WebAudioOptions = {}): MusicBackend {
+  if (listening.loop) return bufferFileBackend(file, effect, options);
+  if (listening.rate || listening.stages) return elementFileBackend(file, effect, { ...options, keepPitch: listening.keepPitch });
+  return effect === "none" ? fileBackend(file, effect) : elementFileBackend(file, effect, options);
 }
 
 // ---- YouTube: IFrame Player API ufficiale, senza account né chiave. Serve internet sul PC dello schermo. ----
@@ -239,6 +271,8 @@ export function youtubeBackend(videoId: string, host: HTMLElement): MusicBackend
     pause: () => void player?.pauseVideo(),
     cue: () => undefined, // un video non ancora avviato ripartirebbe da solo: si cerca il punto direttamente in `playAt`
     setClarity: () => undefined,
+    setCutoffCurve: () => undefined,
+    setRate: () => undefined,
     dispose() {
       disposed = true;
       waiting.clear();

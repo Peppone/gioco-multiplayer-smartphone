@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type JsonSchema, defaultValue, moveItem, parseImport, serializeInstance, setKey } from "./logic";
+import { type JsonSchema, defaultValue, isShown, moveItem, parseImport, serializeInstance, setKey } from "./logic";
 
 const quizSchema: JsonSchema = {
   type: "object",
@@ -94,5 +94,37 @@ describe("import / export", () => {
     expect(parseImport(JSON.stringify({ foo: 1 }))).toMatchObject({ ok: false });
     expect(parseImport("[]")).toMatchObject({ ok: false });
     expect(parseImport(JSON.stringify({ kind: "gioco-ros/instance", version: 1, typeId: "x" }))).toMatchObject({ ok: false });
+  });
+});
+
+describe("isShown (campi che dipendono da un altro)", () => {
+  const parent: JsonSchema = {
+    type: "object",
+    properties: {
+      mode: { type: "string", enum: ["inherit", "loops", "speed"], default: "inherit" },
+      pause: { type: "number", showWhen: { field: "mode", in: ["loops"] } },
+      rate: { type: "number", showWhen: { field: "mode", in: ["speed", "loops"] } },
+      title: { type: "string" },
+    },
+  };
+  const shown = (key: string, siblings: Record<string, unknown>) => isShown(parent.properties![key]!, siblings, parent);
+
+  it("senza condizione il campo si vede sempre", () => {
+    expect(shown("title", {})).toBe(true);
+    expect(shown("title", { mode: "loops" })).toBe(true);
+  });
+
+  it("compare solo con i valori indicati", () => {
+    expect(shown("pause", { mode: "loops" })).toBe(true);
+    expect(shown("pause", { mode: "speed" })).toBe(false);
+    expect(shown("rate", { mode: "speed" })).toBe(true);
+    expect(shown("rate", { mode: "loops" })).toBe(true);
+  });
+
+  it("se il campo da cui dipende manca, vale il suo predefinito", () => {
+    expect(shown("pause", {})).toBe(false);
+    expect(shown("rate", {})).toBe(false);
+    const withDefault: JsonSchema = { ...parent, properties: { ...parent.properties!, mode: { type: "string", default: "loops" } } };
+    expect(isShown(withDefault.properties!.pause!, {}, withDefault)).toBe(true);
   });
 });

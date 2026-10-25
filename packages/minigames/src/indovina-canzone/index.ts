@@ -1,13 +1,18 @@
 import { z } from "zod";
 import {
   AUDIO_EFFECTS,
-  type LoopPlan,
+  LISTEN_DEFAULTS,
   MEDIA_FILE_PATTERN,
   type MinigameType,
   type ParticipantInfo,
+  PLAYBACK_MODES,
+  ROUND_LISTEN_DEFAULTS,
+  SPEED_MAX,
+  SPEED_MIN,
   type TeamInfo,
   fairTime,
-  loopTotalMs,
+  listeningSettledMs,
+  resolveListening,
   youtubeId,
 } from "@gioco/shared";
 import { GRACE_MS, addTo, rankByPoints, speedPoints, totalsToScores } from "../util.js";
@@ -24,6 +29,25 @@ export const LOOP_LEAD_MS = 400;
 /** I brani senza categoria, quando i capisquadra scelgono la categoria, stanno in questa. */
 export const OTHER_CATEGORY = "Altri brani";
 const OTHER_KEY = "\u0000altri";
+
+/** Come si ascolta un brano: la sua scelta, o «inherit» = la modalità del round. */
+const SONG_LISTEN_MODES = ["inherit", ...PLAYBACK_MODES] as const;
+/** Modalità che elaborano l'audio nel browser: servono i file caricati (non YouTube). */
+const NEEDS_FILE = ["speed", "speed_then_normal", "blur_stages"] as const;
+/** Campi di ascolto di un brano nuovo: segue il round, con i valori predefiniti di ogni modalità pronti da usare. */
+const SONG_LISTEN_DEFAULTS = {
+  playback: "inherit" as const,
+  loopSeconds: [] as number[],
+  speed: LISTEN_DEFAULTS.speed,
+  keepPitch: LISTEN_DEFAULTS.keepPitch,
+  normalAfterSeconds: LISTEN_DEFAULTS.normalAfterSeconds,
+  speedTransitionSeconds: LISTEN_DEFAULTS.speedTransitionSeconds,
+  stage1Seconds: LISTEN_DEFAULTS.stage1Seconds,
+  stage2Seconds: LISTEN_DEFAULTS.stage2Seconds,
+  stageTransitionSeconds: LISTEN_DEFAULTS.stageTransitionSeconds,
+};
+/** Il campo compare nell'editor solo con queste modalità (`showWhen` è un suggerimento di interfaccia, come `widget`). */
+const showWhen = (...modes: (typeof SONG_LISTEN_MODES)[number][]) => ({ showWhen: { field: "playback", in: modes } });
 
 export const indovinaCanzoneConfigSchema = z
   .object({
@@ -81,6 +105,109 @@ export const indovinaCanzoneConfigSchema = z
                   no_voice: "Senza voce (solo base musicale)",
                 },
               }),
+            playback: z
+              .enum(SONG_LISTEN_MODES)
+              .default("inherit")
+              .meta({
+                title: "Modalità di ascolto del brano",
+                description:
+                  "Si sceglie brano per brano. «Come nel round» usa «Come si ascolta» del round. Velocità e ovattato a fasi funzionano solo con i file caricati, non con YouTube; con l'ovattato a fasi l'«Effetto sull'audio» del brano non vale",
+                enumLabels: {
+                  inherit: "Come nel round",
+                  continuous: "Continuo",
+                  loops: "A spezzoni crescenti",
+                  speed: "Più lento o più veloce",
+                  speed_then_normal: "Velocità diversa all'inizio, poi normale",
+                  blur_stages: "Molto ovattato, poi poco, poi normale",
+                },
+              }),
+            clipSeconds: z
+              .number()
+              .int()
+              .min(3)
+              .max(120)
+              .optional()
+              .meta({
+                title: "Durata dell'ascolto di questo brano (secondi)",
+                description: "Vuoto = quella del round. Per il tempo ascoltato, non per la posizione nel brano: a velocità doppia 30 s fanno sentire un minuto di musica",
+                ...showWhen("inherit", "continuous", "speed", "speed_then_normal", "blur_stages"),
+              }),
+            loopSeconds: z
+              .array(z.number().min(0.1).max(60))
+              .max(12)
+              .default([])
+              .meta({
+                title: "Durata degli spezzoni di questo brano (secondi)",
+                description: "Nell'ordine in cui si ascoltano. Vuoto = quelli del round",
+                itemLabel: "Spezzone del brano",
+                ...showWhen("loops"),
+              }),
+            loopPauseSeconds: z
+              .number()
+              .min(0.2)
+              .max(10)
+              .optional()
+              .meta({ title: "Pausa tra gli spezzoni di questo brano (secondi)", description: "Vuoto = quella del round", ...showWhen("loops") }),
+            speed: z
+              .number()
+              .min(SPEED_MIN)
+              .max(SPEED_MAX)
+              .default(LISTEN_DEFAULTS.speed)
+              .meta({
+                title: "Velocità del brano",
+                description: `1 = normale, sotto 1 più lento (0,5 = metà), sopra 1 più veloce (2 = doppia). Da ${SPEED_MIN} a ${SPEED_MAX}`,
+                ...showWhen("speed", "speed_then_normal"),
+              }),
+            keepPitch: z
+              .boolean()
+              .default(LISTEN_DEFAULTS.keepPitch)
+              .meta({
+                title: "Mantieni l'intonazione (cambia solo la velocità, non la voce)",
+                description: "Se lo togli il brano suona più grave quando è lento e più acuto quando è veloce, come un disco a un'altra velocità",
+                ...showWhen("speed", "speed_then_normal"),
+              }),
+            normalAfterSeconds: z
+              .number()
+              .min(1)
+              .max(120)
+              .default(LISTEN_DEFAULTS.normalAfterSeconds)
+              .meta({
+                title: "Dopo quanti secondi torna la velocità normale",
+                description: "Tempo ascoltato dall'inizio: allora comincia il passaggio alla velocità normale",
+                ...showWhen("speed_then_normal"),
+              }),
+            speedTransitionSeconds: z
+              .number()
+              .min(0)
+              .max(30)
+              .default(LISTEN_DEFAULTS.speedTransitionSeconds)
+              .meta({
+                title: "Durata del passaggio alla velocità normale (secondi)",
+                description: "La velocità cambia in modo morbido. 0 = di colpo",
+                ...showWhen("speed_then_normal"),
+              }),
+            stage1Seconds: z
+              .number()
+              .min(1)
+              .max(120)
+              .default(LISTEN_DEFAULTS.stage1Seconds)
+              .meta({ title: "Secondi di suono molto ovattato", description: "Prima fase, all'inizio dell'ascolto", ...showWhen("blur_stages") }),
+            stage2Seconds: z
+              .number()
+              .min(0)
+              .max(120)
+              .default(LISTEN_DEFAULTS.stage2Seconds)
+              .meta({ title: "Secondi di suono poco ovattato", description: "Seconda fase, passaggi esclusi. Dopo, il brano è normale", ...showWhen("blur_stages") }),
+            stageTransitionSeconds: z
+              .number()
+              .min(0)
+              .max(30)
+              .default(LISTEN_DEFAULTS.stageTransitionSeconds)
+              .meta({
+                title: "Durata di ogni passaggio tra le fasi (secondi)",
+                description: "Il suono cambia in modo morbido, non di colpo. 0 = di colpo. Il brano torna normale dopo: fase 1 + fase 2 + due passaggi",
+                ...showWhen("blur_stages"),
+              }),
             points: z
               .number()
               .int()
@@ -102,6 +229,11 @@ export const indovinaCanzoneConfigSchema = z
           // Gli effetti elaborano l'audio nel browser: l'audio di YouTube sta in un iframe e non è accessibile.
           .refine((song) => song.effect === "none" || !song.youtube, {
             message: "Gli effetti sull'audio funzionano solo con i file caricati, non con i link YouTube",
+          })
+          // Velocità e fasi cambiano il suono nel browser, come gli effetti.
+          .refine((song) => !song.youtube || !(NEEDS_FILE as readonly string[]).includes(song.playback), {
+            message: "Velocità e ovattato a fasi funzionano solo con i file caricati, non con i link YouTube",
+            path: ["playback"],
           }),
       )
       .min(1)
@@ -112,28 +244,28 @@ export const indovinaCanzoneConfigSchema = z
       .int()
       .min(3)
       .max(120)
-      .default(30)
-      .meta({ title: "Durata dell'ascolto (secondi)", description: "Se nessuno indovina entro questo tempo la musica si ferma. Con gli spezzoni vale la durata totale degli spezzoni" }),
+      .default(ROUND_LISTEN_DEFAULTS.clipSeconds)
+      .meta({ title: "Durata dell'ascolto (secondi)", description: "Predefinita dei brani (ognuno può avere la sua). Se nessuno indovina entro questo tempo la musica si ferma. Con gli spezzoni vale la durata totale degli spezzoni" }),
     playback: z
       .enum(["continuous", "loops"])
-      .default("continuous")
+      .default(ROUND_LISTEN_DEFAULTS.playback)
       .meta({
         title: "Come si ascolta",
-        description: "A spezzoni il brano riparte sempre dall'inizio e dura di più a ogni giro, con una pausa in mezzo: ci si può prenotare anche durante le pause",
+        description: "Predefinito dei brani: ogni brano può scegliere la sua modalità (anche più lento, più veloce o ovattato a fasi). A spezzoni il brano riparte sempre dall'inizio e dura di più a ogni giro, con una pausa in mezzo: ci si può prenotare anche durante le pause",
         enumLabels: { continuous: "Continuo", loops: "A spezzoni crescenti (es. 0,5 s, pausa, 1 s, pausa, 2 s…)" },
       }),
     loopSeconds: z
       .array(z.number().min(0.1).max(60))
       .min(1)
       .max(12)
-      .default([0.5, 1, 2, 4, 8])
-      .meta({ title: "Durata degli spezzoni (secondi)", description: "Solo «a spezzoni crescenti», nell'ordine in cui si ascoltano", itemLabel: "Spezzone" }),
+      .default(ROUND_LISTEN_DEFAULTS.loopSeconds)
+      .meta({ title: "Durata degli spezzoni (secondi)", description: "Predefiniti dei brani a spezzoni, nell'ordine in cui si ascoltano", itemLabel: "Spezzone" }),
     loopPauseSeconds: z
       .number()
       .min(0.2)
       .max(10)
-      .default(1.5)
-      .meta({ title: "Pausa tra gli spezzoni (secondi)", description: "Solo «a spezzoni crescenti»" }),
+      .default(ROUND_LISTEN_DEFAULTS.loopPauseSeconds)
+      .meta({ title: "Pausa tra gli spezzoni (secondi)", description: "Predefinita dei brani a spezzoni" }),
     progressive: z
       .boolean()
       .default(false)
@@ -185,6 +317,20 @@ export const indovinaCanzoneConfigSchema = z
   .refine((cfg) => !cfg.pickCategory || cfg.songs.some((s) => s.categories.length > 0), {
     message: "Per far scegliere la categoria almeno un brano deve averne una",
     path: ["pickCategory"],
+  })
+  // Se il suono torna normale dopo la fine dell'ascolto non si sentirebbe mai com'è il brano: meglio dirlo al salvataggio.
+  .superRefine((cfg, ctx) => {
+    cfg.songs.forEach((song, i) => {
+      const listening = resolveListening(cfg, song);
+      const settled = listeningSettledMs(listening);
+      if (settled !== null && settled > listening.clipMs) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["songs", i, "playback"],
+          message: `Brano ${i + 1}: il suono torna normale dopo ${settled / 1000} s, ma l'ascolto dura ${listening.clipMs / 1000} s: allunga l'ascolto o accorcia le fasi`,
+        });
+      }
+    });
   });
 
 export type IndovinaCanzoneConfig = z.infer<typeof indovinaCanzoneConfigSchema>;
@@ -263,18 +409,13 @@ const nick = (s: IndovinaCanzoneState, id: string | null | undefined) =>
 
 type Song = IndovinaCanzoneConfig["songs"][number];
 
-const loopPlan = (cfg: IndovinaCanzoneConfig): LoopPlan | null =>
-  cfg.playback === "loops"
-    ? { snippetsMs: cfg.loopSeconds.map((x) => Math.round(x * 1000)), pauseMs: Math.round(cfg.loopPauseSeconds * 1000) }
-    : null;
-/** Durata dell'ascolto: i secondi scelti, oppure il totale degli spezzoni. */
-const clipMs = (s: IndovinaCanzoneState) => {
-  const plan = loopPlan(s.cfg);
-  return plan ? loopTotalMs(plan) : s.cfg.clipSeconds * 1000;
-};
-/** Anticipo con cui parte (o riparte) l'ascolto dopo il comando della regia. */
-const leadMs = (s: IndovinaCanzoneState) => (s.cfg.playback === "loops" ? LOOP_LEAD_MS : 0);
 const song = (s: IndovinaCanzoneState) => s.cfg.songs[s.index]!;
+/** Come si ascolta il brano corrente: la modalità del brano, oppure quella del round. */
+const listening = (s: IndovinaCanzoneState) => resolveListening(s.cfg, song(s));
+/** Durata dell'ascolto del brano corrente (tempo ascoltato): i secondi scelti, oppure il totale degli spezzoni. */
+const clipMs = (s: IndovinaCanzoneState) => listening(s).clipMs;
+/** Anticipo con cui parte (o riparte) l'ascolto dopo il comando della regia. */
+const leadMs = (s: IndovinaCanzoneState) => (listening(s).mode === "loops" ? LOOP_LEAD_MS : 0);
 const maxPointsOf = (s: IndovinaCanzoneState) => song(s).points ?? s.cfg.maxPoints;
 /** Ora server in cui la musica arriva alla fine dell'ascolto, se riparte da `segmentStart`. */
 const stopAt = (s: IndovinaCanzoneState) => s.segmentStart + clipMs(s) - s.offsetMs;
@@ -366,7 +507,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
   commandSchema,
   sampleConfig: {
     songs: [
-      { audio: "00000000-0000-4000-8000-000000000000.mp3", answer: "Titolo - Artista", categories: [], startSeconds: 0, effect: "none" },
+      { audio: "00000000-0000-4000-8000-000000000000.mp3", answer: "Titolo - Artista", categories: [], startSeconds: 0, effect: "none", ...SONG_LISTEN_DEFAULTS },
     ],
     clipSeconds: 30,
     playback: "continuous",
@@ -382,7 +523,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
   },
   // Il nuovo brano parte senza sorgente: la regia sceglie un file oppure scrive un link YouTube.
   draftConfig: {
-    songs: [{ answer: "", categories: [], startSeconds: 0, effect: "none" }],
+    songs: [{ answer: "", categories: [], startSeconds: 0, effect: "none", ...SONG_LISTEN_DEFAULTS }],
     clipSeconds: 30,
     playback: "continuous",
     loopSeconds: [0.5, 1, 2, 4, 8],
@@ -525,28 +666,36 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
     const answeringId = s.phase === "answering" ? s.queue[s.current]?.playerId : undefined;
     const playing = s.phase === "playing";
     const chooser = choosing ? chooserOf(s) : null;
+    const listen = choosing ? null : listening(s);
     return {
       phase: s.phase,
       index: choosing ? s.used.length : s.used.length - 1,
       total: s.cfg.songs.length,
       // Finché la categoria non è scelta non si sa quale brano suonerà: nessun file, nessuna anticipazione.
-      music: choosing
-        ? null
-        : {
-            file: song(s).audio || null,
-            youtubeId: song(s).youtube ? youtubeId(song(s).youtube!) : null,
-            startSeconds: song(s).startSeconds,
-            effect: song(s).effect,
-            playing,
-            /** Dove si trova la musica: se suona, parte da `offsetMs` all'ora server `segmentStart`. */
-            offsetMs: playing ? s.offsetMs : s.pausedMs,
-            segmentStart: s.segmentStart,
-            stopAt: playing ? stopAt(s) : null,
-            clipMs: clipMs(s),
-            loop: loopPlan(s.cfg),
-            /** Percentuale dell'ascolto a cui il suono è nitido; assente se l'effetto non si attenua. */
-            clearAtPercent: s.cfg.progressive ? s.cfg.clearAtPercent : null,
-          },
+      music:
+        choosing || !listen
+          ? null
+          : {
+              file: song(s).audio || null,
+              youtubeId: song(s).youtube ? youtubeId(song(s).youtube!) : null,
+              startSeconds: song(s).startSeconds,
+              // Con l'ovattato a fasi il filtro lo guidano le fasi: l'effetto del brano non vale.
+              effect: listen.stages ? ("heavy_blur" as const) : song(s).effect,
+              playing,
+              /** Dove si trova la musica: se suona, parte da `offsetMs` (tempo ascoltato) all'ora server `segmentStart`. */
+              offsetMs: playing ? s.offsetMs : s.pausedMs,
+              segmentStart: s.segmentStart,
+              stopAt: playing ? stopAt(s) : null,
+              clipMs: listen.clipMs,
+              /** Come si ascolta: lo schermo ricava da qui posizione, velocità e filtro dal tempo ascoltato. */
+              mode: listen.mode,
+              loop: listen.loop,
+              rate: listen.rate,
+              keepPitch: listen.keepPitch,
+              stages: listen.stages,
+              /** Percentuale dell'ascolto a cui il suono è nitido; assente se l'effetto non si attenua. */
+              clearAtPercent: s.cfg.progressive && !listen.stages ? s.cfg.clearAtPercent : null,
+            },
       category: s.category,
       choosing: choosing
         ? {

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import type { MediaItem } from "@gioco/shared";
+import { AUDIO_EFFECTS, type MediaItem } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
-import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
+import { AudioPreview } from "./AudioPreview";
+import { type JsonSchema, defaultValue, isShown, moveItem, setKey } from "./logic";
 
 /** Dati esterni al modulo, per i widget che scelgono elementi esistenti (sfidanti, istanze della libreria). */
 export interface FormContext {
@@ -10,6 +11,8 @@ export interface FormContext {
   instances: { id: string; title: string; kind: "minigame" | "content"; typeId: string }[];
 }
 const FormCtx = createContext<FormContext>({ teams: [], players: [], instances: [] });
+/** L'intera configurazione in modifica, per i widget che hanno bisogno dei valori del livello superiore (es. i predefiniti del round). */
+const RootCtx = createContext<Record<string, unknown>>({});
 
 interface FieldProps {
   schema: JsonSchema;
@@ -33,7 +36,7 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
   }
 
   if (schema.widget === "audio") {
-    return <AudioField schema={schema} value={value} onChange={onChange} labelText={labelText} />;
+    return <AudioField schema={schema} value={value} onChange={onChange} labelText={labelText} siblings={siblings} />;
   }
 
   if (schema.widget === "optionIndex") {
@@ -121,10 +124,11 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
 }
 
 /** Brano audio: si carica un file dal computer della regia oppure si sceglie tra quelli già caricati. */
-function AudioField({ schema, value, onChange, labelText }: Pick<FieldProps, "schema" | "value" | "onChange"> & { labelText: string }) {
+function AudioField({ schema, value, onChange, labelText, siblings }: Pick<FieldProps, "schema" | "value" | "onChange" | "siblings"> & { labelText: string }) {
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const round = useContext(RootCtx);
   const file = typeof value === "string" && value !== "" ? value : null;
 
   useEffect(() => {
@@ -158,7 +162,9 @@ function AudioField({ schema, value, onChange, labelText }: Pick<FieldProps, "sc
           {library.map((m) => <option key={m.file} value={m.file}>{m.name}</option>)}
         </select>
       )}
-      {file && current && <audio controls preload="none" src={`/media/${file}`} aria-label="Anteprima" />}
+      {file && current && (
+        <AudioPreview key={file} file={file} effect={AUDIO_EFFECTS.find((e) => e === siblings.effect) ?? "none"} song={siblings} round={round} />
+      )}
       {file && !current && <small className="hint" role="alert">Questo file non è nella mediateca (è un esempio): carica un brano oppure rimuovilo.</small>}
       {file && <button type="button" onClick={() => onChange(undefined)}>Rimuovi il file</button>}
       {error && <small className="hint" role="alert">{error}</small>}
@@ -306,7 +312,9 @@ function ObjectFields({
   const required = new Set(schema.required ?? []);
   return (
     <>
-      {Object.entries(schema.properties ?? {}).map(([key, prop]) => (
+      {Object.entries(schema.properties ?? {})
+        .filter(([, prop]) => isShown(prop, value, schema))
+        .map(([key, prop]) => (
         <Field
           key={key}
           schema={prop}
@@ -335,9 +343,11 @@ export function SchemaForm({
 }) {
   return (
     <FormCtx.Provider value={context ?? { teams: [], players: [], instances: [] }}>
-      <div className="schema-form">
-        <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
-      </div>
+      <RootCtx.Provider value={(value as Record<string, unknown>) ?? {}}>
+        <div className="schema-form">
+          <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
+        </div>
+      </RootCtx.Provider>
     </FormCtx.Provider>
   );
 }

@@ -192,3 +192,33 @@ test("effetto «sfocato»: nello stesso brano il tono grave passa e quello acuto
   const db = await screen.page.evaluate(() => ({ low: (window as any).__db(200) as number, high: (window as any).__db(8_000) as number }));
   expect(db.low - db.high, `grave ${db.low} dB, acuto ${db.high} dB`).toBeGreaterThan(30);
 });
+
+plain("editor: l'anteprima del brano suona con l'effetto scelto e si può confrontare con l'originale", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await admin.context.addInitScript(TAP_SCRIPT);
+  await page.reload();
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni effetto"));
+  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "grave-e-acuto.wav", mimeType: "audio/wav", buffer: stereoTone([200, 8_000], [200, 8_000], 20) });
+  const preview = page.locator("audio[aria-label='Anteprima']").first();
+  await expect(preview).toBeVisible();
+  // Senza effetto non compare la casella di confronto.
+  await expect(page.getByLabel("Ascolta con l'effetto")).toHaveCount(0);
+
+  await page.getByLabel("Effetto sull'audio").first().selectOption("heavy_blur");
+  const compare = page.getByLabel("Ascolta con l'effetto").first();
+  await expect(compare).toBeChecked();
+  await preview.evaluate((a: HTMLAudioElement) => a.play());
+  const level = (hz: number) => page.evaluate((f) => (window as any).__db(f) as number, hz);
+  await expect.poll(() => level(200), { timeout: 8_000 }).toBeGreaterThan(-60);
+  // Con l'effetto il grave passa e l'acuto è tagliato...
+  await expect.poll(async () => (await level(200)) - (await level(8_000)), { timeout: 8_000 }).toBeGreaterThan(30);
+
+  // ...togliendo la spunta si sente il brano originale, con l'acuto presente.
+  await compare.uncheck();
+  await expect.poll(async () => (await level(200)) - (await level(8_000)), { timeout: 8_000 }).toBeLessThan(15);
+  await compare.check();
+  await expect.poll(async () => (await level(200)) - (await level(8_000)), { timeout: 8_000 }).toBeGreaterThan(30);
+});

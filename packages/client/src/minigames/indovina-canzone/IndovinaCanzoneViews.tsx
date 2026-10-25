@@ -1,9 +1,10 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { type AudioEffect, type ClockSync, type LoopPlan, type LoopPosition, clarityAt, loopPosition } from "@gioco/shared";
+import { type AudioEffect, type BlurStagesPlan, type ClockSync, type LoopPlan, type LoopPosition, type PlaybackMode, type RatePlan } from "@gioco/shared";
 import { useAudioState, useSfx } from "../../audio/useAudio";
 import { Sfx } from "../../ui/Sfx";
 import { Countdown } from "../Countdown";
-import { type MusicBackend, bufferFileBackend, fileBackend, youtubeBackend } from "./backends";
+import { type MusicBackend, fileBackendFor, youtubeBackend } from "./backends";
+import { holdListening, startListening } from "./listening";
 import type { ControllerProps, ViewProps } from "../types";
 
 interface Music {
@@ -17,8 +18,15 @@ interface Music {
   segmentStart: number;
   stopAt: number | null;
   clipMs: number;
-  /** Ascolto a spezzoni crescenti; assente nell'ascolto continuo. */
+  /** Come si ascolta questo brano. */
+  mode: PlaybackMode;
+  /** Ascolto a spezzoni crescenti; assente negli altri. */
   loop: LoopPlan | null;
+  /** Brano più lento o più veloce, con l'eventuale ritorno alla velocità normale; assente negli altri. */
+  rate: RatePlan | null;
+  keepPitch: boolean;
+  /** Suono molto ovattato, poi poco, poi normale; assente negli altri. */
+  stages: BlurStagesPlan | null;
   /** Percentuale dell'ascolto a cui il suono è nitido; assente se l'effetto resta uguale. */
   clearAtPercent: number | null;
 }
@@ -65,9 +73,8 @@ const seconds = (ms: number) => `${(ms / 1000).toLocaleString("it-IT", { maximum
 
 /**
  * La musica suona solo sullo schermo condiviso, sentita da tutti nella stanza. Il server dice quando è
- * (ri)partita e da dove: ogni schermo ricostruisce la posizione con l'orologio sincronizzato. Negli ascolti a
- * spezzoni lo schermo fa suonare e tacere il brano agli istanti dettati dal piano; se l'effetto si attenua col
- * tempo, la rampa del filtro è programmata fino al punto in cui il suono torna nitido.
+ * (ri)partita e da dove: ogni schermo ricostruisce la posizione con l'orologio sincronizzato. Come suona il brano
+ * (spezzoni, velocità, fasi del filtro, rampa della nitidezza) lo decide `startListening`, in funzione del tempo ascoltato.
  * Restituisce lo spezzone in corso (solo negli ascolti a spezzoni).
  */
 function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefObject<HTMLDivElement | null>): LoopPosition | null {
@@ -76,20 +83,24 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const file = music?.file;
   const video = music?.youtubeId;
   const effect = music?.effect ?? "none";
-  const loopKey = JSON.stringify(music?.loop ?? null);
-  const loop = useMemo(() => JSON.parse(loopKey) as LoopPlan | null, [loopKey]);
-  const hasLoop = loop !== null;
+  const keepPitch = music?.keepPitch ?? true;
+  // I piani sono oggetti nuovi a ogni vista: si confrontano per contenuto, altrimenti la musica ripartirebbe a ogni aggiornamento.
+  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null]);
+  const plan = useMemo(() => {
+    const [loop, rate, stages] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null];
+    return { loop, rate, stages };
+  }, [planKey]);
 
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
-    else if (file) backend.current = hasLoop ? bufferFileBackend(file, effect) : fileBackend(file, effect);
+    else if (file) backend.current = fileBackendFor(file, effect, { ...plan, keepPitch });
     else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effect, hasLoop, host]);
+  }, [file, video, effect, plan, keepPitch, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;
@@ -97,62 +108,36 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const stopAt = music?.stopAt ?? null;
   const startSeconds = music?.startSeconds ?? 0;
   const clipMs = music?.clipMs ?? 0;
-  const clearAt = music?.clearAtPercent ?? null;
+  const clearAtPercent = music?.clearAtPercent ?? null;
 
   useEffect(() => {
     const b = backend.current;
     if (!b) return;
-    const serverNow = () => clock.toServerTime(Date.now());
-    const heardNow = () => offsetMs + Math.max(0, serverNow() - segmentStart);
-    const clarity = (heard: number) => (clearAt === null ? 0 : clarityAt(heard, clipMs, clearAt));
-
+    const run = { listening: plan, startSeconds, offsetMs, segmentStart, stopAt, clipMs, clearAtPercent, now: () => clock.toServerTime(Date.now()), onLoop: setLoopPos };
     if (!playing) {
-      b.pause();
-      const held = clarity(offsetMs); // da fermo il suono resta nitido quanto lo era al momento dello stop
-      b.setClarity(held, held, 0);
-      setLoopPos(null);
+      holdListening(b, run);
       return;
     }
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const step = () => {
-      const heard = heardNow();
-      if (!loop) {
-        b.playAt(startSeconds + heard / 1000);
-        return;
-      }
-      const pos = loopPosition(loop, heard);
-      setLoopPos(pos);
-      if (pos.sounding) b.playAt(startSeconds + pos.songMs / 1000, pos.nextChangeMs! - heard);
-      else {
-        b.pause();
-        b.cue(startSeconds); // il prossimo spezzone riparte dall'inizio senza ritardo
-      }
-      if (pos.nextChangeMs !== null) timer = setTimeout(step, Math.max(1, segmentStart + pos.nextChangeMs - offsetMs - serverNow()));
-    };
-    const begin = () => {
-      // Negli ascolti a spezzoni il server fissa l'inizio poco nel futuro: si aspetta, così il primo spezzone è intero.
-      const early = segmentStart - serverNow();
-      if (early > 0) {
-        timer = setTimeout(begin, early);
-        return;
-      }
-      step();
-      if (clearAt !== null) {
-        const heard = heardNow();
-        b.setClarity(clarity(heard), 1, Math.max(0, (clipMs * clearAt) / 100 - heard));
-      }
-    };
-    const cancel = b.whenReady(begin);
-    const stop = stopAt === null ? undefined : setTimeout(() => b.pause(), Math.max(0, stopAt - serverNow()));
-    return () => {
-      cancel();
-      clearTimeout(timer);
-      clearTimeout(stop);
-    };
-  }, [file, video, playing, segmentStart, offsetMs, stopAt, startSeconds, clipMs, clearAt, loop, clock]);
+    return startListening(b, run);
+  }, [file, video, playing, segmentStart, offsetMs, stopAt, startSeconds, clipMs, clearAtPercent, plan, clock]);
 
   return loopPos;
+}
+
+/** Una riga per dire come suona il brano (solo le modalità che si sentono subito: velocità e fasi). */
+function ModeNote({ music }: { music: Music }) {
+  const { rate, stages } = music;
+  if (rate) {
+    const slow = rate.rate < 1;
+    return (
+      <p className="muted song-mode" data-mode={music.mode}>
+        {slow ? "🐢 Brano rallentato" : rate.rate > 1 ? "🐇 Brano accelerato" : "🎚 Brano a velocità normale"}
+        {rate.untilMs !== null && ", poi torna normale"}
+      </p>
+    );
+  }
+  if (stages) return <p className="muted song-mode" data-mode={music.mode}>🌫 Il suono è ovattato e si schiarisce a poco a poco</p>;
+  return null;
 }
 
 function CategoryChips({ options }: { options: CategoryOption[] }) {
@@ -213,6 +198,7 @@ export function IndovinaCanzoneScreen({ view, clock, theme }: ViewProps) {
       {v.phase === "playing" && v.music && (
         <>
           <p className="big pulse">Chi lo sa? PRENOTATEVI!</p>
+          <ModeNote music={v.music} />
           {loopPos && v.music.loop && (
             <p className="muted song-loop" data-sounding={loopPos.sounding}>
               {loopPos.sounding ? "🔊" : "⏸"} Spezzone {loopPos.index + 1} di {v.music.loop.snippetsMs.length} ({seconds(v.music.loop.snippetsMs[loopPos.index]!)})
