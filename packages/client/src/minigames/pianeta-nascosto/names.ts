@@ -38,11 +38,11 @@ export function polar(r: number, deg: number, cx = 200, cy = 200): [number, numb
 }
 
 /** Spicchio d'anello tra i raggi `r1 < r2` e gli angoli `a1 < a2` (gradi). */
-export function ring(r1: number, r2: number, a1: number, a2: number): string {
-  const [x1, y1] = polar(r2, a1);
-  const [x2, y2] = polar(r2, a2);
-  const [x3, y3] = polar(r1, a2);
-  const [x4, y4] = polar(r1, a1);
+export function ring(r1: number, r2: number, a1: number, a2: number, cx = 200, cy = 200): string {
+  const [x1, y1] = polar(r2, a1, cx, cy);
+  const [x2, y2] = polar(r2, a2, cx, cy);
+  const [x3, y3] = polar(r1, a2, cx, cy);
+  const [x4, y4] = polar(r1, a1, cx, cy);
   const large = a2 - a1 > 180 ? 1 : 0;
   return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r2} ${r2} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L${x3.toFixed(2)} ${y3.toFixed(2)} A${r1} ${r1} 0 ${large} 0 ${x4.toFixed(2)} ${y4.toFixed(2)} Z`;
 }

@@ -44,7 +44,7 @@ export function Board({ v, sky }: { v: PublicView; sky?: Kind[] }) {
         const [x, y] = polar(184, centerAngle(s, n), C, C);
         return (
           <g key={`t${s}`}>
-            <path className="px-track" d={ring(TRACK[0], TRACK[1], edgeAngle(s, n) + 0.4, edgeAngle(s, n) + 360 / n - 0.4)} />
+            <path className="px-track" d={ring(TRACK[0], TRACK[1], edgeAngle(s, n) + 0.4, edgeAngle(s, n) + 360 / n - 0.4, C, C)} />
             <text className="px-num" x={x} y={y} textAnchor="middle" dominantBaseline="central">{s}</text>
           </g>
         );
@@ -61,7 +61,7 @@ export function Board({ v, sky }: { v: PublicView; sky?: Kind[] }) {
           <g key={`w${s}`} className="px-wedge" data-testid="px-wedge" data-sector={s} data-confirmed={confirmed[s] ? "true" : undefined}>
             {[0, 1, 2, 3].map((space) => {
               const [r1, r2] = cellRadii(space);
-              return <path key={space} className="px-cell" data-space={space} d={ring(r1, r2, a1, a2)} />;
+              return <path key={space} className="px-cell" data-space={space} d={ring(r1, r2, a1, a2, C, C)} />;
             })}
             {kind && (
               <text className="px-object" data-kind={kind} x={gx} y={gy} textAnchor="middle" dominantBaseline="central" data-testid="px-object">
@@ -85,7 +85,7 @@ export function Board({ v, sky }: { v: PublicView; sky?: Kind[] }) {
       })}
 
       {/* anello interno: numeri e icone */}
-      <path className="px-inner" d={ring(INNER[0], INNER[1], -90, 269.9)} />
+      <path className="px-inner" d={ring(INNER[0], INNER[1], -90, 269.9, C, C)} />
       {sectors.map((s) => {
         const [x, y] = polar(86, centerAngle(s, n), C, C);
         return (
@@ -109,7 +109,7 @@ export function Board({ v, sky }: { v: PublicView; sky?: Kind[] }) {
 
       {/* la Terra: copre metà anello interno; la freccia indica il settore dell'osservatorio più arretrato */}
       <g className="px-earth" data-testid="px-earth" data-earth-sector={v.earthSector} style={{ transform: `rotate(${earthDeg}deg)`, transformOrigin: `${C}px ${C}px` }}>
-        <path className="px-disc" d={ring(INNER[0] - 4, INNER[1] + 2, coverStart, coverStart + 180)} />
+        <path className="px-disc" d={ring(INNER[0] - 4, INNER[1] + 2, coverStart, coverStart + 180, C, C)} />
         <text className="px-disc-label" x={polar(86, coverStart + 90, C, C)[0]} y={polar(86, coverStart + 90, C, C)[1]} textAnchor="middle" dominantBaseline="central">🌍</text>
         <path className="px-arrow" d={`M${C} ${C - 62} L${C - 7} ${C - 47} L${C + 7} ${C - 47} Z`} transform={`rotate(${centerAngle(1, n) + 90} ${C} ${C})`} />
       </g>

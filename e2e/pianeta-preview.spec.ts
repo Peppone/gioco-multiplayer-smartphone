@@ -65,6 +65,32 @@ for (const theme of THEMES) {
       await expect(tv.getByTestId("px-log")).toContainText("FALLITO");
     });
 
+    test("TV: tracciato, piste, anello interno e sole hanno lo stesso centro e i segnalini restano nel tabellone", async ({ page }) => {
+      await page.goto(`/preview?theme=${theme}&scene=px-board&still=1`);
+      const board = page.locator(".screen-frame").getByTestId("px-board");
+      await expect(board).toBeVisible();
+      const geometry = await board.evaluate((svg) => {
+        const union = (selector: string) => {
+          const boxes = [...svg.querySelectorAll(selector)].map((e) => e.getBoundingClientRect());
+          const left = Math.min(...boxes.map((b) => b.left)), right = Math.max(...boxes.map((b) => b.right));
+          const top = Math.min(...boxes.map((b) => b.top)), bottom = Math.max(...boxes.map((b) => b.bottom));
+          return { x: (left + right) / 2, y: (top + bottom) / 2, w: right - left };
+        };
+        const frame = svg.getBoundingClientRect();
+        const markers = [...svg.querySelectorAll("[data-testid=px-marker]")].map((e) => e.getBoundingClientRect());
+        return {
+          track: union(".px-track"), cells: union(".px-cell"), inner: union(".px-inner"), sun: union(".px-sun"),
+          markersInside: markers.every((b) => b.left >= frame.left && b.right <= frame.right && b.top >= frame.top && b.bottom <= frame.bottom),
+        };
+      });
+      const tolerance = geometry.track.w / 100;
+      for (const part of ["cells", "inner", "sun"] as const) {
+        expect(Math.abs(geometry[part].x - geometry.track.x), `${part}: centro orizzontale`).toBeLessThanOrEqual(tolerance);
+        expect(Math.abs(geometry[part].y - geometry.track.y), `${part}: centro verticale`).toBeLessThanOrEqual(tolerance);
+      }
+      expect(geometry.markersInside, "segnalini dentro il tabellone").toBe(true);
+    });
+
     test("Esperto: 18 spicchi, 6 icone di teoria e 2 conferenze", async ({ page }) => {
       await page.goto(`/preview?theme=${theme}&scene=px-expert&still=1`);
       const tv = page.locator(".screen-frame");
