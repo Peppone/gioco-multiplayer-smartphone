@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   AUDIO_EFFECTS,
   EFFECT_AMOUNT,
+  EFFECT_SEED,
   LEGACY_AUDIO_EFFECTS,
   LISTEN_DEFAULTS,
   MAX_EFFECTS,
@@ -108,6 +109,9 @@ export const indovinaCanzoneConfigSchema = z
                       telephone: "Telefono (banda stretta)",
                       distortion: "Distorsione (suono saturato)",
                       echo: "Eco",
+                      reverse_chunks: "Al contrario a pezzi (camuffa le parole, resta il ritmo)",
+                      flip_spectrum: "Spettro capovolto (acuti e gravi scambiati, voce aliena)",
+                      shuffle_syllables: "Sillabe mescolate (pezzi in ordine sparso, rompe anche il ritmo)",
                     },
                   }),
                   amount: z
@@ -122,13 +126,24 @@ export const indovinaCanzoneConfigSchema = z
                       widget: "slider",
                       step: EFFECT_AMOUNT.step,
                     }),
+                  seed: z
+                    .number()
+                    .int()
+                    .min(EFFECT_SEED.min)
+                    .max(EFFECT_SEED.max)
+                    .optional()
+                    .meta({
+                      title: "Variante",
+                      description: "Un altro numero, un altro ordine dei pezzi; lo stesso numero dà sempre lo stesso ascolto. Vuoto = 1. Provane qualcuna e tieni la migliore",
+                      showWhen: { field: "type", in: ["shuffle_syllables"] },
+                    }),
                 }),
               )
               .max(MAX_EFFECTS)
               .default([])
               .meta({
                 title: "Effetti sull'audio",
-                description: `Rendono il brano meno riconoscibile. Se ne possono sommare fino a ${MAX_EFFECTS}, anche lo stesso più volte: si applicano uno dopo l'altro, nell'ordine dell'elenco, e ognuno ha la sua quantità. Funzionano solo con i file caricati, non con YouTube. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» tutti gli effetti si attenuano mano a mano che passa il tempo`,
+                description: `Rendono il brano meno riconoscibile. Se ne possono sommare fino a ${MAX_EFFECTS}, anche lo stesso più volte: si applicano uno dopo l'altro, nell'ordine dell'elenco, e ognuno ha la sua quantità. Funzionano solo con i file caricati, non con YouTube. I tre effetti «che rompono le parole» (Al contrario a pezzi, Spettro capovolto, Sillabe mescolate) rielaborano il file prima di farlo suonare, quindi la partenza del brano richiede qualche secondo in più e non si attenuano con «Svela gradualmente» (né gli effetti che li precedono nell'elenco); con l'ovattato a fasi non valgono. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» tutti gli effetti si attenuano mano a mano che passa il tempo`,
                 itemLabel: "Effetto",
               }),
             /** Il campo di prima, quando ogni brano aveva un solo effetto: si vede solo nei brani salvati allora, finché non si salvano di nuovo. */
@@ -147,7 +162,8 @@ export const indovinaCanzoneConfigSchema = z
               .meta({
                 title: "Modalità di ascolto del brano",
                 description:
-                  "Si sceglie brano per brano. «Come nel round» usa «Come si ascolta» del round. Velocità e ovattato a fasi funzionano solo con i file caricati, non con YouTube; con l'ovattato a fasi l'«Effetto sull'audio» del brano non vale",
+                  "Si sceglie brano per brano. Velocità e ovattato a fasi funzionano solo con i file caricati, non con YouTube; con l'ovattato a fasi l'«Effetto sull'audio» del brano non vale",
+                enumHidden: ["inherit"],
                 enumLabels: {
                   inherit: "Come nel round",
                   continuous: "Continuo",
@@ -165,7 +181,7 @@ export const indovinaCanzoneConfigSchema = z
               .optional()
               .meta({
                 title: "Durata dell'ascolto di questo brano (secondi)",
-                description: "Vuoto = quella del round. Per il tempo ascoltato, non per la posizione nel brano: a velocità doppia 30 s fanno sentire un minuto di musica",
+                description: "Per il tempo ascoltato, non per la posizione nel brano: a velocità doppia 30 s fanno sentire un minuto di musica",
                 ...showWhen("inherit", "continuous", "speed", "speed_then_normal", "blur_stages"),
               }),
             loopSeconds: z
@@ -174,7 +190,7 @@ export const indovinaCanzoneConfigSchema = z
               .default([])
               .meta({
                 title: "Durata degli spezzoni di questo brano (secondi)",
-                description: "Nell'ordine in cui si ascoltano. Vuoto = quelli del round",
+                description: "Nell'ordine in cui si ascoltano",
                 itemLabel: "Spezzone del brano",
                 ...showWhen("loops"),
               }),
@@ -183,7 +199,7 @@ export const indovinaCanzoneConfigSchema = z
               .min(0.2)
               .max(10)
               .optional()
-              .meta({ title: "Pausa tra gli spezzoni di questo brano (secondi)", description: "Vuoto = quella del round", ...showWhen("loops") }),
+              .meta({ title: "Pausa tra gli spezzoni di questo brano (secondi)", description: "Tempo di silenzio tra uno spezzone e il successivo", ...showWhen("loops") }),
             speed: z
               .number()
               .min(SPEED_MIN)
@@ -276,19 +292,20 @@ export const indovinaCanzoneConfigSchema = z
       )
       .min(1)
       .max(50)
-      .meta({ title: "Brani", itemLabel: "Brano" }),
+      .meta({ title: "Brani", itemLabel: "Brano", widget: "songs" }),
     clipSeconds: z
       .number()
       .int()
       .min(3)
       .max(120)
       .default(ROUND_LISTEN_DEFAULTS.clipSeconds)
-      .meta({ title: "Durata dell'ascolto (secondi)", description: "Predefinita dei brani (ognuno può avere la sua). Se nessuno indovina entro questo tempo la musica si ferma. Con gli spezzoni vale la durata totale degli spezzoni" }),
+      .meta({ title: "Durata dell'ascolto (secondi)", description: "Predefinita dei brani senza una durata propria. Se nessuno indovina entro questo tempo la musica si ferma. Con gli spezzoni vale la durata totale degli spezzoni", hidden: true }),
     playback: z
       .enum(["continuous", "loops"])
       .default(ROUND_LISTEN_DEFAULTS.playback)
       .meta({
         title: "Come si ascolta",
+        hidden: true,
         description: "Predefinito dei brani: ogni brano può scegliere la sua modalità (anche più lento, più veloce o ovattato a fasi). A spezzoni il brano riparte sempre dall'inizio e dura di più a ogni giro, con una pausa in mezzo: ci si può prenotare anche durante le pause",
         enumLabels: { continuous: "Continuo", loops: "A spezzoni crescenti (es. 0,5 s, pausa, 1 s, pausa, 2 s…)" },
       }),
@@ -297,13 +314,13 @@ export const indovinaCanzoneConfigSchema = z
       .min(1)
       .max(12)
       .default(ROUND_LISTEN_DEFAULTS.loopSeconds)
-      .meta({ title: "Durata degli spezzoni (secondi)", description: "Predefiniti dei brani a spezzoni, nell'ordine in cui si ascoltano", itemLabel: "Spezzone" }),
+      .meta({ title: "Durata degli spezzoni (secondi)", description: "Predefiniti dei brani a spezzoni, nell'ordine in cui si ascoltano", itemLabel: "Spezzone", hidden: true }),
     loopPauseSeconds: z
       .number()
       .min(0.2)
       .max(10)
       .default(ROUND_LISTEN_DEFAULTS.loopPauseSeconds)
-      .meta({ title: "Pausa tra gli spezzoni (secondi)", description: "Predefinita dei brani a spezzoni" }),
+      .meta({ title: "Pausa tra gli spezzoni (secondi)", description: "Predefinita dei brani a spezzoni", hidden: true }),
     progressive: z
       .boolean()
       .default(false)

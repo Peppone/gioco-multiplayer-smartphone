@@ -1,5 +1,5 @@
 import { expect, test as plain } from "@playwright/test";
-import { SOURCE_SPY, TAP_SCRIPT, silentWav, stereoTone, unlockAudio, uploadTone } from "./audio-support";
+import { SOURCE_SPY, TAP_SCRIPT, closeAdvanced, openAdvanced, silentWav, stereoTone, unlockAudio, uploadTone } from "./audio-support";
 import { adminToken, openAdmin, test, unique } from "./support";
 
 const SECRET = "TITOLO-SEGRETO-E2E";
@@ -236,15 +236,20 @@ plain("editor: categorie, spezzoni e scelta della categoria si configurano dal m
   await page.getByRole("button", { name: "Libreria" }).click();
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni categorie"));
-  await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM");
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
 
-  // Le categorie del brano si scrivono una per riga.
+  // Le categorie del brano si scrivono una per riga, nel pannello «Avanzato», e compaiono nel riassunto della riga.
+  await openAdvanced(page);
+  await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM");
   await page.getByLabel("Categorie").first().fill("Anni 80\nRock");
-  // Ascolto a spezzoni, con i valori predefiniti 0,5 · 1 · 2 · 4 · 8.
-  await page.getByLabel("Come si ascolta").selectOption("loops");
-  await expect(page.getByLabel("Spezzone 5")).toHaveValue("8");
-  await page.getByLabel("Pausa tra gli spezzoni (secondi)").fill("2");
+  // L'ascolto si decide brano per brano, nello stesso pannello: a spezzoni, con i valori predefiniti 0,5 · 1 · 2 · 4 · 8.
+  await expect(page.getByLabel("Come si ascolta")).toHaveCount(0); // non c'è più un predefinito del round nel modulo
+  await page.getByLabel("Modalità di ascolto del brano").selectOption("loops");
+  await expect(page.getByLabel("Spezzone del brano 5")).toHaveValue("8");
+  await page.getByLabel("Pausa tra gli spezzoni di questo brano (secondi)").fill("2");
+  await closeAdvanced(page);
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("categorie: Anni 80, Rock");
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("ascolto a spezzoni crescenti (0,5 · 1 · 2 · 4 · 8 s)");
   // Senza un effetto su almeno un brano «Svela gradualmente» non si salva, e il messaggio lo spiega.
   await page.getByLabel(/Svela gradualmente il suono/).check();
   await page.getByRole("button", { name: "Salva" }).click();

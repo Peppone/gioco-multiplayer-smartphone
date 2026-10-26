@@ -106,6 +106,8 @@ export const TAP_SCRIPT = `
   const desc = Object.getOwnPropertyDescriptor(BaseAudioContext.prototype, "destination");
   Object.defineProperty(BaseAudioContext.prototype, "destination", {
     get() {
+      // I contesti «offline» (con cui si preparano i file rielaborati) non suonano: il loro ultimo stato congelato falserebbe le misure.
+      if (this instanceof OfflineAudioContext) return desc.get.call(this);
       if (!this.__tap) {
         const analyser = this.createAnalyser();
         analyser.fftSize = 2048;
@@ -160,4 +162,26 @@ export async function uploadTone(request: APIRequestContext, name: string, wav: 
   });
   expect(res.status()).toBe(201);
   return ((await res.json()) as { file: string }).file;
+}
+
+// ---- Editor di «Indovina la canzone»: elenco dei brani e pannello «Avanzato» ----
+
+/** Aggiunge uno o più brani all'elenco caricando i file (riempie prima la riga vuota con cui nasce l'elenco). */
+export const addSongFiles = (page: Page, files: { name: string; mimeType: string; buffer: Buffer } | { name: string; mimeType: string; buffer: Buffer }[]) =>
+  page.getByLabel("Aggiungi file", { exact: true }).setInputFiles(files);
+
+/** Il pannello «Avanzato» del brano `n` (da 1). */
+export const advancedPanel = (page: Page, n = 1) => page.getByRole("dialog", { name: `Avanzato: brano ${n}` });
+
+/** Apre il pannello «Avanzato» del brano `n` e lo restituisce. */
+export async function openAdvanced(page: Page, n = 1) {
+  await page.getByRole("button", { name: `Avanzato: brano ${n}` }).click();
+  await expect(advancedPanel(page, n)).toBeVisible();
+  return advancedPanel(page, n);
+}
+
+/** Chiude il pannello «Avanzato» con «Fatto»: aperto, copre il resto della pagina. */
+export async function closeAdvanced(page: Page, n = 1) {
+  await advancedPanel(page, n).getByRole("button", { name: "Fatto" }).click();
+  await expect(advancedPanel(page, n)).toHaveCount(0);
 }

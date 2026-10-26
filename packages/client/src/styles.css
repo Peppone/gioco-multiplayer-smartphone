@@ -109,6 +109,45 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monos
 .field.slider input[type=number] { width: 5rem; }
 .audio-field audio { width: 100%; }
 .audio-field [role=alert] { color: var(--bad, #ff6b6b); }
+/* Elenco dei brani: una riga per brano, tutto il resto nel pannello «Avanzato» */
+.song-list .song-row { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: start; background: var(--panel); border: 1px solid var(--panel-2); border-radius: .6rem; padding: .6rem .8rem; }
+.song-list .song-num { font-weight: 700; opacity: .6; padding-top: .55rem; min-width: 1.5rem; text-align: right; }
+.song-list .song-main { display: grid; gap: .3rem; min-width: 0; }
+.song-list .song-answer { width: 100%; box-sizing: border-box; }
+.song-list .song-source { opacity: .75; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-list .bad, .song-dialog .bad { color: var(--bad, #ff6b6b); opacity: 1; }
+.song-list .song-chips { display: flex; flex-wrap: wrap; gap: .3rem; list-style: none; margin: 0; padding: 0; }
+.song-list .song-chips li { font-size: .75rem; background: var(--panel-2); border-radius: 1rem; padding: .15rem .6rem; }
+.song-list .song-chips li.muted { background: transparent; padding-left: 0; }
+.song-list .song-row .tools { display: flex; gap: .25rem; flex-wrap: wrap; justify-content: flex-end; }
+.song-list .song-add { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.song-list .file-btn.disabled { opacity: .5; cursor: default; }
+.song-list .song-links { display: grid; gap: .4rem; }
+.song-list .song-links textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
+.song-dialog-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, .65); display: grid; place-items: center; z-index: 50; padding: 1rem; }
+.song-dialog { background: #16161f; border: 1px solid var(--panel-2); border-radius: .8rem; width: min(46rem, 100%); max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 0 1rem 1rem; display: grid; gap: .8rem; align-content: start; }
+.song-dialog-top { position: sticky; top: 0; z-index: 2; background: #16161f; display: grid; gap: .5rem; padding: .8rem 0 .6rem; border-bottom: 1px solid var(--panel-2); }
+.song-dialog-top > header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.audio-preview { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .9rem; }
+.audio-preview audio { flex: 1 1 16rem; min-width: 0; height: 2.6rem; }
+.audio-preview .listen-trial { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.audio-preview [role=status] { flex-basis: 100%; }
+.song-dialog > header h3, .song-dialog-top > header h3 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.song-dialog .song-section { display: grid; gap: .6rem; border: 1px solid var(--panel-2); border-radius: .6rem; padding: .6rem .8rem; }
+.song-dialog .song-section h4 { margin: 0; }
+/* Bottoni larghi a sufficienza per un clic o un tocco sicuri */
+.song-list .song-row .tools button, .song-list .song-add button, .song-list .song-links button, .song-list .file-btn { min-height: 2.75rem; min-width: 3rem; padding: .5rem 1.1rem; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.song-list .song-row .tools button[aria-label^="Avanzato"] { min-width: 8rem; padding: .5rem 1.5rem; font-weight: 600; }
+.song-list .song-add select { min-height: 2.75rem; }
+.song-dialog button, .song-dialog .tools button, .song-dialog .item-head button { min-height: 2.75rem; min-width: 3rem; padding: .5rem 1.1rem; font-size: 1rem; }
+.song-dialog-top > header button { min-width: 7rem; padding: .5rem 1.8rem; font-weight: 600; }
+.song-dialog .item-head .tools { gap: .5rem; }
+@media (max-width: 700px) {
+  .song-list .song-row { grid-template-columns: auto 1fr; }
+  .song-list .song-row .tools { grid-column: 1 / -1; justify-content: stretch; }
+  .song-list .song-row .tools button { flex: 1; }
+  .song-list .song-row .tools button[aria-label^="Avanzato"] { flex: 3; }
+}
 .field.lines textarea { width: 100%; font-family: inherit; line-height: 1.35; resize: vertical; }
 .field.lines [role=alert] { color: var(--bad, #ff6b6b); }
 .field.lines .lines-export { justify-self: start; }

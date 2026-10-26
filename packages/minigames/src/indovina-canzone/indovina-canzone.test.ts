@@ -694,6 +694,35 @@ describe("indovina la canzone: configurazione", () => {
     expect(parseSong(mixed).effects).toEqual(mixed.effects);
   });
 
+  it("i camuffamenti stanno nello stesso elenco degli effetti: variante solo per le sillabe, non valgono con YouTube, arrivano solo allo schermo", () => {
+    const parse = (song: object) => game.configSchema.safeParse({ songs: [{ answer: "x", ...song }] });
+    for (const type of ["reverse_chunks", "flip_spectrum", "shuffle_syllables"]) expect(parse({ audio: FILE_1, effects: [{ type, amount: 150 }] }).success, type).toBe(true);
+    // si sommano con i filtri, nell'ordine dell'elenco, e la variante resta com'è (senza, non viene inventata)
+    const mixed = parse({ audio: FILE_1, effects: [{ type: "blur", amount: 100 }, { type: "shuffle_syllables", amount: 100, seed: 7 }, { type: "flip_spectrum" }] });
+    expect(mixed.success && mixed.data.songs[0]!.effects).toEqual([{ type: "blur", amount: 100 }, { type: "shuffle_syllables", amount: 100, seed: 7 }, { type: "flip_spectrum", amount: 100 }]);
+    expect(parse({ audio: FILE_1, effects: [{ type: "shuffle_syllables", seed: 0 }] }).success).toBe(false);
+    expect(parse({ audio: FILE_1, effects: [{ type: "shuffle_syllables", seed: 1_000 }] }).success).toBe(false);
+    expect(parse({ youtube: "dQw4w9WgXcQ", effects: [{ type: "flip_spectrum" }] }).success).toBe(false);
+
+    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effects: [{ type: "echo", amount: 40 }, { type: "shuffle_syllables", amount: 100, seed: 7 }] }] });
+    const started = cmd(game.init(cfg, ctx, 0), "start", 1_000);
+    expect(game.screenView(started)).toMatchObject({ music: { effects: [{ type: "echo", amount: 40 }, { type: "shuffle_syllables", amount: 100, seed: 7 }] } });
+    expect(JSON.stringify(game.viewFor(started, "a", null))).not.toMatch(/shuffle_syllables|seed|effects/);
+  });
+
+  it("con l'ovattato a fasi i camuffamenti non valgono e la variante nel modulo si vede solo per le sillabe", () => {
+    const cfg = game.configSchema.parse({
+      songs: [{ audio: FILE_1, answer: "x", playback: "blur_stages", effects: [{ type: "flip_spectrum", amount: 100 }, { type: "echo", amount: 40 }] }],
+    });
+    expect(game.screenView(cmd(game.init(cfg, ctx, 0), "start", 1_000))).toMatchObject({ music: { effects: [{ type: "blur", amount: 165 }, { type: "echo", amount: 40 }] } });
+    const json = z.toJSONSchema(game.configSchema, { io: "input", unrepresentable: "any" }) as unknown as {
+      properties: { songs: { items: { properties: { effects: { items: { properties: { seed: { showWhen?: unknown; default?: unknown } } } } } } } };
+    };
+    const seed = json.properties.songs.items.properties.effects.items.properties.seed;
+    expect(seed.showWhen).toEqual({ field: "type", in: ["shuffle_syllables"] });
+    expect(seed).not.toHaveProperty("default");
+  });
+
   it("nell'editor il vecchio campo compare solo nei brani che lo hanno ancora, e la quantità è un cursore", () => {
     const json = z.toJSONSchema(game.configSchema, { io: "input", unrepresentable: "any" }) as unknown as {
       properties: { songs: { items: { properties: Record<string, { showWhen?: { field: string; in: string[] }; items?: { properties: Record<string, { widget?: string; minimum?: number; maximum?: number; step?: number; default?: number }> } }> } } };

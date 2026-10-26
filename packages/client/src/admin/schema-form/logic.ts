@@ -15,7 +15,7 @@ export interface JsonSchema {
   minimum?: number;
   maximum?: number;
   /** Suggerimenti di interfaccia aggiunti dai plugin con `.meta()`; `lines` (su un elenco di testi): uno per riga. */
-  widget?: "textarea" | "optionIndex" | "contestant" | "instance" | "audio" | "lines" | "slider";
+  widget?: "textarea" | "optionIndex" | "contestant" | "instance" | "audio" | "lines" | "slider" | "songs";
   /** Per il widget «slider»: passo del cursore. */
   step?: number;
   optionsKey?: string;
@@ -24,6 +24,10 @@ export interface JsonSchema {
   itemLabel?: string;
   /** Etichette leggibili per i valori di un enum (valore → testo). */
   enumLabels?: Record<string, string>;
+  /** Valori dell'enum che il modulo non offre più come scelta (restano validi nei dati salvati). */
+  enumHidden?: string[];
+  /** Il campo resta nei dati ma il modulo non lo mostra (es. i predefiniti del round, ora decisi brano per brano). */
+  hidden?: boolean;
   /** Il campo compare solo se il campo fratello `field` ha uno di questi valori (es. i parametri di una modalità). */
   showWhen?: { field: string; in: string[] };
 }

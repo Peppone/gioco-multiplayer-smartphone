@@ -3,6 +3,7 @@ import { type EffectSetting, type Listening, PLAYBACK_MODES, type PlaybackMode, 
 import { fileBackendFor } from "../../minigames/indovina-canzone/backends";
 import { type EffectChain, connectEffects } from "../../minigames/indovina-canzone/effects";
 import { startListening } from "../../minigames/indovina-canzone/listening";
+import { type PreparedFile, prepareFile, splitChain } from "../../minigames/indovina-canzone/prepare";
 
 interface Graph {
   source: MediaElementAudioSourceNode;
@@ -74,14 +75,40 @@ export function AudioPreview({ file, effects, song, round }: { file: string; eff
     return () => clearTimeout(t);
   }, [wantedKey]);
 
+  // I camuffamenti rielaborano il file: finché non è pronto l'anteprima non suona (suonerebbe il brano senza camuffamento).
+  const { pre, live } = useMemo(() => splitChain(JSON.parse(settledKey) as EffectSetting[]), [settledKey]);
+  const preKey = JSON.stringify(pre);
+  const [prepared, setPrepared] = useState<{ key: string; url: string } | null>(null);
+  useEffect(() => {
+    if (pre.length === 0) return;
+    const abort = new AbortController();
+    let made: PreparedFile | null = null;
+    prepareFile(file, pre, { signal: abort.signal }).then(
+      (done) => {
+        if (abort.signal.aborted) return done.dispose();
+        made = done;
+        setPrepared({ key: preKey, url: done.url });
+      },
+      () => undefined,
+    );
+    return () => {
+      abort.abort();
+      made?.dispose();
+    };
+  }, [file, preKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // «Prepara» anche mentre un cambio di effetti non si è ancora assestato: l'anteprima non deve suonare l'elenco di prima.
+  const preparing = settledKey !== wantedKey || (pre.length > 0 && prepared?.key !== preKey);
+  const source = pre.length === 0 ? `/media/${file}` : prepared?.key === preKey ? prepared.url : undefined;
+
   useEffect(() => {
     const audioEl = el.current;
     if (!audioEl) return;
-    const active = JSON.parse(settledKey) as EffectSetting[];
+    const active = live;
     let graph = graphs.get(audioEl);
     if (!graph) {
-      // Senza effetti e mai collegato: resta il lettore normale, senza Web Audio.
-      if (active.length === 0) return;
+      // Senza effetti e mai collegato: resta il lettore normale, senza Web Audio. Con dei camuffamenti il file è già
+      // rielaborato (resta solo da suonare), ma si passa comunque da Web Audio come con gli altri effetti.
+      if (active.length === 0 && pre.length === 0) return;
       graph = { source: context().createMediaElementSource(audioEl), chain: null };
       graphs.set(audioEl, graph);
     }
@@ -94,8 +121,9 @@ export function AudioPreview({ file, effects, song, round }: { file: string; eff
   }, [settledKey]);
 
   return (
-    <>
-      <audio ref={el} controls preload="none" src={`/media/${file}`} aria-label="Anteprima" data-effects={(JSON.parse(settledKey) as EffectSetting[]).length} onPlay={() => void sharedCtx?.resume()} />
+    <div className="audio-preview">
+      <audio ref={el} controls preload="none" src={source} aria-label="Anteprima" data-effects={(JSON.parse(settledKey) as EffectSetting[]).length} data-state={preparing ? "preparing" : "ready"} onPlay={() => void sharedCtx?.resume()} />
+      {preparing && <small className="muted" role="status">Preparo l'anteprima con i camuffamenti…</small>}
       {effects.length > 0 && (
         <label className="check">
           <input type="checkbox" checked={withEffect} onChange={(e) => setWithEffect(e.target.checked)} />
@@ -103,7 +131,7 @@ export function AudioPreview({ file, effects, song, round }: { file: string; eff
         </label>
       )}
       <ListenTrial file={file} effects={effects} song={song} round={round} />
-    </>
+    </div>
   );
 }
 
@@ -127,8 +155,10 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
 
   const start = () => {
     stop();
+    // Il contesto audio si sblocca qui, nel clic: più avanti (a brano caricato) il browser potrebbe rifiutarlo.
+    void context().resume();
     // Con le fasi il filtro lo guidano le fasi, come in partita.
-    const backend = fileBackendFor(file, effectsForListening(effects, listening.stages), listening, { ctx: context() });
+    const backend = fileBackendFor(file, effectsForListening(effects, listening.stages), listening, { ctx: context(), startSeconds, ignoreMute: true });
     let run: (() => void) | undefined;
     let end: ReturnType<typeof setTimeout> | undefined;
     // Si parte a brano pronto, così il tempo di caricamento non accorcia il primo spezzone.
@@ -149,11 +179,16 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
 
   return (
     <div className="listen-trial" data-state={playing ? "playing" : "idle"} data-mode={listening.mode}>
-      <button type="button" aria-pressed={playing} onClick={playing ? stop : start}>
+      <button
+        type="button"
+        aria-pressed={playing}
+        onClick={playing ? stop : start}
+        title="Suona il brano come lo sentirà lo schermo in partita: dal punto «Parti da», con la modalità di ascolto, la durata e gli effetti di questo brano. Si ferma da solo."
+      >
         {playing ? "■ Ferma la prova" : "▶ Prova l'ascolto"}
       </button>
       <small className="muted">
-        {MODE_NAMES[listening.mode]}, {(listening.clipMs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })} s
+        {MODE_NAMES[listening.mode]}, {(listening.clipMs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })} s · come in partita, dal secondo {startSeconds.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
       </small>
     </div>
   );

@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { AUDIO_EFFECTS, EFFECT_AMOUNT, type EffectSetting, LEGACY_AUDIO_EFFECTS, type MediaItem, legacyEffectSettings } from "@gioco/shared";
+import type { MediaItem } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
+import { SongList } from "./SongList";
+import { effectsOf } from "./songs";
 import { type JsonSchema, defaultValue, isShown, moveItem, setKey } from "./logic";
 
 /** Dati esterni al modulo, per i widget che scelgono elementi esistenti (sfidanti, istanze della libreria). */
@@ -12,7 +14,7 @@ export interface FormContext {
 }
 const FormCtx = createContext<FormContext>({ teams: [], players: [], instances: [] });
 /** L'intera configurazione in modifica, per i widget che hanno bisogno dei valori del livello superiore (es. i predefiniti del round). */
-const RootCtx = createContext<Record<string, unknown>>({});
+export const RootCtx = createContext<Record<string, unknown>>({});
 
 interface FieldProps {
   schema: JsonSchema;
@@ -28,7 +30,7 @@ function Hint({ schema }: { schema: JsonSchema }) {
   return schema.description ? <small className="muted hint">{schema.description}</small> : null;
 }
 
-function Field({ schema, value, onChange, label, required, siblings }: FieldProps) {
+export function Field({ schema, value, onChange, label, required, siblings }: FieldProps) {
   const labelText = `${label}${required ? "" : " (facoltativo)"}`;
 
   if ((schema.widget === "contestant" || schema.widget === "instance") && schema.type !== "array") {
@@ -124,7 +126,7 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
           <label className="field">
             <span className="label">{labelText}</span>
             <select aria-label={labelText} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)}>
-              {schema.enum.map((o) => (
+              {schema.enum.filter((o) => !schema.enumHidden?.includes(String(o)) || String(o) === String(value ?? "")).map((o) => (
                 <option key={String(o)} value={String(o)}>{schema.enumLabels?.[String(o)] ?? String(o)}</option>
               ))}
             </select>
@@ -145,23 +147,8 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
   }
 }
 
-/**
- * Gli effetti di un brano dai valori del modulo, che possono essere incompleti: la quantità mancante vale quella piena e
- * il vecchio effetto singolo, se c'è ancora, conta come primo dell'elenco (come quando il server salva).
- */
-export function effectsOf(song: Record<string, unknown>): EffectSetting[] {
-  const list = Array.isArray(song.effects) ? (song.effects as Partial<EffectSetting>[]) : [];
-  const legacy = LEGACY_AUDIO_EFFECTS.find((e) => e === song.effect);
-  return [
-    ...legacyEffectSettings(legacy),
-    ...list.flatMap((e) =>
-      AUDIO_EFFECTS.some((t) => t === e?.type) ? [{ type: e.type!, amount: typeof e.amount === "number" ? e.amount : EFFECT_AMOUNT.default }] : [],
-    ),
-  ];
-}
-
 /** Brano audio: si carica un file dal computer della regia oppure si sceglie tra quelli già caricati. */
-function AudioField({ schema, value, onChange, labelText, siblings }: Pick<FieldProps, "schema" | "value" | "onChange" | "siblings"> & { labelText: string }) {
+export function AudioField({ schema, value, onChange, labelText, siblings, showPreview = true }: Pick<FieldProps, "schema" | "value" | "onChange" | "siblings"> & { labelText: string; showPreview?: boolean }) {
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -199,7 +186,7 @@ function AudioField({ schema, value, onChange, labelText, siblings }: Pick<Field
           {library.map((m) => <option key={m.file} value={m.file}>{m.name}</option>)}
         </select>
       )}
-      {file && current && (
+      {showPreview && file && current && (
         <AudioPreview key={file} file={file} effects={effectsOf(siblings)} song={siblings} round={round} />
       )}
       {file && !current && <small className="hint" role="alert">Questo file non è nella mediateca (è un esempio): carica un brano oppure rimuovilo.</small>}
@@ -292,6 +279,7 @@ function LinesField({ schema, value, onChange, label, required }: FieldProps) {
 
 function ArrayField(props: FieldProps) {
   if (props.schema.widget === "lines") return <LinesField {...props} />;
+  if (props.schema.widget === "songs") return <SongList schema={props.schema} value={props.value} onChange={props.onChange} />;
   const { schema, value, onChange, label, required } = props;
   const list = Array.isArray(value) ? value : [];
   // Un widget dichiarato sull'array (es. «instance») vale per ciascun elemento.
@@ -337,20 +325,23 @@ function ArrayField(props: FieldProps) {
   );
 }
 
-function ObjectFields({
+/** I campi di un oggetto; con `only` solo quelli indicati (per mostrarli in sezioni separate). */
+export function ObjectFields({
   schema,
   value,
   onChange,
+  only,
 }: {
   schema: JsonSchema;
   value: Record<string, unknown>;
   onChange: (v: unknown) => void;
+  only?: string[];
 }) {
   const required = new Set(schema.required ?? []);
   return (
     <>
       {Object.entries(schema.properties ?? {})
-        .filter(([, prop]) => isShown(prop, value, schema))
+        .filter(([key, prop]) => !prop.hidden && (!only || only.includes(key)) && isShown(prop, value, schema))
         .map(([key, prop]) => (
         <Field
           key={key}

@@ -1,5 +1,5 @@
 import { expect, test as plain } from "@playwright/test";
-import { SOURCE_SPY, TAP_SCRIPT, recordMp4, unlockAudio, uploadTone } from "./audio-support";
+import { SOURCE_SPY, TAP_SCRIPT, addSongFiles, closeAdvanced, openAdvanced, recordMp4, unlockAudio, uploadTone } from "./audio-support";
 import { adminToken, openAdmin, test, unique } from "./support";
 
 // Il quiz musicale accetta anche i video mp4: del file si usa solo la traccia audio. I file sono veri mp4 (H.264 + AAC)
@@ -38,9 +38,12 @@ plain("mp4: l'editor carica un mp4 dal modulo anche se il browser non ne dichiar
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni mp4"));
 
   // Windows lascia vuoto il tipo di alcuni file: il nome (.mp4) basta a farli riconoscere.
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "Videoclip senza tipo.mp4", mimeType: "", buffer: mp4 });
+  await addSongFiles(page, { name: "Videoclip senza tipo.mp4", mimeType: "", buffer: mp4 });
+  await expect(page.locator(".song-source").first()).toContainText("Videoclip senza tipo.mp4");
+  await openAdvanced(page);
   await expect(page.getByLabel(/Scegli Brano.*già caricato/).first()).toContainText("Videoclip senza tipo.mp4");
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
+  await closeAdvanced(page);
 
   const stored = (await (await request.get("/api/admin/media", { headers: { Authorization: `Bearer ${await adminToken(request)}` } })).json()) as { file: string; name: string }[];
   expect(stored.find((m) => m.name === "Videoclip senza tipo.mp4")?.file).toMatch(/\.mp4$/);

@@ -1,7 +1,7 @@
 import { expect } from "@playwright/test";
 import { test as plain } from "@playwright/test";
 import { adminToken, openAdmin, test, unique } from "./support";
-import { TAP_SCRIPT, stereoTone, unlockAudio, uploadTone } from "./audio-support";
+import { TAP_SCRIPT, addSongFiles, openAdvanced, stereoTone, unlockAudio, uploadTone } from "./audio-support";
 
 // Più effetti sullo stesso brano, ognuno con la sua quantità. Si misura il segnale che esce davvero dal grafo Web Audio.
 
@@ -58,7 +58,8 @@ plain("editor: più effetti in serie, quantità con cursore, e si sente subito n
   await page.getByRole("button", { name: "Libreria" }).click();
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni effetti"));
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "grave-e-medio.wav", mimeType: "audio/wav", buffer: stereoTone([200, 2_000], [200, 2_000], 30) });
+  await addSongFiles(page, { name: "grave-e-medio.wav", mimeType: "audio/wav", buffer: stereoTone([200, 2_000], [200, 2_000], 30) });
+  await openAdvanced(page);
   const preview = page.locator("audio[aria-label='Anteprima']").first();
   await expect(preview).toBeVisible();
   const compare = page.getByLabel("Ascolta con gli effetti");
@@ -120,4 +121,128 @@ plain("l'istanza salvata col vecchio effetto singolo diventa un elenco di effett
   const saved = (await create.json()) as { config: { songs: Record<string, unknown>[] } };
   expect(saved.config.songs[0]!.effects).toEqual([{ type: "blur", amount: 165 }]);
   expect(saved.config.songs[0]).not.toHaveProperty("effect");
+});
+
+plain("editor: filtri e camuffamenti stanno nella stessa lista di card e l'anteprima li suona insieme, nell'ordine", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await admin.context.addInitScript(TAP_SCRIPT);
+  await page.reload();
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni camuffate"));
+  await addSongFiles(page, { name: "uno-khz.wav", mimeType: "audio/wav", buffer: stereoTone(1_000, 1_000, 30) });
+  await openAdvanced(page);
+  const preview = page.locator("audio[aria-label='Anteprima']").first();
+  const list = page.getByRole("group", { name: /Effetti sull'audio/ });
+  const types = page.getByLabel("Effetto", { exact: true });
+  const ready = (n: number) => expect(preview).toHaveAttribute("data-state", "ready").then(() => expect(preview).toHaveAttribute("data-effects", String(n)));
+  const hear = async () => {
+    await preview.evaluate((a: HTMLAudioElement) => {
+      a.currentTime = 0;
+      return a.play();
+    });
+    await expect.poll(async () => (await level(page, 1_000)) > -60 || (await level(page, 3_000)) > -60, { timeout: 8_000 }).toBe(true);
+  };
+
+  // Nessuna sezione a parte: i camuffamenti sono tra le scelte dello stesso «Effetto».
+  await expect(page.getByText("Camuffamento (sperimentale)")).toHaveCount(0);
+  await list.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await expect(types.first().locator("option")).toHaveText([
+    "Sfocato (suono ovattato)",
+    "Senza voce (solo base musicale)",
+    "Telefono (banda stretta)",
+    "Distorsione (suono saturato)",
+    "Eco",
+    "Al contrario a pezzi (camuffa le parole, resta il ritmo)",
+    "Spettro capovolto (acuti e gravi scambiati, voce aliena)",
+    "Sillabe mescolate (pezzi in ordine sparso, rompe anche il ritmo)",
+  ]);
+
+  // Spettro capovolto da solo: il tono a 1 kHz esce a 3 kHz (e l'anteprima aspetta il file preparato).
+  await types.first().selectOption("flip_spectrum");
+  await ready(1);
+  await hear();
+  await expect.poll(() => level(page, 3_000), { timeout: 8_000 }).toBeGreaterThan(-45);
+  expect(await level(page, 1_000), "il tono originale non deve restare").toBeLessThan((await level(page, 3_000)) - 25);
+
+  // La «Variante» compare solo per le sillabe mescolate.
+  await expect(page.getByLabel("Variante")).toHaveCount(0);
+  await types.first().selectOption("shuffle_syllables");
+  await expect(page.getByLabel("Variante")).toHaveCount(1);
+  await page.getByLabel("Variante").fill("7");
+  await types.first().selectOption("reverse_chunks");
+  await expect(page.getByLabel("Variante")).toHaveCount(0);
+  await ready(1);
+  await hear();
+  await expect.poll(() => level(page, 1_000), { timeout: 8_000 }).toBeGreaterThan(-45); // una sinusoide al contrario resta alla stessa frequenza
+  expect(await level(page, 3_000)).toBeLessThan((await level(page, 1_000)) - 25);
+
+  // Filtro e camuffamento insieme: l'ordine conta. Sfocato 100% (taglia sopra ~1,2 kHz) prima del capovolgimento lascia passare
+  // il tono, che poi esce a 3 kHz; dopo il capovolgimento, invece, il tono è già a 3 kHz e lo sfocato lo abbatte.
+  await types.first().selectOption("blur");
+  await list.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await types.nth(1).selectOption("flip_spectrum");
+  await ready(2);
+  await hear();
+  await expect.poll(() => level(page, 3_000), { timeout: 8_000 }).toBeGreaterThan(-50);
+  const filterThenFlip = await level(page, 3_000);
+
+  await list.getByRole("button", { name: "Sposta giù" }).first().click();
+  await expect(types.first()).toHaveValue("flip_spectrum");
+  await ready(2);
+  await hear();
+  await expect.poll(async () => (await level(page, 3_000)) < filterThenFlip - 6, { timeout: 8_000 }, ).toBe(true);
+
+  // Togliendo il camuffamento resta il solo filtro, in tempo reale (niente più «preparo»).
+  await list.getByRole("button", { name: "Elimina" }).first().click();
+  await ready(1);
+  await expect(preview).toHaveAttribute("src", /\/media\//);
+});
+
+test("partita: lo schermo suona insieme filtri e camuffamenti dell'elenco, e i telefoni non ne sanno nulla", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "uno-khz.wav", stereoTone(1_000, 1_000, 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Camuffamento e2e",
+      config: { songs: [{ audio: song, answer: "a", effects: [{ type: "telephone", amount: 100 }, { type: "flip_spectrum", amount: 100 }, { type: "echo", amount: 30 }] }], clipSeconds: 30 },
+    },
+  ]);
+  const { screen, admin, a } = g;
+  await screen.context.addInitScript(TAP_SCRIPT);
+  await screen.page.reload();
+  await unlockAudio(screen.page);
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  // Il tono a 1 kHz, passato dal telefono e capovolto, esce a 3 kHz; quello originale non resta.
+  await expect.poll(() => level(screen.page, 3_000), { timeout: 10_000 }).toBeGreaterThan(-50);
+  const spectrum = await screen.page.evaluate(() => [200, 500, 1_000, 2_000, 3_000, 4_000, 5_000].map((hz) => [hz, Math.round((window as any).__db(hz))]));
+  expect(await level(screen.page, 1_000), `il tono originale non deve restare: ${JSON.stringify(spectrum)}`).toBeLessThan((await level(screen.page, 3_000)) - 20);
+
+  // L'elenco arriva allo schermo com'è (anche la variante); ai telefoni niente.
+  expect(screen.traffic.text()).toMatch(/"effects":\[\{"type":"telephone","amount":100\},\{"type":"flip_spectrum","amount":100\},\{"type":"echo","amount":30\}\]/);
+  expect(a.traffic.text()).not.toMatch(/flip_spectrum|"effects"|telephone/);
+});
+
+test("partita: le sillabe mescolate suonano anche con «Parti da» in fondo al file (il file preparato comincia da lì)", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "tre-toni.wav", stereoTone([400, 1_600], [400, 1_600], 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Sillabe e2e",
+      config: { songs: [{ audio: song, answer: "a", startSeconds: 20, effects: [{ type: "shuffle_syllables", amount: 100, seed: 5 }] }], clipSeconds: 30 },
+    },
+  ]);
+  const { screen, admin } = g;
+  await screen.context.addInitScript(TAP_SCRIPT);
+  await screen.page.reload();
+  await unlockAudio(screen.page);
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  // Le sillabe cambiano di posto ma non di frequenza: i due toni ci sono ancora.
+  await expect.poll(() => level(screen.page, 400), { timeout: 10_000 }).toBeGreaterThan(-50);
+  expect(await level(screen.page, 1_600)).toBeGreaterThan(-50);
 });

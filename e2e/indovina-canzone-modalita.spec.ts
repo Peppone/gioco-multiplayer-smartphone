@@ -1,5 +1,5 @@
 import { expect, test as plain } from "@playwright/test";
-import { SOURCE_SPY, TAP_SCRIPT, stereoTone, unlockAudio, uploadTone } from "./audio-support";
+import { SOURCE_SPY, TAP_SCRIPT, addSongFiles, closeAdvanced, openAdvanced, stereoTone, unlockAudio, uploadTone } from "./audio-support";
 import { type GameSetup, adminToken, openAdmin, test, unique } from "./support";
 
 // Modalità di ascolto brano per brano: più lento o più veloce, velocità diversa all'inizio e poi normale, suono molto
@@ -249,15 +249,18 @@ async function newSongInstance(browser: import("@playwright/test").Browser, requ
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
   return { ...admin, title };
 }
-const modeSelect = (page: import("@playwright/test").Page, song = 0) => page.getByLabel("Modalità di ascolto del brano").nth(song);
+const modeSelect = (page: import("@playwright/test").Page) => page.getByLabel("Modalità di ascolto del brano");
 const labelled = (page: import("@playwright/test").Page, text: string | RegExp) => page.getByLabel(text);
 
 plain("editor: ogni modalità mostra solo i suoi campi, brano per brano", async ({ browser, request }) => {
   const { page } = await newSongInstance(browser, request);
+  await openAdvanced(page);
   await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM");
 
-  // Predefinito: il brano segue il round e non mostra campi di modalità (a parte la durata propria).
-  await expect(modeSelect(page)).toHaveValue("inherit");
+  // Predefinito: ascolto continuo con la sua durata, senza campi di altre modalità; «Come nel round» non esiste più.
+  await expect(modeSelect(page)).toHaveValue("continuous");
+  await expect(modeSelect(page).locator("option[value=inherit]")).toHaveCount(0);
+  await expect(labelled(page, /Durata dell'ascolto di questo brano/)).toHaveValue("30");
   for (const name of [/Velocità del brano/, /Mantieni l'intonazione/, /Pausa tra gli spezzoni di questo brano/, /Secondi di suono molto ovattato/, /Dopo quanti secondi torna/]) {
     await expect(labelled(page, name)).toHaveCount(0);
   }
@@ -285,32 +288,44 @@ plain("editor: ogni modalità mostra solo i suoi campi, brano per brano", async 
   await expect(labelled(page, /Secondi di suono poco ovattato/)).toHaveValue("8");
   await expect(labelled(page, /Durata di ogni passaggio tra le fasi/)).toHaveValue("3");
   await expect(labelled(page, /Velocità del brano/)).toHaveCount(0);
-  await expect(page.getByRole("group", { name: /Effetti sull'audio/ }).first()).toBeVisible();
+  await closeAdvanced(page);
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("ascolto molto ovattato, poi poco, poi normale");
 
   // Le modalità sono per brano: un secondo brano parte dal predefinito e ha le sue scelte.
-  await page.getByRole("button", { name: "+ Aggiungi brano" }).click();
-  await expect(modeSelect(page, 1)).toHaveValue("inherit");
-  await expect(modeSelect(page, 0)).toHaveValue("blur_stages");
-  await modeSelect(page, 1).selectOption({ label: "Più lento o più veloce" });
+  await page.getByRole("button", { name: "+ Aggiungi link YouTube" }).click();
+  await page.getByLabel("Link YouTube da aggiungere").fill("https://youtu.be/dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Aggiungi i link" }).click();
+  await openAdvanced(page, 2);
+  await expect(modeSelect(page)).toHaveValue("continuous");
+  await modeSelect(page).selectOption({ label: "Più lento o più veloce" });
   await expect(labelled(page, /Velocità del brano/)).toHaveCount(1);
+  await expect(labelled(page, /Secondi di suono molto ovattato/)).toHaveCount(0);
+  await closeAdvanced(page, 2);
+  await openAdvanced(page, 1);
+  await expect(modeSelect(page)).toHaveValue("blur_stages");
   await expect(labelled(page, /Secondi di suono molto ovattato/)).toHaveCount(1);
+  await expect(labelled(page, /Velocità del brano/)).toHaveCount(0);
 });
 
 plain("editor: le modalità si salvano per brano e si ritrovano riaprendo l'istanza", async ({ browser, request }) => {
   const { page, title } = await newSongInstance(browser, request);
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "salva-modalita.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 5) });
+  await addSongFiles(page, { name: "salva-modalita.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 5) });
+  await openAdvanced(page);
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
   await modeSelect(page).selectOption({ label: "Velocità diversa all'inizio, poi normale" });
   await labelled(page, /Velocità del brano/).fill("1.5");
   await labelled(page, /Mantieni l'intonazione/).uncheck();
   await labelled(page, /Dopo quanti secondi torna/).fill("6");
   await labelled(page, /Durata dell'ascolto di questo brano/).fill("20");
+  await closeAdvanced(page);
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.getByText("Salvato.")).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "Libreria" }).click();
   await page.locator(".library ul.list li", { hasText: title }).getByRole("button", { name: "Modifica" }).click();
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("ascolto velocità diversa, poi normale (×1,5), 20 s");
+  await openAdvanced(page);
   await expect(modeSelect(page)).toHaveValue("speed_then_normal");
   await expect(labelled(page, /Velocità del brano/)).toHaveValue("1.5");
   await expect(labelled(page, /Mantieni l'intonazione/)).not.toBeChecked();
@@ -320,29 +335,37 @@ plain("editor: le modalità si salvano per brano e si ritrovano riaprendo l'ista
 
 plain("editor: rifiuta con un messaggio chiaro ciò che non può funzionare", async ({ browser, request }) => {
   const { page } = await newSongInstance(browser, request);
+  await openAdvanced(page);
   await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM");
 
   // Velocità e fasi non valgono per YouTube (l'audio sta in un iframe e non si può elaborare)…
   for (const mode of ["Più lento o più veloce", "Velocità diversa all'inizio, poi normale", "Molto ovattato, poi poco, poi normale"]) {
     await modeSelect(page).selectOption({ label: mode });
+    await closeAdvanced(page);
     await page.getByRole("button", { name: "Salva" }).click();
     await expect(page.locator(".error"), mode).toContainText("solo con i file caricati, non con i link YouTube");
+    await openAdvanced(page);
   }
   // …mentre continuo e spezzoni sì.
   await modeSelect(page).selectOption({ label: "Continuo" });
+  await closeAdvanced(page);
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.getByText("Salvato.")).toBeVisible();
 });
 
 plain("editor: il suono che torna normale dopo la fine dell'ascolto non si salva, e si sistema allungando l'ascolto", async ({ browser, request }) => {
   const { page } = await newSongInstance(browser, request);
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "troppo-tardi.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 5) });
+  await addSongFiles(page, { name: "troppo-tardi.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 5) });
+  await openAdvanced(page);
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
   await modeSelect(page).selectOption({ label: "Velocità diversa all'inizio, poi normale" });
   await labelled(page, /Dopo quanti secondi torna/).fill("40");
+  await closeAdvanced(page);
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.locator(".error")).toContainText("Brano 1: il suono torna normale dopo 42 s, ma l'ascolto dura 30 s");
+  await openAdvanced(page);
   await labelled(page, /Durata dell'ascolto di questo brano/).fill("60");
+  await closeAdvanced(page);
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.getByText("Salvato.")).toBeVisible();
 });
@@ -356,7 +379,8 @@ plain("editor: «Prova l'ascolto» suona il brano alla velocità scelta e si fer
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni prova"));
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "prova-ascolto.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 30) });
+  await addSongFiles(page, { name: "prova-ascolto.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 30) });
+  await openAdvanced(page);
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
   await modeSelect(page).selectOption({ label: "Più lento o più veloce" });
   await labelled(page, /Velocità del brano/).fill("0.5");
@@ -394,14 +418,17 @@ plain("editor: «Prova l'ascolto» a spezzoni usa gli spezzoni del brano, e uno 
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni prova spezzoni"));
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "prova-spezzoni.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  await addSongFiles(page, { name: "prova-spezzoni.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  await openAdvanced(page);
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
   await labelled(page, /Parti da \(secondi\)/).fill("2");
   await modeSelect(page).selectOption({ label: "A spezzoni crescenti" });
-  // Gli spezzoni del brano (vuoti = quelli del round): se ne aggiungono due propri.
-  await page.getByRole("button", { name: "+ Aggiungi spezzone del brano" }).click();
+  // Passando agli spezzoni compaiono i cinque predefiniti (0,5 · 1 · 2 · 4 · 8): se ne tolgono tre e restano due propri.
+  const loops = page.getByRole("group", { name: /Durata degli spezzoni di questo brano/ });
+  await expect(labelled(page, "Spezzone del brano 5")).toHaveValue("8");
+  for (let n = 5; n > 2; n--) await loops.getByRole("button", { name: "Elimina" }).last().click();
+  await expect(labelled(page, "Spezzone del brano 3")).toHaveCount(0);
   await labelled(page, "Spezzone del brano 1").fill("0.5");
-  await page.getByRole("button", { name: "+ Aggiungi spezzone del brano" }).click();
   await labelled(page, "Spezzone del brano 2").fill("1");
   await labelled(page, /Pausa tra gli spezzoni di questo brano/).fill("0.5");
 

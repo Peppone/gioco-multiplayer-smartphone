@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 import { adminToken, openAdmin, test, unique } from "./support";
-import { TAP_SCRIPT, silentWav, stereoTone, unlockAudio, uploadTone } from "./audio-support";
+import { TAP_SCRIPT, addSongFiles, closeAdvanced, openAdvanced, silentWav, stereoTone, unlockAudio, uploadTone } from "./audio-support";
 import { test as plain } from "@playwright/test";
 
 const SECRET = "TITOLO-SEGRETO-E2E";
@@ -65,9 +65,14 @@ plain("editor: il brano si carica dal modulo e compare nella mediateca", async (
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni modulo"));
 
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "Mio Brano.wav", mimeType: "audio/wav", buffer: silentWav() });
+  await addSongFiles(page, { name: "Mio Brano.wav", mimeType: "audio/wav", buffer: silentWav() });
+  // La riga mostra il nome del file; l'anteprima e la scelta del file stanno nel pannello «Avanzato».
+  await expect(page.locator(".song-source").first()).toContainText("Mio Brano.wav");
+  await expect(page.locator("audio[aria-label='Anteprima']")).toHaveCount(0);
+  await openAdvanced(page);
   await expect(page.getByLabel(/Scegli Brano.*già caricato/).first()).toContainText("Mio Brano.wav");
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
+  await closeAdvanced(page);
 
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
   await page.getByRole("button", { name: "Salva" }).click();
@@ -91,7 +96,10 @@ plain("editor: il nuovo brano parte senza file e si salva con un link YouTube", 
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.getByText(/né un file audio né un link YouTube/)).toBeVisible();
 
+  await openAdvanced(page);
   await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM?si=vpOJanYjVXv3DSET");
+  await closeAdvanced(page);
+  await expect(page.locator(".song-source").first()).toContainText("YouTube _9HHju9_hMM");
   await page.getByRole("button", { name: "Salva" }).click();
   await expect(page.getByText("Salvato.")).toBeVisible();
 });
@@ -101,7 +109,8 @@ plain("editor: un file caricato si può togliere con «Rimuovi il file»", async
   const { page } = admin;
   await page.getByRole("button", { name: "Libreria" }).click();
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "Da Togliere.wav", mimeType: "audio/wav", buffer: silentWav() });
+  await addSongFiles(page, { name: "Da Togliere.wav", mimeType: "audio/wav", buffer: silentWav() });
+  await openAdvanced(page);
   await expect(page.locator("audio[aria-label='Anteprima']").first()).toBeVisible();
   await page.getByRole("button", { name: "Rimuovi il file" }).first().click();
   await expect(page.locator("audio[aria-label='Anteprima']")).toHaveCount(0);
@@ -201,7 +210,8 @@ plain("editor: l'anteprima del brano suona con l'effetto scelto e si può confro
   await page.getByRole("button", { name: "Libreria" }).click();
   await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni effetto"));
-  await page.getByLabel("Carica Brano").first().setInputFiles({ name: "grave-e-acuto.wav", mimeType: "audio/wav", buffer: stereoTone([200, 8_000], [200, 8_000], 20) });
+  await addSongFiles(page, { name: "grave-e-acuto.wav", mimeType: "audio/wav", buffer: stereoTone([200, 8_000], [200, 8_000], 20) });
+  await openAdvanced(page);
   const preview = page.locator("audio[aria-label='Anteprima']").first();
   await expect(preview).toBeVisible();
   // Senza effetto non compare la casella di confronto.
