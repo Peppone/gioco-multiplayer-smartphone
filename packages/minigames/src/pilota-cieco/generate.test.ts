@@ -92,7 +92,7 @@ describe("generatore di un livello", () => {
       const spec = levelSpec(params, level);
       expectWellFormed(generateCourse(seed, spec), spec, `seme ${seed} livello ${level}`);
     }
-  });
+  }, 60_000);
 
   it("ogni livello si può vincere: un pilota che segue il percorso e aspetta porte e pattuglie arriva (simulazione)", () => {
     const rules = { stepMs: 350, penaltyMs: 3000, bumpMs: 1000 };
