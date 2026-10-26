@@ -75,6 +75,13 @@ describe("riassunto di un brano", () => {
     expect(effectsOf({ effect: "heavy_blur", effects: [{ type: "echo" }] })).toEqual([{ type: "blur", amount: 165 }, { type: "echo", amount: 100 }]);
     expect(songSummary({ effect: "no_voice" })).toEqual(["effetti: Senza voce 100%"]);
     expect(effectsOf({ effects: [{ type: "inesistente", amount: 5 }] })).toEqual([]);
+    // la zona passa solo se è completa e ordinata
+    expect(effectsOf({ effects: [{ type: "beep", amount: 100, from: 2, to: 3.5 }, { type: "silence", from: 2 }, { type: "blur", from: 5, to: 1 }] })).toEqual([
+      { type: "beep", amount: 100, from: 2, to: 3.5 },
+      { type: "silence", amount: 100 },
+      { type: "blur", amount: 100 },
+    ]);
+    expect(songSummary({ audio: "a.mp3", effects: [{ type: "beep", amount: 100, from: 2, to: 3.5 }] })).toContain("effetti: Bip 100% (2–3.5 s)");
   });
 
   it("ignora valori incompleti o fuori tipo", () => {

@@ -676,6 +676,28 @@ describe("indovina la canzone: configurazione", () => {
     expect(parse([{ type: "blur", amount: 99.5 }]).success).toBe(false);
   });
 
+  it("zone degli effetti: inizio e fine insieme (la fine dopo l'inizio); Bip e Silenzio solo con una zona", () => {
+    const parse = (effects: unknown) => game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x", effects }] });
+    for (const type of ["stutter", "vocoder", "hum", "reverse_chunks", "blur"]) expect(parse([{ type }]).success).toBe(true);
+    const zoned = parse([{ type: "beep", from: 12.5, to: 14 }, { type: "silence", amount: 50, from: 1, to: 2 }, { type: "blur", from: 3, to: 4 }]);
+    expect(zoned.success && zoned.data.songs[0]!.effects).toEqual([
+      { type: "beep", amount: 100, from: 12.5, to: 14 },
+      { type: "silence", amount: 50, from: 1, to: 2 },
+      { type: "blur", amount: 100, from: 3, to: 4 },
+    ]);
+    // Bip e Silenzio senza zona coprirebbero tutto il brano
+    expect(parse([{ type: "beep" }]).success).toBe(false);
+    expect(parse([{ type: "silence", from: 2 }]).success).toBe(false);
+    // la zona è completa e ordinata
+    expect(parse([{ type: "blur", from: 2 }]).success).toBe(false);
+    expect(parse([{ type: "blur", to: 2 }]).success).toBe(false);
+    expect(parse([{ type: "blur", from: 5, to: 5 }]).success).toBe(false);
+    expect(parse([{ type: "blur", from: 6, to: 2 }]).success).toBe(false);
+    expect(parse([{ type: "blur", from: -1, to: 2 }]).success).toBe(false);
+    // con un link YouTube nessun effetto vale, nemmeno su una zona
+    expect(game.configSchema.safeParse({ songs: [{ youtube: "dQw4w9WgXcQ", answer: "x", effects: [{ type: "beep", from: 1, to: 2 }] }] }).success).toBe(false);
+  });
+
   it("il vecchio effetto singolo diventa il primo dell'elenco e il campo sparisce", () => {
     const parseSong = (song: object) => {
       const r = game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x", ...song }] });
@@ -710,7 +732,7 @@ describe("indovina la canzone: configurazione", () => {
     expect(JSON.stringify(game.viewFor(started, "a", null))).not.toMatch(/shuffle_syllables|seed|effects/);
   });
 
-  it("con l'ovattato a fasi i camuffamenti non valgono e la variante nel modulo si vede solo per le sillabe", () => {
+  it("con l'ovattato a fasi i camuffamenti non valgono e la variante nel modulo si vede solo per gli effetti con un seme", () => {
     const cfg = game.configSchema.parse({
       songs: [{ audio: FILE_1, answer: "x", playback: "blur_stages", effects: [{ type: "flip_spectrum", amount: 100 }, { type: "echo", amount: 40 }] }],
     });
@@ -719,7 +741,7 @@ describe("indovina la canzone: configurazione", () => {
       properties: { songs: { items: { properties: { effects: { items: { properties: { seed: { showWhen?: unknown; default?: unknown } } } } } } } };
     };
     const seed = json.properties.songs.items.properties.effects.items.properties.seed;
-    expect(seed.showWhen).toEqual({ field: "type", in: ["shuffle_syllables"] });
+    expect(seed.showWhen).toEqual({ field: "type", in: ["shuffle_syllables", "stutter", "vocoder"] });
     expect(seed).not.toHaveProperty("default");
   });
 

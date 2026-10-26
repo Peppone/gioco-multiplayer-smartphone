@@ -71,6 +71,24 @@ describe("preparazione del file", () => {
     for (const c of await renderChain([blur, flip], input, RATE, loud)) expect(peak(c)).toBeLessThanOrEqual(1);
   });
 
+  it("un effetto su una zona vale solo lì (anche uno in tempo reale), e si sposta se il file preparato parte più avanti", async () => {
+    const { calls, render } = recorder();
+    const input = [tone(300, 4)];
+    // «silence» su 1–2 s: fuori resta l'originale al campione, dentro tace
+    const silenced = await renderChain([{ type: "silence", amount: 100, from: 1, to: 2 }], input, RATE, render);
+    expect(silenced[0]!.subarray(0, RATE * 0.9)).toEqual(input[0]!.subarray(0, RATE * 0.9));
+    expect(silenced[0]!.subarray(RATE * 1.1, RATE * 1.9).every((v) => v === 0)).toBe(true);
+    expect(silenced[0]!.subarray(RATE * 2.1)).toEqual(input[0]!.subarray(RATE * 2.1));
+    // un effetto in tempo reale con zona passa dal renderer solo sulla zona
+    await renderChain([{ type: "echo", amount: 50, from: 1, to: 2 }], input, RATE, render);
+    expect(calls).toEqual([["echo"]]);
+    // il file preparato comincia al secondo 10: la zona 11–12 cade a 1–2 s del file
+    const shifted = await renderChain([{ type: "silence", amount: 100, from: 11, to: 12 }], input, RATE, render, 10);
+    expect(shifted).toEqual(silenced);
+    // una zona fuori dal tratto preparato non cambia nulla
+    expect(await renderChain([{ type: "silence", amount: 100, from: 50, to: 60 }], input, RATE, render, 10)).toEqual(input);
+  });
+
   it("la finestra preparata parte da «Parti da» e dura al massimo il limite, senza uscire dal file", () => {
     const rate = 1_000;
     const total = 600 * rate; // dieci minuti

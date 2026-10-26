@@ -1,6 +1,6 @@
-import { EFFECT_SEED, type EffectSetting, isBufferEffect } from "@gioco/shared";
+import { EFFECT_SEED, type EffectSetting, effectZone, isBufferEffect, isPreparedEffect } from "@gioco/shared";
 import { connectEffects } from "./effects";
-import { disguiseChannels, limitChannels } from "./transforms";
+import { disguiseChannels, inZone, limitChannels, pasteZone, zoneRange } from "./transforms";
 
 // ---- Preparazione del file: i camuffamenti rielaborano i campioni prima che il brano suoni ----
 //
@@ -14,10 +14,13 @@ export const PREPARE_RATE = 44_100;
 /** Quanto brano (s) si prepara al massimo, a partire da «Parti da»: oltre, il file preparato finisce e il brano tace. */
 export const PREPARE_MAX_SECONDS = 240;
 
-/** Divide l'elenco: `pre` (fino all'ultimo camuffamento compreso) si prepara in anticipo, `live` suona in tempo reale. */
+/**
+ * Divide l'elenco: `pre` (fino all'ultimo camuffamento, o effetto su una zona, compreso) si prepara in anticipo,
+ * `live` suona in tempo reale.
+ */
 export function splitChain(effects: readonly EffectSetting[]): { pre: EffectSetting[]; live: EffectSetting[] } {
   let last = -1;
-  effects.forEach((e, i) => isBufferEffect(e.type) && (last = i));
+  effects.forEach((e, i) => isPreparedEffect(e) && (last = i));
   return { pre: effects.slice(0, last + 1), live: effects.slice(last + 1) };
 }
 
@@ -36,9 +39,16 @@ export type EffectRenderer = (effects: EffectSetting[], channels: Float32Array[]
 
 /**
  * Applica `pre` ai campioni, nell'ordine: i camuffamenti con le funzioni pure di `transforms.ts`, i gruppi di effetti
- * consecutivi con `render`. Il risultato non supera mai ±1.
+ * consecutivi con `render`. Un effetto con una zona vale solo lì (le zone sono in secondi del brano; `offsetSeconds` è il
+ * secondo del brano da cui comincia il file preparato). Il risultato non supera mai ±1.
  */
-export async function renderChain(pre: readonly EffectSetting[], channels: Float32Array[], sampleRate: number, render: EffectRenderer): Promise<Float32Array[]> {
+export async function renderChain(
+  pre: readonly EffectSetting[],
+  channels: Float32Array[],
+  sampleRate: number,
+  render: EffectRenderer,
+  offsetSeconds = 0,
+): Promise<Float32Array[]> {
   let current = channels;
   let run: EffectSetting[] = [];
   const flush = async () => {
@@ -47,9 +57,18 @@ export async function renderChain(pre: readonly EffectSetting[], channels: Float
     run = [];
   };
   for (const effect of pre) {
+    const zone = effectZone(effect);
+    const local = zone ? { from: zone.from - offsetSeconds, to: zone.to - offsetSeconds } : null;
+    const range = zoneRange(local, sampleRate, current[0]?.length ?? 0);
+    if (!range) continue; // la zona sta fuori dal tratto preparato
     if (isBufferEffect(effect.type)) {
       await flush();
-      current = disguiseChannels(effect.type, current, sampleRate, effect.amount / 100, effect.seed ?? EFFECT_SEED.default);
+      const { type } = effect;
+      current = inZone(current, sampleRate, local, (part) => disguiseChannels(type, part, sampleRate, effect.amount / 100, effect.seed ?? EFFECT_SEED.default));
+    } else if (local) {
+      await flush();
+      const [start, end] = range;
+      current = pasteZone(current, await render([effect], current.map((c) => c.slice(start, end)), sampleRate), start, sampleRate);
     } else {
       run.push(effect);
     }
@@ -123,7 +142,7 @@ export async function prepareFile(file: string, pre: readonly EffectSetting[], o
   const decoded = await new OfflineAudioContext(1, 1, PREPARE_RATE).decodeAudioData(data);
   const { from, to, offsetSeconds } = prepareWindow(options.startSeconds ?? 0, decoded.length, PREPARE_RATE);
   const channels = Array.from({ length: Math.min(2, decoded.numberOfChannels) }, (_, c) => decoded.getChannelData(c).slice(from, to));
-  const out = await renderChain(pre, channels, PREPARE_RATE, renderEffectsOffline);
+  const out = await renderChain(pre, channels, PREPARE_RATE, renderEffectsOffline, offsetSeconds);
   signal?.throwIfAborted();
   const url = URL.createObjectURL(encodeWav(out, PREPARE_RATE));
   return { url, offsetSeconds, dispose: () => URL.revokeObjectURL(url) };

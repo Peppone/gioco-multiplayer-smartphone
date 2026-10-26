@@ -11,9 +11,13 @@ import {
   type ParticipantInfo,
   PLAYBACK_MODES,
   ROUND_LISTEN_DEFAULTS,
+  SEEDED_EFFECTS,
   SPEED_MAX,
   SPEED_MIN,
   type TeamInfo,
+  ZONE_MAX_SECONDS,
+  ZONE_REQUIRED_EFFECTS,
+  effectZone,
   effectsForListening,
   fairTime,
   legacyEffectSettings,
@@ -112,6 +116,11 @@ export const indovinaCanzoneConfigSchema = z
                       reverse_chunks: "Al contrario a pezzi (camuffa le parole, resta il ritmo)",
                       flip_spectrum: "Spettro capovolto (acuti e gravi scambiati, voce aliena)",
                       shuffle_syllables: "Sillabe mescolate (pezzi in ordine sparso, rompe anche il ritmo)",
+                      stutter: "Balbuziente (frammenti ripetuti e saltati)",
+                      vocoder: "Vocoder a bande (resta la sagoma del suono, senza parole)",
+                      hum: "Canticchiato (resta solo la melodia, per voci sole)",
+                      beep: "Bip (copre una zona, come la censura in TV)",
+                      silence: "Silenzio (toglie una zona)",
                     },
                   }),
                   amount: z
@@ -135,15 +144,30 @@ export const indovinaCanzoneConfigSchema = z
                     .meta({
                       title: "Variante",
                       description: "Un altro numero, un altro ordine dei pezzi; lo stesso numero dà sempre lo stesso ascolto. Vuoto = 1. Provane qualcuna e tieni la migliore",
-                      showWhen: { field: "type", in: ["shuffle_syllables"] },
+                      showWhen: { field: "type", in: [...SEEDED_EFFECTS] },
                     }),
+                  from: z
+                    .number()
+                    .min(0)
+                    .max(ZONE_MAX_SECONDS)
+                    .optional()
+                    .meta({
+                      title: "Zona: da (secondi)",
+                      description: "Facoltativa: l'effetto vale solo dal secondo «da» al secondo «a» del file (contati dall'inizio del file, non da «Parti da»). Vuoto = tutto il brano. Con Bip e Silenzio la zona è obbligatoria",
+                    }),
+                  to: z
+                    .number()
+                    .min(0)
+                    .max(ZONE_MAX_SECONDS)
+                    .optional()
+                    .meta({ title: "Zona: a (secondi)", description: "Fine della zona; deve venire dopo l'inizio" }),
                 }),
               )
               .max(MAX_EFFECTS)
               .default([])
               .meta({
                 title: "Effetti sull'audio",
-                description: `Rendono il brano meno riconoscibile. Se ne possono sommare fino a ${MAX_EFFECTS}, anche lo stesso più volte: si applicano uno dopo l'altro, nell'ordine dell'elenco, e ognuno ha la sua quantità. Funzionano solo con i file caricati, non con YouTube. I tre effetti «che rompono le parole» (Al contrario a pezzi, Spettro capovolto, Sillabe mescolate) rielaborano il file prima di farlo suonare, quindi la partenza del brano richiede qualche secondo in più e non si attenuano con «Svela gradualmente» (né gli effetti che li precedono nell'elenco); con l'ovattato a fasi non valgono. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» tutti gli effetti si attenuano mano a mano che passa il tempo`,
+                description: `Rendono il brano meno riconoscibile. Se ne possono sommare fino a ${MAX_EFFECTS}, anche lo stesso più volte: si applicano uno dopo l'altro, nell'ordine dell'elenco, e ognuno ha la sua quantità. Funzionano solo con i file caricati, non con YouTube. Gli effetti «che rompono le parole» (Al contrario a pezzi, Spettro capovolto, Sillabe mescolate, Balbuziente, Vocoder, Canticchiato, Bip, Silenzio) e qualunque effetto con una zona rielaborano il file prima di farlo suonare, quindi la partenza del brano richiede qualche secondo in più e non si attenuano con «Svela gradualmente» (né gli effetti che li precedono nell'elenco); con l'ovattato a fasi non valgono. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» tutti gli effetti si attenuano mano a mano che passa il tempo`,
                 itemLabel: "Effetto",
               }),
             /** Il campo di prima, quando ogni brano aveva un solo effetto: si vede solo nei brani salvati allora, finché non si salvano di nuovo. */
@@ -281,6 +305,17 @@ export const indovinaCanzoneConfigSchema = z
           // Gli effetti elaborano l'audio nel browser: l'audio di YouTube sta in un iframe e non è accessibile.
           .refine((song) => (song.effects.length === 0 && (song.effect ?? "none") === "none") || !song.youtube, {
             message: "Gli effetti sull'audio funzionano solo con i file caricati, non con i link YouTube",
+          })
+          // La zona ha un inizio e una fine (la fine dopo l'inizio); Bip e Silenzio senza zona coprirebbero tutto il brano.
+          .superRefine((song, ctx) => {
+            song.effects.forEach((e, i) => {
+              const partial = (e.from === undefined) !== (e.to === undefined) || (e.from !== undefined && effectZone(e) === null);
+              if (partial) {
+                ctx.addIssue({ code: "custom", message: "La zona ha bisogno di un inizio e di una fine, con la fine dopo l'inizio", path: ["effects", i, "to"] });
+              } else if ((ZONE_REQUIRED_EFFECTS as readonly string[]).includes(e.type) && effectZone(e) === null) {
+                ctx.addIssue({ code: "custom", message: "Bip e Silenzio valgono su una zona: indica da che secondo a che secondo", path: ["effects", i, "from"] });
+              }
+            });
           })
           // Velocità e fasi cambiano il suono nel browser, come gli effetti.
           .refine((song) => !song.youtube || !(NEEDS_FILE as readonly string[]).includes(song.playback), {

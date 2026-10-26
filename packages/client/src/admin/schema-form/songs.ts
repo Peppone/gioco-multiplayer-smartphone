@@ -1,4 +1,4 @@
-import { AUDIO_EFFECTS, EFFECT_AMOUNT, EFFECT_SEED, type EffectSetting, SEEDED_EFFECTS, LEGACY_AUDIO_EFFECTS, type MediaItem, type PlaybackMode, ROUND_LISTEN_DEFAULTS, legacyEffectSettings, youtubeId } from "@gioco/shared";
+import { AUDIO_EFFECTS, EFFECT_AMOUNT, EFFECT_SEED, type EffectSetting, SEEDED_EFFECTS, LEGACY_AUDIO_EFFECTS, type MediaItem, type PlaybackMode, ROUND_LISTEN_DEFAULTS, effectZone, legacyEffectSettings, youtubeId } from "@gioco/shared";
 
 /** Nome breve degli effetti, per il riassunto nella lista dei brani. */
 export const EFFECT_SHORT_NAMES: Record<EffectSetting["type"], string> = {
@@ -10,6 +10,11 @@ export const EFFECT_SHORT_NAMES: Record<EffectSetting["type"], string> = {
   reverse_chunks: "Al contrario a pezzi",
   flip_spectrum: "Spettro capovolto",
   shuffle_syllables: "Sillabe mescolate",
+  stutter: "Balbuziente",
+  vocoder: "Vocoder a bande",
+  hum: "Canticchiato",
+  beep: "Bip",
+  silence: "Silenzio",
 };
 
 /** Come si ascolta un brano, in poche parole. */
@@ -30,17 +35,18 @@ export function effectsOf(song: Record<string, unknown>): EffectSetting[] {
   const legacy = LEGACY_AUDIO_EFFECTS.find((e) => e === song.effect);
   return [
     ...legacyEffectSettings(legacy),
-    ...list.flatMap((e) =>
-      AUDIO_EFFECTS.some((t) => t === e?.type)
-        ? [
-            {
-              type: e.type!,
-              amount: typeof e.amount === "number" ? e.amount : EFFECT_AMOUNT.default,
-              ...((SEEDED_EFFECTS as readonly string[]).includes(e.type!) ? { seed: typeof e.seed === "number" ? e.seed : EFFECT_SEED.default } : {}),
-            },
-          ]
-        : [],
-    ),
+    ...list.flatMap((e) => {
+      if (!AUDIO_EFFECTS.some((t) => t === e?.type)) return [];
+      const zone = effectZone(e);
+      return [
+        {
+          type: e.type!,
+          amount: typeof e.amount === "number" ? e.amount : EFFECT_AMOUNT.default,
+          ...((SEEDED_EFFECTS as readonly string[]).includes(e.type!) ? { seed: typeof e.seed === "number" ? e.seed : EFFECT_SEED.default } : {}),
+          ...(zone ?? {}),
+        },
+      ];
+    }),
   ];
 }
 
@@ -79,7 +85,7 @@ export function songSummary(song: Record<string, unknown>): string[] {
     out.push(`ascolto ${seconds(num(song.clipSeconds)!)}`);
   }
   const effects = effectsOf(song);
-  if (effects.length > 0) out.push(`effetti: ${effects.map((e) => `${EFFECT_SHORT_NAMES[e.type]} ${e.amount}%${e.seed !== undefined && e.seed !== EFFECT_SEED.default ? ` #${e.seed}` : ""}`).join(" + ")}`);
+  if (effects.length > 0) out.push(`effetti: ${effects.map((e) => `${EFFECT_SHORT_NAMES[e.type]} ${e.amount}%${e.seed !== undefined && e.seed !== EFFECT_SEED.default ? ` #${e.seed}` : ""}${e.from !== undefined && e.to !== undefined ? ` (${e.from}–${e.to} s)` : ""}`).join(" + ")}`);
   const categories = Array.isArray(song.categories) ? song.categories.filter((c): c is string => typeof c === "string" && c.trim() !== "") : [];
   if (categories.length > 0) out.push(`categorie: ${categories.join(", ")}`);
   const points = num(song.points);

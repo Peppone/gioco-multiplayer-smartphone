@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type EffectSetting, type Listening, PLAYBACK_MODES, type PlaybackMode, type SongListen, effectsForListening, resolveListening } from "@gioco/shared";
+import { type EffectSetting, type Listening, PLAYBACK_MODES, type PlaybackMode, type SongListen, effectZone, effectsForListening, resolveListening } from "@gioco/shared";
 import { fileBackendFor } from "../../minigames/indovina-canzone/backends";
 import { type EffectChain, connectEffects } from "../../minigames/indovina-canzone/effects";
 import { startListening } from "../../minigames/indovina-canzone/listening";
@@ -130,7 +130,50 @@ export function AudioPreview({ file, effects, song, round }: { file: string; eff
           Ascolta con gli effetti
         </label>
       )}
+      {withEffect && <ZoneButtons audio={el} effects={effects} disabled={preparing || !source} />}
       <ListenTrial file={file} effects={effects} song={song} round={round} />
+    </div>
+  );
+}
+
+/** Secondi di brano che si sentono prima e dopo una zona, per capire in che punto cade. */
+const ZONE_CONTEXT_SECONDS = 1.5;
+
+/** Un pulsante per ogni effetto con una zona: suona l'anteprima da poco prima a poco dopo quella zona, con gli effetti. */
+function ZoneButtons({ audio, effects, disabled }: { audio: React.RefObject<HTMLAudioElement | null>; effects: EffectSetting[]; disabled: boolean }) {
+  const zoned = effects.flatMap((e, i) => {
+    const zone = effectZone(e);
+    return zone ? [{ i, zone }] : [];
+  });
+  const stopRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopRef.current?.(), []);
+  if (zoned.length === 0) return null;
+
+  const play = (zone: { from: number; to: number }) => {
+    const el = audio.current;
+    if (!el) return;
+    stopRef.current?.();
+    const end = zone.to + ZONE_CONTEXT_SECONDS;
+    const onTime = () => el.currentTime >= end && stop();
+    const stop = () => {
+      el.pause();
+      el.removeEventListener("timeupdate", onTime);
+      stopRef.current = null;
+    };
+    stopRef.current = stop;
+    el.currentTime = Math.max(0, zone.from - ZONE_CONTEXT_SECONDS);
+    el.addEventListener("timeupdate", onTime);
+    void sharedCtx?.resume();
+    void el.play().catch(stop);
+  };
+
+  return (
+    <div className="zone-buttons">
+      {zoned.map(({ i, zone }) => (
+        <button key={i} type="button" disabled={disabled} onClick={() => play(zone)} title="Suona il brano da poco prima a poco dopo la zona, con gli effetti">
+          ▶ Ascolta la zona {zone.from.toLocaleString("it-IT", { maximumFractionDigits: 1 })}–{zone.to.toLocaleString("it-IT", { maximumFractionDigits: 1 })} s
+        </button>
+      ))}
     </div>
   );
 }

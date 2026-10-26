@@ -1,4 +1,6 @@
 import type { BufferEffect } from "@gioco/shared";
+import { seeded } from "./dsp";
+import { hum, vocoder } from "./transforms-voice";
 
 // ---- Trasformazioni sul buffer (camuffamento) ----
 //
@@ -104,18 +106,6 @@ const SHUFFLE_FADE_MS = 3;
 /** Passo (ms) con cui si misura l'energia per scegliere dove tagliare. */
 const SHUFFLE_FRAME_MS = 5;
 
-/** Generatore pseudocasuale con seme (mulberry32): stesso seme, stessa sequenza. */
-function seeded(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
-
 /** Dove tagliare: ogni `size` campioni circa, ma nel punto più silenzioso lì vicino (a parità, il più vicino al punto nominale), così si spezza tra una sillaba e l'altra e non dentro. */
 function cutPoints(channels: Float32Array[], size: number, frame: number): number[] {
   const length = channels[0]!.length;
@@ -195,9 +185,137 @@ export function limitChannels(channels: Float32Array[]): Float32Array[] {
   return channels.map((c) => c.map((v) => v / peak));
 }
 
-/** Applica la trasformazione a tutti i canali; il risultato non supera mai ±1. `seed` conta solo per le trasformazioni che mescolano a caso. */
+// ---- Balbuziente ----
+
+/** Lunghezza (ms) dei frammenti del balbuziente. */
+export const STUTTER_CHUNK_MS = 140;
+/** Probabilità che un frammento si ripeta (1–2 volte in più): 35% a 100%, fino a 90%. */
+export const stutterRepeat = (k: number) => Math.min(0.9, 0.35 * Math.max(0, k));
+/** Probabilità che un frammento si salti: 15% a 100%, fino a 45%. */
+export const stutterSkip = (k: number) => Math.min(0.45, 0.15 * Math.max(0, k));
+
+/**
+ * Ripete a caso frammenti brevi (tagliati nei punti più silenziosi) e ne salta altri, come un disco che si incanta: voce e
+ * timbro restano, il filo delle parole no. Con un seme (stessa clip a parità di seme). La durata non cambia: ciò che
+ * avanza in fondo si perde e, se manca, si chiude col silenzio.
+ */
+export function stutter(channels: Float32Array[], sampleRate: number, k: number, seed: number): Float32Array[] {
+  const length = channels[0]?.length ?? 0;
+  const size = Math.round((STUTTER_CHUNK_MS / 1000) * sampleRate);
+  if (k <= 0 || length < size * 2) return channels.map((c) => Float32Array.from(c));
+  const frame = Math.max(1, Math.round((SHUFFLE_FRAME_MS / 1000) * sampleRate));
+  const cuts = cutPoints(channels, size, frame);
+  const random = seeded(seed);
+  const repeat = stutterRepeat(k);
+  const skip = stutterSkip(k);
+  const order: number[] = [];
+  let total = 0;
+  for (let id = 0; id < cuts.length && total < length; id++) {
+    const span = (id + 1 < cuts.length ? cuts[id + 1]! : length) - cuts[id]!;
+    if (random() < skip) continue;
+    const times = 1 + (random() < repeat ? 1 + Math.floor(random() * 2) : 0);
+    for (let t = 0; t < times && total < length; t++) {
+      order.push(id);
+      total += span;
+    }
+  }
+  const fade = Math.min(Math.round((SHUFFLE_FADE_MS / 1000) * sampleRate), size >> 2);
+  return channels.map((c) => {
+    const out = new Float32Array(length);
+    let at = 0;
+    for (const id of order) {
+      const from = cuts[id]!;
+      const to = id + 1 < cuts.length ? cuts[id + 1]! : length;
+      for (let i = from; i < to && at < length; i++) {
+        const edge = Math.min(i - from, to - 1 - i);
+        out[at++] = edge < fade ? c[i]! * (0.5 - 0.5 * Math.cos((Math.PI * edge) / fade)) : c[i]!;
+      }
+    }
+    return out;
+  });
+}
+
+// ---- Bip e silenzio (censura di una zona) ----
+
+/** Tono del bip (Hz) e suo volume (ampiezza): quello della censura in TV. */
+export const BEEP_HZ = 1_000;
+export const BEEP_LEVEL = 0.35;
+/** Quanto del suono è coperto: da 0 (originale) a 100% e oltre (tutto coperto). */
+export const coverAmount = (k: number) => Math.min(1, Math.max(0, k));
+
+/** Copre il suono con un tono a 1 kHz. Si usa su una zona. */
+export function beep(samples: Float32Array, sampleRate: number, k: number): Float32Array {
+  const cover = coverAmount(k);
+  return Float32Array.from(samples, (v, i) => v * (1 - cover) + Math.sin((2 * Math.PI * BEEP_HZ * i) / sampleRate) * BEEP_LEVEL * cover);
+}
+
+/** Toglie il suono (silenzio). Si usa su una zona. */
+export function silence(samples: Float32Array, _sampleRate: number, k: number): Float32Array {
+  const cover = coverAmount(k);
+  return Float32Array.from(samples, (v) => v * (1 - cover));
+}
+
+// ---- Zone: l'effetto vale solo da un secondo a un secondo ----
+
+/** Dissolvenza (ms) ai bordi della zona, perché l'effetto non entri e non esca di scatto. */
+export const ZONE_FADE_MS = 10;
+
+/** La zona in campioni, dentro `length` (tutto il suono se non c'è); `null` se è vuota o fuori. */
+export function zoneRange(zone: { from: number; to: number } | null, sampleRate: number, length: number): [number, number] | null {
+  if (!zone) return [0, length];
+  const from = Math.min(length, Math.max(0, Math.round(zone.from * sampleRate)));
+  const to = Math.min(length, Math.max(0, Math.round(zone.to * sampleRate)));
+  return to > from ? [from, to] : null;
+}
+
+/** Rimette `processed` (la parte elaborata, lunga come la zona) al suo posto in `original`, con dissolvenza ai bordi. Fuori dalla zona i campioni non cambiano. */
+export function pasteZone(original: Float32Array[], processed: Float32Array[], start: number, sampleRate: number): Float32Array[] {
+  return original.map((channel, c) => {
+    const out = Float32Array.from(channel);
+    const part = processed[c] ?? processed[0]!;
+    const n = part.length;
+    const fade = Math.max(1, Math.min(Math.round((ZONE_FADE_MS / 1000) * sampleRate), n >> 1));
+    for (let j = 0; j < n; j++) {
+      const w = Math.min(1, (j + 1) / fade, (n - j) / fade);
+      out[start + j] = channel[start + j]! * (1 - w) + part[j]! * w;
+    }
+    return out;
+  });
+}
+
+/** Applica una funzione sui soli campioni della zona (tutti se non c'è) e li rimette al loro posto. */
+export function inZone(
+  channels: Float32Array[],
+  sampleRate: number,
+  zone: { from: number; to: number } | null,
+  run: (part: Float32Array[]) => Float32Array[],
+): Float32Array[] {
+  const range = zoneRange(zone, sampleRate, channels[0]?.length ?? 0);
+  if (!range) return channels;
+  if (!zone) return run(channels);
+  const [start, end] = range;
+  return pasteZone(channels, run(channels.map((c) => c.slice(start, end))), start, sampleRate);
+}
+
+/** Applica la trasformazione a tutti i canali; il risultato non supera mai ±1. `seed` conta solo per le trasformazioni che usano il caso. */
 export function disguiseChannels(kind: Disguise, channels: Float32Array[], sampleRate: number, k: number, seed = 1): Float32Array[] {
-  if (kind === "shuffle_syllables") return limitChannels(shuffleSyllables(channels, sampleRate, k, seed));
-  const run = kind === "reverse_chunks" ? reverseChunks : flipSpectrum;
-  return limitChannels(channels.map((c) => run(c, sampleRate, k)));
+  const each = (run: (samples: Float32Array, rate: number, amount: number) => Float32Array) => channels.map((c) => run(c, sampleRate, k));
+  switch (kind) {
+    case "reverse_chunks":
+      return limitChannels(each(reverseChunks));
+    case "flip_spectrum":
+      return limitChannels(each(flipSpectrum));
+    case "shuffle_syllables":
+      return limitChannels(shuffleSyllables(channels, sampleRate, k, seed));
+    case "stutter":
+      return limitChannels(stutter(channels, sampleRate, k, seed));
+    case "vocoder":
+      return limitChannels(vocoder(channels, sampleRate, k, seed));
+    case "hum":
+      return limitChannels(hum(channels, sampleRate, k));
+    case "beep":
+      return limitChannels(each(beep));
+    case "silence":
+      return limitChannels(each(silence));
+  }
 }
