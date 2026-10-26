@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_EFFECTS, AUDIO_TYPES, EFFECT_AMOUNT, MEDIA_FILE_PATTERN, STAGES_BLUR_AMOUNT, effectsForListening, legacyEffectSettings, mediaContentType } from "./media.js";
+import { AUDIO_EFFECTS, AUDIO_TYPES, BUFFER_EFFECTS, EFFECT_AMOUNT, MEDIA_FILE_PATTERN, STAGES_BLUR_AMOUNT, effectsForListening, isBufferEffect, legacyEffectSettings, mediaContentType } from "./media.js";
 
 describe("tipo del file da caricare", () => {
   it("usa quello del browser se il server lo riconosce", () => {
@@ -55,5 +55,14 @@ describe("effetti sull'audio di un brano", () => {
       { type: "distortion", amount: 200 },
     ]);
     expect(effectsForListening([], { firstMs: 1 })).toEqual([{ type: "blur", amount: STAGES_BLUR_AMOUNT }]);
+  });
+
+  it("i camuffamenti stanno nello stesso elenco degli altri effetti, ma non valgono con l'ovattato a fasi", () => {
+    expect(BUFFER_EFFECTS.every((t) => (AUDIO_EFFECTS as readonly string[]).includes(t))).toBe(true);
+    expect(isBufferEffect("shuffle_syllables")).toBe(true);
+    expect(isBufferEffect("blur")).toBe(false);
+    const effects = [{ type: "shuffle_syllables", amount: 100, seed: 3 }, { type: "echo", amount: 50 }] as const;
+    expect(effectsForListening([...effects], null)).toEqual(effects);
+    expect(effectsForListening([...effects], { firstMs: 1 })).toEqual([{ type: "blur", amount: STAGES_BLUR_AMOUNT }, { type: "echo", amount: 50 }]);
   });
 });

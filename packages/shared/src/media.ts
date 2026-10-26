@@ -57,8 +57,19 @@ export function youtubeId(input: string): string | null {
 }
 
 /** Effetti applicabili all'audio di un brano (solo ai file caricati, non ai video YouTube). */
-export const AUDIO_EFFECTS = ["blur", "no_voice", "telephone", "distortion", "echo"] as const;
+export const AUDIO_EFFECTS = ["blur", "no_voice", "telephone", "distortion", "echo", "reverse_chunks", "flip_spectrum", "shuffle_syllables"] as const;
 export type AudioEffect = (typeof AUDIO_EFFECTS)[number];
+
+/**
+ * Gli effetti «che rompono le parole» (camuffamento): non filtrano il suono in tempo reale, rielaborano i campioni del
+ * file prima che suoni (vedi docs/PIANO-CAMUFFAMENTO-AUDIO.md). Stanno nello stesso elenco degli altri e si sommano con loro.
+ */
+export const BUFFER_EFFECTS = ["reverse_chunks", "flip_spectrum", "shuffle_syllables"] as const;
+export type BufferEffect = (typeof BUFFER_EFFECTS)[number];
+export const isBufferEffect = (type: AudioEffect): type is BufferEffect => (BUFFER_EFFECTS as readonly string[]).includes(type);
+/** Gli effetti che usano una variante (un seme): stesso seme, stesso ascolto. */
+export const SEEDED_EFFECTS = ["shuffle_syllables"] as const;
+export const EFFECT_SEED = { min: 1, max: 999, default: 1 } as const;
 
 /**
  * Un effetto con la sua quantità, in percentuale: 100 è l'effetto «pieno» di riferimento, sotto è più leggero, sopra è
@@ -67,6 +78,8 @@ export type AudioEffect = (typeof AUDIO_EFFECTS)[number];
 export interface EffectSetting {
   type: AudioEffect;
   amount: number;
+  /** Solo per gli effetti con una variante (`SEEDED_EFFECTS`). */
+  seed?: number;
 }
 export const EFFECT_AMOUNT = { min: 10, max: 300, default: 100, step: 5 } as const;
 /** Quanti effetti si possono sommare su uno stesso brano. */
@@ -95,9 +108,10 @@ export const STAGES_BLUR_AMOUNT = 165;
 
 /**
  * Gli effetti con cui suona un brano. Con l'ovattato a fasi il filtro passa-basso lo guidano le fasi: lo sfocato del brano
- * non vale e lo sostituisce quello delle fasi, mentre gli altri effetti restano.
+ * non vale e lo sostituisce quello delle fasi, i camuffamenti non valgono, mentre gli altri effetti restano.
  */
 export function effectsForListening(effects: EffectSetting[], stages: unknown): EffectSetting[] {
   if (!stages) return effects;
-  return [{ type: "blur", amount: STAGES_BLUR_AMOUNT }, ...effects.filter((e) => e.type !== "blur")];
+  // I camuffamenti rielaborano il file prima di suonarlo: non si possono combinare con il filtro che le fasi muovono nel tempo.
+  return [{ type: "blur", amount: STAGES_BLUR_AMOUNT }, ...effects.filter((e) => e.type !== "blur" && !isBufferEffect(e.type))];
 }

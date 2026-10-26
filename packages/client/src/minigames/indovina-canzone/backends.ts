@@ -2,6 +2,7 @@ import { Howl, Howler } from "howler";
 import type { EffectSetting, Listening } from "@gioco/shared";
 import { audio } from "../../audio/audio";
 import { connectEffects } from "./effects";
+import { type PreparedFile, prepareFile, splitChain } from "./prepare";
 
 /** Opzioni dei lettori che passano da Web Audio. */
 export interface WebAudioOptions {
@@ -9,6 +10,15 @@ export interface WebAudioOptions {
   ctx?: AudioContext;
   /** Con velocità diversa da 1: true = cambia solo il tempo, false = cambia anche l'intonazione. */
   keepPitch?: boolean;
+  /** Dove leggere il file al posto di quello del server (un `blob:` con il file già rielaborato dai camuffamenti). */
+  src?: string;
+  /**
+   * Suona anche se l'audio del sito è silenziato (il pulsante muto di schermo e telefoni, che resta salvato nel browser): nel
+   * modulo della regia non c'è un pulsante per toglierlo e la prova d'ascolto resterebbe muta senza dire perché.
+   */
+  ignoreMute?: boolean;
+  /** Da dove parte il brano (s): serve a decidere quanto file preparare quando ci sono dei camuffamenti. */
+  startSeconds?: number;
 }
 
 /** Un lettore di musica, indipendente dalla sorgente (file del server o video YouTube nascosto). */
@@ -41,7 +51,7 @@ export interface MusicBackend {
  * sbloccato dal primo tocco sullo schermo.
  */
 export function elementFileBackend(file: string, effects: readonly EffectSetting[], options: WebAudioOptions = {}): MusicBackend {
-  const el = new Audio(`/media/${file}`);
+  const el = new Audio(options.src ?? `/media/${file}`);
   el.preload = "auto";
   // Cambiando velocità il browser, di norma, mantiene l'intonazione; qui lo si dice esplicitamente (Safari usa il prefisso).
   const keepPitch = options.keepPitch ?? true;
@@ -59,7 +69,7 @@ export function elementFileBackend(file: string, effects: readonly EffectSetting
       return () => el.removeEventListener("canplay", cb);
     },
     playAt(seconds) {
-      el.muted = audio.isMuted();
+      el.muted = !options.ignoreMute && audio.isMuted();
       void ctx.resume();
       el.currentTime = seconds;
       void el.play().catch(() => undefined); // senza tocco dell'utente il browser può rifiutare
@@ -97,7 +107,7 @@ export function bufferFileBackend(file: string, effects: readonly EffectSetting[
   let disposed = false;
   const waiting = new Set<() => void>();
 
-  fetch(`/media/${file}`)
+  fetch(options.src ?? `/media/${file}`)
     .then((res) => res.arrayBuffer())
     .then((data) => ctx.decodeAudioData(data))
     .then(
@@ -133,7 +143,7 @@ export function bufferFileBackend(file: string, effects: readonly EffectSetting[
       if (!buffer) return;
       stop();
       void ctx.resume();
-      input.gain.value = audio.isMuted() ? 0 : 1;
+      input.gain.value = !options.ignoreMute && audio.isMuted() ? 0 : 1;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(input);
@@ -180,11 +190,69 @@ export function fileBackend(file: string, effects: readonly EffectSetting[] = []
   };
 }
 
+/**
+ * File con dei camuffamenti tra gli effetti: prima si rielabora il file (tutto ciò che sta fino all'ultimo camuffamento),
+ * poi suona quello preparato con gli effetti rimasti in tempo reale. Il lettore è pronto a preparazione finita; finché
+ * non lo è i comandi non fanno nulla (come per un file ancora in caricamento).
+ */
+function preparedFileBackend(file: string, effects: readonly EffectSetting[], listening: Pick<Listening, "loop" | "rate" | "stages" | "keepPitch">, options: WebAudioOptions): MusicBackend {
+  const { pre, live } = splitChain(effects);
+  const abort = new AbortController();
+  let inner: MusicBackend | null = null;
+  let prepared: PreparedFile | null = null;
+  let ready = false;
+  let disposed = false;
+  const waiting = new Set<() => void>();
+  const shift = (seconds: number) => Math.max(0, seconds - (prepared?.offsetSeconds ?? 0));
+
+  prepareFile(file, pre, { startSeconds: options.startSeconds, signal: abort.signal }).then(
+    (done) => {
+      if (disposed) return done.dispose();
+      prepared = done;
+      const withSource = { ...options, src: done.url };
+      inner = listening.loop ? bufferFileBackend(file, live, withSource) : elementFileBackend(file, live, { ...withSource, keepPitch: listening.keepPitch });
+      inner.whenReady(() => {
+        ready = true;
+        waiting.forEach((cb) => cb());
+        waiting.clear();
+      });
+    },
+    () => undefined, // file illeggibile: resta muto e la regia può saltarlo
+  );
+
+  return {
+    whenReady(cb) {
+      if (ready) {
+        cb();
+        return () => undefined;
+      }
+      waiting.add(cb);
+      return () => void waiting.delete(cb);
+    },
+    // Il file preparato comincia da «Parti da»: i punti del brano originale si spostano indietro di tanto.
+    playAt: (seconds, maxMs) => inner?.playAt(shift(seconds), maxMs),
+    pause: () => inner?.pause(),
+    cue: (seconds) => inner?.cue(shift(seconds)),
+    setClarity: (from, to, durationMs) => inner?.setClarity(from, to, durationMs),
+    setCutoffCurve: (hz, stepMs) => inner?.setCutoffCurve(hz, stepMs),
+    setRate: (rate) => inner?.setRate(rate),
+    dispose() {
+      disposed = true;
+      abort.abort();
+      waiting.clear();
+      inner?.dispose();
+      prepared?.dispose();
+    },
+  };
+}
+
 /** Il lettore giusto per il brano: spezzoni decodificati in memoria, elemento audio con Web Audio (effetti, velocità, fasi) o lettore semplice. */
 export function fileBackendFor(file: string, effects: readonly EffectSetting[], listening: Pick<Listening, "loop" | "rate" | "stages" | "keepPitch">, options: WebAudioOptions = {}): MusicBackend {
+  if (splitChain(effects).pre.length > 0) return preparedFileBackend(file, effects, listening, options);
   if (listening.loop) return bufferFileBackend(file, effects, options);
   if (listening.rate || listening.stages) return elementFileBackend(file, effects, { ...options, keepPitch: listening.keepPitch });
-  return effects.length === 0 ? fileBackend(file) : elementFileBackend(file, effects, options);
+  // Il lettore semplice (Howler) si silenzia con il muto globale: chi vuole sentire comunque passa dall'elemento audio.
+  return effects.length === 0 && !options.ignoreMute ? fileBackend(file) : elementFileBackend(file, effects, options);
 }
 
 // ---- YouTube: IFrame Player API ufficiale, senza account né chiave. Serve internet sul PC dello schermo. ----

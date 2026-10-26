@@ -1,4 +1,8 @@
-import type { AudioEffect, EffectSetting } from "@gioco/shared";
+import { type AudioEffect, type BufferEffect, type EffectSetting, isBufferEffect } from "@gioco/shared";
+
+/** Gli effetti che filtrano il suono mentre suona (gli altri, i camuffamenti, rielaborano il file prima: vedi prepare.ts). */
+export type LiveEffect = Exclude<AudioEffect, BufferEffect>;
+export const isLiveEffect = (e: EffectSetting): e is EffectSetting & { type: LiveEffect } => !isBufferEffect(e.type);
 
 /** Frequenza di taglio (Hz) del filtro passa-basso: più è bassa, più il suono è ovattato. */
 export const BLUR_CUTOFF_HZ: Record<"blur" | "heavy_blur", number> = { blur: 1_200, heavy_blur: 450 };
@@ -121,7 +125,7 @@ interface Stage {
 }
 
 /** Costruttori dei singoli effetti: ognuno parte dal suo valore pieno (nitidezza 0) e dice come si schiarisce. */
-function buildStage(ctx: AudioContext, effect: AudioEffect): Stage {
+function buildStage(ctx: BaseAudioContext, effect: LiveEffect): Stage {
   const nodes: AudioNode[] = [];
   const make = <T extends AudioNode>(node: T): T => {
     nodes.push(node);
@@ -283,7 +287,9 @@ function buildStage(ctx: AudioContext, effect: AudioEffect): Stage {
  * scheda audio. Con `setClarity` gli effetti si attenuano nel tempo fino al suono originale; senza effetti la sorgente
  * va dritta alla destinazione.
  */
-export function connectEffects(ctx: AudioContext, source: AudioNode, effects: readonly EffectSetting[]): EffectChain {
+export function connectEffects(ctx: BaseAudioContext, source: AudioNode, allEffects: readonly EffectSetting[]): EffectChain {
+  // I camuffamenti sono già nel file che suona: qui restano gli effetti in tempo reale.
+  const effects = allEffects.filter(isLiveEffect);
   const nodes: AudioNode[] = [source];
   if (effects.length === 0) {
     source.connect(ctx.destination);
@@ -301,7 +307,7 @@ export function connectEffects(ctx: AudioContext, source: AudioNode, effects: re
   };
 
   const stages = effects.map((e) => {
-    const stage = buildStage(ctx, e.type);
+    const stage = buildStage(ctx, e.type as LiveEffect);
     const k = e.amount / 100;
     stage.setup?.(k);
     stage.values(k, 0).forEach((v, i) => (stage.params[i]!.value = v));

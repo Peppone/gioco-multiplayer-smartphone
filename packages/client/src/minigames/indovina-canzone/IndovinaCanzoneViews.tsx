@@ -84,6 +84,7 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const file = music?.file;
   const video = music?.youtubeId;
   const keepPitch = music?.keepPitch ?? true;
+  const startSeconds = music?.startSeconds ?? 0;
   // I piani sono oggetti nuovi a ogni vista: si confrontano per contenuto, altrimenti la musica ripartirebbe a ogni aggiornamento.
   const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? []]);
   const { plan, effects } = useMemo(() => {
@@ -94,19 +95,18 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
-    else if (file) backend.current = fileBackendFor(file, effects, { ...plan, keepPitch });
+    else if (file) backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds });
     else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effects, plan, keepPitch, host]);
+  }, [file, video, effects, plan, keepPitch, startSeconds, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;
   const offsetMs = music?.offsetMs ?? 0;
   const stopAt = music?.stopAt ?? null;
-  const startSeconds = music?.startSeconds ?? 0;
   const clipMs = music?.clipMs ?? 0;
   const clearAtPercent = music?.clearAtPercent ?? null;
 
