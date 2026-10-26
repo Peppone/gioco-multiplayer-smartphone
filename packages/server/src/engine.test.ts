@@ -55,6 +55,32 @@ describe("Engine: avvio", () => {
     expect(lib.rounds(w.match.id)).toHaveLength(2);
   });
 
+  it("a partita avviata la regia riordina i round ancora da giocare, e l'ordine si salva", () => {
+    start();
+    const ids = w.engine.adminState().rounds.map((r) => r.id);
+    const reorder = (roundIds: string[]) => w.engine.hostCommand({ type: "round-order", roundIds });
+
+    expect(reorder([ids[0]!])).toMatchObject({ ok: false }); // incompleto
+    expect(reorder([ids[0]!, ids[0]!])).toMatchObject({ ok: false }); // doppione
+    expect(reorder([ids[0]!, "boh"])).toMatchObject({ ok: false }); // sconosciuto
+
+    expect(reorder([...ids].reverse())).toEqual({ ok: true });
+    const state = w.engine.adminState();
+    expect(state.rounds.map((r) => r.id)).toEqual([...ids].reverse());
+    expect(state.engineActions[0]!.label).toContain(state.rounds[0]!.title);
+    expect(w.admin.library.rounds(w.match.id).map((r) => r.id)).toEqual([...ids].reverse());
+
+    // Il round in corso (già scelto) e quelli giocati restano al loro posto: si riordinano solo i successivi.
+    next();
+    expect(w.engine.adminState().rounds[0]!.id).toBe(ids[1]);
+    expect(reorder([...ids])).toMatchObject({ ok: false });
+    expect(reorder([ids[0]!])).toEqual({ ok: true });
+    expect(w.engine.adminState().rounds.map((r) => r.id)).toEqual([ids[1], ids[0]]);
+
+    w.engine.hostCommand({ type: "engine", action: "end-match" });
+    expect(reorder([ids[0]!])).toMatchObject({ ok: false });
+  });
+
   it("a partita conclusa si torna alla lobby; prima non si può", () => {
     const close = () => w.engine.hostCommand({ type: "engine", action: "close" });
     start();

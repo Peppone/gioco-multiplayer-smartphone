@@ -9,7 +9,7 @@ import { Leaderboard } from "../ui/Leaderboard";
 import { ApiError, api, errorMessage } from "./api";
 import { MATCH_STATUS_LABEL } from "./eventList";
 import { EventBrowser } from "./EventBrowser";
-import { parseImport, serializeInstance } from "./schema-form/logic";
+import { moveItem, parseImport, serializeInstance } from "./schema-form/logic";
 import { LiveRoster } from "./EventRoster";
 import { useAdminGame } from "./useAdminGame";
 import { type QrCode, ZoneQrSheet } from "./ZoneQrSheet";
@@ -91,6 +91,37 @@ function StartPicker({ onStart }: { onStart: (matchId: string) => void }) {
           )}
         />
       )}
+    </section>
+  );
+}
+
+/** Round già giocati (e quello in corso) fissi, quelli ancora da giocare spostabili: l'ordine vale anche a partita avviata. */
+function RoundOrder({
+  rounds,
+  done,
+  onReorder,
+}: {
+  rounds: { id: string; title: string; typeId: string }[];
+  done: number;
+  onReorder: (roundIds: string[]) => void;
+}) {
+  const upcoming = rounds.slice(done);
+  if (upcoming.length === 0) return null;
+  const move = (i: number, delta: -1 | 1) => onReorder(moveItem(upcoming.map((r) => r.id), i, delta));
+  return (
+    <section className="panel round-order">
+      <h3>Ordine dei round</h3>
+      <ol className="list rounds" start={done + 1}>
+        {upcoming.map((r, i) => (
+          <li key={r.id}>
+            <span>{r.title} <small className="muted">· {r.typeId}</small></span>
+            <span className="row">
+              <button disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Anticipa ${r.title}`}>↑</button>
+              <button disabled={i === upcoming.length - 1} onClick={() => move(i, 1)} aria-label={`Posticipa ${r.title}`}>↓</button>
+            </span>
+          </li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -286,6 +317,14 @@ export function LivePanel({ embedded = false }: { embedded?: boolean }) {
             ))}
           </div>
         </section>
+      )}
+
+      {!embedded && active && state.phase !== "ended" && (
+        <RoundOrder
+          rounds={state.rounds}
+          done={state.roundNumber}
+          onReorder={(roundIds) => void run({ type: "round-order", roundIds })}
+        />
       )}
 
       {!embedded && active && state.phase !== "ended" && state.eventId && (

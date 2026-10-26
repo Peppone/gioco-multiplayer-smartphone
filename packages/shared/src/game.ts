@@ -114,6 +114,8 @@ export const hostCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("start"), matchId: z.string().min(1) }),
   /** Imposta le squadre temporanee, oppure (`teams: null`) le toglie e si torna alle squadre della serata. */
   z.object({ type: z.literal("temp-teams"), teams: tempTeamsInputSchema.nullable() }),
+  /** Nuovo ordine dei round non ancora giocati (una permutazione esatta di quelli rimasti), anche a partita avviata. */
+  z.object({ type: z.literal("round-order"), roundIds: z.array(z.string().min(1)).min(1).max(200) }),
   z.object({ type: z.literal("engine"), action: z.enum(["next", "finish-round", "end-match", "close"]) }),
   z.object({ type: z.literal("plugin"), command: z.record(z.string(), z.unknown()) }),
   z.object({

@@ -121,6 +121,11 @@ export class Engine {
     return this.live && this.live.phase !== "ended" ? this.live.matchId : null;
   }
 
+  /** Id della serata della partita che occupa l'engine (anche conclusa ma non ancora chiusa), se c'è. */
+  get currentEventId(): string | null {
+    return this.live?.eventId ?? null;
+  }
+
   /** Id della partita che occupa l'engine, anche conclusa ma non ancora chiusa con «Torna alla lobby». */
   get currentMatchId(): string | null {
     return this.live?.matchId ?? null;
@@ -291,6 +296,9 @@ export class Engine {
       case "temp-teams":
         return this.setTempTeams(l, cmd.teams);
 
+      case "round-order":
+        return this.setRoundOrder(l, cmd.roundIds);
+
       case "engine":
         if (cmd.action === "next") return this.next(l);
         if (cmd.action === "finish-round") {
@@ -332,6 +340,29 @@ export class Engine {
         return OK;
       }
     }
+  }
+
+  /**
+   * Riordina i round che restano da giocare (il round in corso e quelli già giocati non si toccano). `roundIds` deve essere
+   * una permutazione esatta dei round rimasti; il nuovo ordine si salva anche nella partita.
+   */
+  private setRoundOrder(l: Live, roundIds: string[]): EngineResult {
+    if (l.phase === "ended") return fail("La partita è conclusa.");
+    const done = l.roundIndex + 1;
+    const remaining = l.rounds.slice(done);
+    const same =
+      roundIds.length === remaining.length &&
+      new Set(roundIds).size === roundIds.length &&
+      remaining.every((r) => roundIds.includes(r.roundId));
+    if (!same) return fail("L'elenco non corrisponde ai round ancora da giocare.");
+    const byId = new Map(remaining.map((r) => [r.roundId, r]));
+    const reordered = roundIds.map((id) => byId.get(id)!);
+    this.db.transaction((tx) => {
+      reordered.forEach((r, i) => tx.update(matchRounds).set({ order: done + i + 1 }).where(eq(matchRounds.id, r.roundId)).run());
+    });
+    l.rounds = [...l.rounds.slice(0, done), ...reordered];
+    this.touch();
+    return OK;
   }
 
   /**
