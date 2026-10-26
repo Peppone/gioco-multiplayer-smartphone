@@ -44,6 +44,9 @@ function send<T>(reply: FastifyReply, result: Result<T>, successCode = 200) {
   return reply.code(STATUS[result.error]).send({ error: result.error, detail: result.detail });
 }
 
+/** Rifiuta l'eliminazione di ciò che sta usando la partita live. */
+const busy = (reply: FastifyReply, detail: string) => reply.code(STATUS.conflict).send({ error: "conflict" satisfies AdminError, detail });
+
 function sendAuth(reply: FastifyReply, result: AuthResult) {
   if (result.ok) return reply.send({ token: result.token });
   return reply.code(STATUS[result.error]).send({ error: result.error });
@@ -89,6 +92,11 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
       send(reply, service.resetPlayerPin(req.params.id)),
     );
 
+    api.delete<{ Params: IdParams }>("/api/admin/players/:id", async (req, reply) => {
+      if (master?.engine.rosterIds().includes(req.params.id)) return busy(reply, "Il giocatore è nella partita in corso: concludila prima.");
+      return send(reply, service.deletePlayer(req.params.id));
+    });
+
     api.get("/api/admin/teams", async () => service.listTeams());
     api.post("/api/admin/teams", async (req, reply) => {
       const body = parse(teamInputSchema, req.body, reply);
@@ -114,9 +122,10 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
       const body = parse(eventPatchSchema, req.body, reply);
       if (body) return send(reply, service.patchEvent(req.params.id, body));
     });
-    api.delete<{ Params: IdParams }>("/api/admin/events/:id", async (req, reply) =>
-      send(reply, service.deleteEvent(req.params.id)),
-    );
+    api.delete<{ Params: IdParams }>("/api/admin/events/:id", async (req, reply) => {
+      if (master?.engine.currentEventId === req.params.id) return busy(reply, "La serata ha una partita in corso: concludila prima.");
+      return send(reply, service.deleteEvent(req.params.id));
+    });
     api.put<{ Params: IdParams }>("/api/admin/events/:id/teams", async (req, reply) => {
       const body = parse(eventTeamsSchema, req.body, reply);
       if (body) return send(reply, service.setEventTeams(req.params.id, body.teamIds));
@@ -148,9 +157,10 @@ export function registerAdminRoutes(app: FastifyInstance, auth: AdminAuth, servi
       const body = parse(matchPatchSchema, req.body, reply);
       if (body) return send(reply, service.patchMatch(req.params.id, body));
     });
-    api.delete<{ Params: IdParams }>("/api/admin/matches/:id", async (req, reply) =>
-      send(reply, service.deleteMatch(req.params.id)),
-    );
+    api.delete<{ Params: IdParams }>("/api/admin/matches/:id", async (req, reply) => {
+      if (master?.engine.currentMatchId === req.params.id) return busy(reply, "La partita è in corso: concludila prima.");
+      return send(reply, service.deleteMatch(req.params.id));
+    });
 
     // ---- Game Master: link limitato e archivio dei messaggi ed eventi ----
     if (master) {

@@ -15,7 +15,7 @@ import type {
   TeamInput,
   TeamView,
 } from "@gioco/shared";
-import { type Db, eventPlayers, eventTeams, events, matches, matchRounds, players, scoreEntries, teams } from "./db.js";
+import { type Db, eventPlayers, eventTeams, events, matches, matchRounds, players, roundEventReceipts, scoreEntries, teams } from "./db.js";
 import { LibraryService } from "./library-service.js";
 import { PlayerService } from "./players.js";
 import { type Result, fail, ok } from "./result.js";
@@ -86,6 +86,19 @@ export class AdminService {
     if (!new PlayerService(this.db).resetPin(id)) return fail("not_found", "Giocatore non trovato");
     const detail = this.listPlayerDetails().find((p) => p.id === id);
     return detail ? ok(detail) : fail("not_found", "Giocatore non trovato");
+  }
+
+  /** Elimina il giocatore con le sue presenze in serata, i punti e le ricevute dei messaggi: il profilo non si può più usare. */
+  deletePlayer(id: string): Result<null> {
+    if (!this.db.select().from(players).where(and(eq(players.id, id), eq(players.test, 0))).get()) return fail("not_found");
+    this.db.transaction((tx) => {
+      tx.delete(roundEventReceipts).where(eq(roundEventReceipts.playerId, id)).run();
+      tx.delete(scoreEntries).where(eq(scoreEntries.playerId, id)).run();
+      tx.delete(eventPlayers).where(eq(eventPlayers.playerId, id)).run();
+      tx.delete(players).where(eq(players.id, id)).run();
+    });
+    this.onRosterChange();
+    return ok(null);
   }
 
   // ---- Squadre ----

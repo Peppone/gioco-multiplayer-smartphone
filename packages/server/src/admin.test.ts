@@ -4,7 +4,7 @@ import { AdminAuth } from "./admin-auth.js";
 import { AdminService } from "./admin-service.js";
 import { buildApp } from "./app.js";
 import { eq } from "drizzle-orm";
-import { openDb, players as playersTable } from "./db.js";
+import { eventPlayers as eventPlayersTable, matches as matchesTable, openDb, players as playersTable } from "./db.js";
 import { PlayerService } from "./players.js";
 
 let now = 0;
@@ -148,6 +148,21 @@ describe("giocatori e PIN per la regia", () => {
     database.update(playersTable).set({ pin: null }).where(eq(playersTable.id, r.player.id)).run();
     expect((await call("GET", "/api/admin/players/details")).json()[0].pin).toBeNull();
     expect((await call("POST", `/api/admin/players/${r.player.id}/reset-pin`)).json().pin).toMatch(/^\d{4}$/);
+  });
+
+  it("elimina un giocatore con le sue presenze in serata; serve il login", async () => {
+    const r = mk("Ada");
+    mk("Bea");
+    const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
+    await call("PUT", `/api/admin/events/${ev.id}/players/${r.player.id}`, { teamId: null });
+    expect(database.select().from(eventPlayersTable).all()).toHaveLength(1);
+
+    expect((await call("DELETE", `/api/admin/players/${r.player.id}`, undefined, false)).statusCode).toBe(401);
+    expect((await call("DELETE", `/api/admin/players/${r.player.id}`)).statusCode).toBe(200);
+    expect((await call("DELETE", `/api/admin/players/${r.player.id}`)).statusCode).toBe(404);
+    expect((await call("GET", "/api/admin/players/details")).json().map((p: { nickname: string }) => p.nickname)).toEqual(["Bea"]);
+    expect(database.select().from(eventPlayersTable).all()).toHaveLength(0);
+    expect(players.recover("Ada", r.pin!)).toMatchObject({ ok: false });
   });
 });
 
@@ -358,15 +373,27 @@ describe("libreria minigiochi", () => {
     expect((await call("POST", "/api/admin/instances", { typeId: "boh", title: "X", config: {} })).statusCode).toBe(404);
   });
 
-  it("modifica e non elimina un istanza usata in una partita", async () => {
+  it("modifica un istanza usata in una partita; la elimina solo se la partita non è avviata", async () => {
     const inst = (await mkInstance()).json();
+    const other = (await mkInstance("Altra")).json();
     const upd = await call("PUT", `/api/admin/instances/${inst.id}`, { typeId: "quiz-multipla", title: "Nuovo", theme: "retro80", config: quiz });
     expect(upd.json()).toMatchObject({ title: "Nuovo", theme: "retro80" });
 
     const ev = (await call("POST", "/api/admin/events", { name: "S" })).json();
     const m = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "P" })).json();
     await call("POST", `/api/admin/matches/${m.id}/rounds`, { instanceId: inst.id });
-    expect((await call("DELETE", `/api/admin/instances/${inst.id}`)).statusCode).toBe(409);
+    await call("POST", `/api/admin/matches/${m.id}/rounds`, { instanceId: other.id });
+
+    // Partita da giocare: l'istanza esce dai suoi round e gli altri si rinumerano.
+    expect((await call("DELETE", `/api/admin/instances/${inst.id}`)).statusCode).toBe(200);
+    const detail = (await call("GET", `/api/admin/events/${ev.id}`)).json();
+    expect(detail.matches[0].rounds.map((r: { title: string; order: number }) => [r.title, r.order])).toEqual([["Altra", 1]]);
+
+    // Partita avviata: l'istanza non si elimina più.
+    const started = (await call("POST", `/api/admin/events/${ev.id}/matches`, { name: "Q" })).json();
+    await call("POST", `/api/admin/matches/${started.id}/rounds`, { instanceId: other.id });
+    database.update(matchesTable).set({ status: "running" }).where(eq(matchesTable.id, started.id)).run();
+    expect((await call("DELETE", `/api/admin/instances/${other.id}`)).statusCode).toBe(409);
   });
 
   it("riordina i round e rifiuta elenchi incompleti o a partita avviata", async () => {

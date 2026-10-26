@@ -39,6 +39,17 @@ export function PlayersPanel({ onAuthLost }: { onAuthLost: () => void }) {
     }
   };
 
+  const remove = async (p: AdminPlayerDetail) => {
+    if (!confirm(`Eliminare ${p.nickname}? Spariscono il profilo, la presenza nelle serate e i suoi punti. Non si può annullare.`)) return;
+    setError(null);
+    try {
+      await api("DELETE", `/players/${p.id}`);
+      setList((l) => l.filter((x) => x.id !== p.id));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  };
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? list.filter((p) => p.nickname.toLowerCase().includes(q)) : list;
@@ -63,6 +74,7 @@ export function PlayersPanel({ onAuthLost }: { onAuthLost: () => void }) {
                 </>
               )}
               <button type="button" onClick={() => void resetPin(p)}>Nuovo PIN</button>
+              <button type="button" className="danger" onClick={() => void remove(p)} aria-label={`Elimina ${p.nickname}`}>Elimina</button>
             </span>
           </li>
         ))}

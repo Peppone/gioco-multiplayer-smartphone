@@ -119,12 +119,27 @@ export class LibraryService {
     return ok({ typeId: current.typeId, title: current.title, theme: current.theme as InstanceView["theme"], config });
   }
 
-  /** Un'istanza già usata in una partita non si elimina (la partita perderebbe il round). */
+  /**
+   * Un'istanza usata in una partita già avviata o conclusa non si elimina (la partita perderebbe il round); se è solo
+   * in partite ancora da giocare, esce da quelle e i round che restano si rinumerano.
+   */
   deleteInstance(id: string): Result<null> {
     if (!this.getInstance(id)) return fail("not_found");
-    const used = this.db.select({ id: matchRounds.id }).from(matchRounds).where(eq(matchRounds.instanceId, id)).get();
-    if (used) return fail("conflict", "Istanza usata in una partita");
-    this.db.delete(minigameInstances).where(eq(minigameInstances.id, id)).run();
+    const uses = this.db
+      .select({ id: matchRounds.id, matchId: matchRounds.matchId, status: matches.status })
+      .from(matchRounds)
+      .innerJoin(matches, eq(matches.id, matchRounds.matchId))
+      .where(eq(matchRounds.instanceId, id))
+      .all();
+    if (uses.some((u) => u.status !== "pending")) return fail("conflict", "Istanza usata in una partita già avviata o conclusa");
+    this.db.transaction((tx) => {
+      for (const u of uses) tx.delete(matchRounds).where(eq(matchRounds.id, u.id)).run();
+      for (const matchId of new Set(uses.map((u) => u.matchId))) {
+        const left = tx.select({ id: matchRounds.id }).from(matchRounds).where(eq(matchRounds.matchId, matchId)).orderBy(asc(matchRounds.order)).all();
+        left.forEach((r, i) => tx.update(matchRounds).set({ order: i + 1 }).where(eq(matchRounds.id, r.id)).run());
+      }
+      tx.delete(minigameInstances).where(eq(minigameInstances.id, id)).run();
+    });
     return ok(null);
   }
 
