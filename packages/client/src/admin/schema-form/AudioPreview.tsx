@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type AudioEffect, type Listening, PLAYBACK_MODES, type PlaybackMode, type SongListen, resolveListening } from "@gioco/shared";
+import { type EffectSetting, type Listening, PLAYBACK_MODES, type PlaybackMode, type SongListen, effectsForListening, resolveListening } from "@gioco/shared";
 import { fileBackendFor } from "../../minigames/indovina-canzone/backends";
-import { type EffectChain, connectEffect } from "../../minigames/indovina-canzone/effects";
+import { type EffectChain, connectEffects } from "../../minigames/indovina-canzone/effects";
 import { startListening } from "../../minigames/indovina-canzone/listening";
 
 interface Graph {
@@ -13,6 +13,9 @@ interface Graph {
 let sharedCtx: AudioContext | null = null;
 const graphs = new WeakMap<HTMLAudioElement, Graph>();
 const context = () => (sharedCtx ??= new AudioContext());
+
+/** Dopo quanto (ms) dall'ultimo cambio di un effetto lo si risente: muovendo un cursore non si ricostruisce la catena a ogni pixel. */
+const EFFECT_SETTLE_MS = 120;
 
 /** Anticipo con cui parte la prova: negli spezzoni il primo non deve essere accorciato dal tempo di avvio. */
 const TRIAL_LEAD_MS = 400;
@@ -53,49 +56,59 @@ const MODE_NAMES: Record<PlaybackMode, string> = {
 };
 
 /**
- * Anteprima di un brano nel modulo. Il lettore normale suona il file con l'effetto scelto (stessa catena dello
- * schermo), e la casella permette di confrontarlo con l'originale. «Prova l'ascolto» fa suonare il brano come lo
- * sentirà lo schermo in partita, con la modalità scelta per questo brano (spezzoni, velocità, fasi), usando lo stesso motore.
+ * Anteprima di un brano nel modulo. Il lettore normale suona il file con tutti gli effetti scelti, in serie (stessa catena
+ * dello schermo), e li segue mentre si cambiano: aggiungere, togliere o spostare un effetto, o muovere il cursore della sua
+ * quantità, si sente subito, anche a brano in riproduzione. La casella permette di confrontarlo con l'originale.
+ * «Prova l'ascolto» fa suonare il brano come lo sentirà lo schermo in partita, con la modalità scelta per questo brano
+ * (spezzoni, velocità, fasi), usando lo stesso motore.
  */
-export function AudioPreview({ file, effect, song, round }: { file: string; effect: AudioEffect; song: Record<string, unknown>; round: Record<string, unknown> }) {
+export function AudioPreview({ file, effects, song, round }: { file: string; effects: EffectSetting[]; song: Record<string, unknown>; round: Record<string, unknown> }) {
   const el = useRef<HTMLAudioElement>(null);
   const [withEffect, setWithEffect] = useState(true);
-  const active: AudioEffect = withEffect ? effect : "none";
+  const wanted = withEffect ? effects : [];
+  const wantedKey = JSON.stringify(wanted);
+  // Si aspetta che il cursore si fermi un attimo prima di rifare la catena.
+  const [settledKey, setSettledKey] = useState(wantedKey);
+  useEffect(() => {
+    const t = setTimeout(() => setSettledKey(wantedKey), EFFECT_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [wantedKey]);
 
   useEffect(() => {
     const audioEl = el.current;
     if (!audioEl) return;
+    const active = JSON.parse(settledKey) as EffectSetting[];
     let graph = graphs.get(audioEl);
     if (!graph) {
-      // Senza effetto e mai collegato: resta il lettore normale, senza Web Audio.
-      if (active === "none") return;
+      // Senza effetti e mai collegato: resta il lettore normale, senza Web Audio.
+      if (active.length === 0) return;
       graph = { source: context().createMediaElementSource(audioEl), chain: null };
       graphs.set(audioEl, graph);
     }
     graph.chain?.disconnect();
-    graph.chain = connectEffect(context(), graph.source, active);
+    graph.chain = connectEffects(context(), graph.source, active);
     return () => {
       graph.chain?.disconnect();
       graph.chain = null;
     };
-  }, [active]);
+  }, [settledKey]);
 
   return (
     <>
-      <audio ref={el} controls preload="none" src={`/media/${file}`} aria-label="Anteprima" onPlay={() => void sharedCtx?.resume()} />
-      {effect !== "none" && (
+      <audio ref={el} controls preload="none" src={`/media/${file}`} aria-label="Anteprima" data-effects={(JSON.parse(settledKey) as EffectSetting[]).length} onPlay={() => void sharedCtx?.resume()} />
+      {effects.length > 0 && (
         <label className="check">
           <input type="checkbox" checked={withEffect} onChange={(e) => setWithEffect(e.target.checked)} />
-          Ascolta con l'effetto
+          Ascolta con gli effetti
         </label>
       )}
-      <ListenTrial file={file} effect={effect} song={song} round={round} />
+      <ListenTrial file={file} effects={effects} song={song} round={round} />
     </>
   );
 }
 
 /** Prova dell'ascolto del brano, con il motore di riproduzione dello schermo. */
-function ListenTrial({ file, effect, song, round }: { file: string; effect: AudioEffect; song: Record<string, unknown>; round: Record<string, unknown> }) {
+function ListenTrial({ file, effects, song, round }: { file: string; effects: EffectSetting[]; song: Record<string, unknown>; round: Record<string, unknown> }) {
   const listening = useMemo(() => listeningFromForm(song, round), [JSON.stringify(song), JSON.stringify(round)]); // eslint-disable-line react-hooks/exhaustive-deps
   const startSeconds = num(song.startSeconds) ?? 0;
   const clearAtPercent = round.progressive === true && !listening.stages ? (num(round.clearAtPercent) ?? 100) : null;
@@ -109,13 +122,13 @@ function ListenTrial({ file, effect, song, round }: { file: string; effect: Audi
   };
 
   // Cambiando brano, modalità o parametri la prova in corso non vale più; uscendo dalla pagina si ferma.
-  const key = JSON.stringify([file, listening, startSeconds, effect, clearAtPercent]);
+  const key = JSON.stringify([file, listening, startSeconds, effects, clearAtPercent]);
   useEffect(() => stop, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const start = () => {
     stop();
     // Con le fasi il filtro lo guidano le fasi, come in partita.
-    const backend = fileBackendFor(file, listening.stages ? "heavy_blur" : effect, listening, { ctx: context() });
+    const backend = fileBackendFor(file, effectsForListening(effects, listening.stages), listening, { ctx: context() });
     let run: (() => void) | undefined;
     let end: ReturnType<typeof setTimeout> | undefined;
     // Si parte a brano pronto, così il tempo di caricamento non accorcia il primo spezzone.

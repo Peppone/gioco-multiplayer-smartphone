@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { AUDIO_EFFECTS, type MediaItem } from "@gioco/shared";
+import { AUDIO_EFFECTS, EFFECT_AMOUNT, type EffectSetting, LEGACY_AUDIO_EFFECTS, type MediaItem, legacyEffectSettings } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
 import { type JsonSchema, defaultValue, isShown, moveItem, setKey } from "./logic";
@@ -78,6 +78,28 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
 
     case "integer":
     case "number":
+      if (schema.widget === "slider" && schema.minimum !== undefined && schema.maximum !== undefined) {
+        const shown = typeof value === "number" ? value : typeof schema.default === "number" ? schema.default : schema.minimum;
+        return (
+          <div className="field slider">
+            <span className="label">{labelText}</span>
+            <div className="slider-row">
+              <input type="range" aria-label={`${labelText} (cursore)`} min={schema.minimum} max={schema.maximum} step={schema.step ?? 1} value={shown} onChange={(e) => onChange(Number(e.target.value))} />
+              <input
+                type="number"
+                aria-label={labelText}
+                inputMode="numeric"
+                step={schema.step ?? 1}
+                min={schema.minimum}
+                max={schema.maximum}
+                value={typeof value === "number" ? value : ""}
+                onChange={(e) => onChange(e.target.value === "" ? undefined : Number(e.target.value))}
+              />
+            </div>
+            <Hint schema={schema} />
+          </div>
+        );
+      }
       return (
         <label className="field">
           <span className="label">{labelText}</span>
@@ -123,6 +145,21 @@ function Field({ schema, value, onChange, label, required, siblings }: FieldProp
   }
 }
 
+/**
+ * Gli effetti di un brano dai valori del modulo, che possono essere incompleti: la quantità mancante vale quella piena e
+ * il vecchio effetto singolo, se c'è ancora, conta come primo dell'elenco (come quando il server salva).
+ */
+export function effectsOf(song: Record<string, unknown>): EffectSetting[] {
+  const list = Array.isArray(song.effects) ? (song.effects as Partial<EffectSetting>[]) : [];
+  const legacy = LEGACY_AUDIO_EFFECTS.find((e) => e === song.effect);
+  return [
+    ...legacyEffectSettings(legacy),
+    ...list.flatMap((e) =>
+      AUDIO_EFFECTS.some((t) => t === e?.type) ? [{ type: e.type!, amount: typeof e.amount === "number" ? e.amount : EFFECT_AMOUNT.default }] : [],
+    ),
+  ];
+}
+
 /** Brano audio: si carica un file dal computer della regia oppure si sceglie tra quelli già caricati. */
 function AudioField({ schema, value, onChange, labelText, siblings }: Pick<FieldProps, "schema" | "value" | "onChange" | "siblings"> & { labelText: string }) {
   const [library, setLibrary] = useState<MediaItem[]>([]);
@@ -163,7 +200,7 @@ function AudioField({ schema, value, onChange, labelText, siblings }: Pick<Field
         </select>
       )}
       {file && current && (
-        <AudioPreview key={file} file={file} effect={AUDIO_EFFECTS.find((e) => e === siblings.effect) ?? "none"} song={siblings} round={round} />
+        <AudioPreview key={file} file={file} effects={effectsOf(siblings)} song={siblings} round={round} />
       )}
       {file && !current && <small className="hint" role="alert">Questo file non è nella mediateca (è un esempio): carica un brano oppure rimuovilo.</small>}
       {file && <button type="button" onClick={() => onChange(undefined)}>Rimuovi il file</button>}

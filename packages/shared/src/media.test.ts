@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUDIO_TYPES, MEDIA_FILE_PATTERN, mediaContentType } from "./media.js";
+import { AUDIO_EFFECTS, AUDIO_TYPES, EFFECT_AMOUNT, MEDIA_FILE_PATTERN, STAGES_BLUR_AMOUNT, effectsForListening, legacyEffectSettings, mediaContentType } from "./media.js";
 
 describe("tipo del file da caricare", () => {
   it("usa quello del browser se il server lo riconosce", () => {
@@ -27,5 +27,33 @@ describe("nomi della mediateca", () => {
     }
     expect("11111111-1111-4111-8111-111111111111.mp4").toMatch(MEDIA_FILE_PATTERN);
     expect("11111111-1111-4111-8111-111111111111.mov").not.toMatch(MEDIA_FILE_PATTERN);
+  });
+});
+
+describe("effetti sull'audio di un brano", () => {
+  it("il vecchio effetto singolo diventa un elenco con la stessa intensità di prima", () => {
+    expect(legacyEffectSettings(undefined)).toEqual([]);
+    expect(legacyEffectSettings("none")).toEqual([]);
+    expect(legacyEffectSettings("blur")).toEqual([{ type: "blur", amount: 100 }]);
+    expect(legacyEffectSettings("heavy_blur")).toEqual([{ type: "blur", amount: STAGES_BLUR_AMOUNT }]);
+    expect(legacyEffectSettings("no_voice")).toEqual([{ type: "no_voice", amount: 100 }]);
+  });
+
+  it("la quantità predefinita sta nell'intervallo, che arriva oltre il 100%", () => {
+    expect(EFFECT_AMOUNT.default).toBeGreaterThanOrEqual(EFFECT_AMOUNT.min);
+    expect(EFFECT_AMOUNT.default).toBeLessThan(EFFECT_AMOUNT.max);
+    expect(EFFECT_AMOUNT.max).toBeGreaterThanOrEqual(300);
+    expect(new Set(AUDIO_EFFECTS).size).toBe(AUDIO_EFFECTS.length);
+  });
+
+  it("con le fasi lo sfocato del brano lo sostituiscono le fasi, gli altri effetti restano in ordine", () => {
+    const effects = [{ type: "echo", amount: 120 }, { type: "blur", amount: 80 }, { type: "distortion", amount: 200 }] as const;
+    expect(effectsForListening([...effects], null)).toEqual(effects);
+    expect(effectsForListening([...effects], { firstMs: 1 })).toEqual([
+      { type: "blur", amount: STAGES_BLUR_AMOUNT },
+      { type: "echo", amount: 120 },
+      { type: "distortion", amount: 200 },
+    ]);
+    expect(effectsForListening([], { firstMs: 1 })).toEqual([{ type: "blur", amount: STAGES_BLUR_AMOUNT }]);
   });
 });

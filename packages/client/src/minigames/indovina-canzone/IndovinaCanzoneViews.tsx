@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import { type AudioEffect, type BlurStagesPlan, type ClockSync, type LoopPlan, type LoopPosition, type PlaybackMode, type RatePlan } from "@gioco/shared";
+import { type BlurStagesPlan, type EffectSetting, type ClockSync, type LoopPlan, type LoopPosition, type PlaybackMode, type RatePlan } from "@gioco/shared";
 import { useAudioState, useSfx } from "../../audio/useAudio";
 import { Sfx } from "../../ui/Sfx";
 import { Countdown } from "../Countdown";
@@ -11,7 +11,8 @@ interface Music {
   /** Una sola delle due sorgenti è presente: file caricato o video YouTube. */
   file: string | null;
   youtubeId: string | null;
-  effect: AudioEffect;
+  /** Effetti in serie, ciascuno con la sua quantità; vuoto = brano com'è. */
+  effects: EffectSetting[];
   startSeconds: number;
   playing: boolean;
   offsetMs: number;
@@ -82,25 +83,24 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const [loopPos, setLoopPos] = useState<LoopPosition | null>(null);
   const file = music?.file;
   const video = music?.youtubeId;
-  const effect = music?.effect ?? "none";
   const keepPitch = music?.keepPitch ?? true;
   // I piani sono oggetti nuovi a ogni vista: si confrontano per contenuto, altrimenti la musica ripartirebbe a ogni aggiornamento.
-  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null]);
-  const plan = useMemo(() => {
-    const [loop, rate, stages] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null];
-    return { loop, rate, stages };
+  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? []]);
+  const { plan, effects } = useMemo(() => {
+    const [loop, rate, stages, effects] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null, EffectSetting[]];
+    return { plan: { loop, rate, stages }, effects };
   }, [planKey]);
 
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
-    else if (file) backend.current = fileBackendFor(file, effect, { ...plan, keepPitch });
+    else if (file) backend.current = fileBackendFor(file, effects, { ...plan, keepPitch });
     else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effect, plan, keepPitch, host]);
+  }, [file, video, effects, plan, keepPitch, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;

@@ -285,7 +285,7 @@ plain("editor: ogni modalità mostra solo i suoi campi, brano per brano", async 
   await expect(labelled(page, /Secondi di suono poco ovattato/)).toHaveValue("8");
   await expect(labelled(page, /Durata di ogni passaggio tra le fasi/)).toHaveValue("3");
   await expect(labelled(page, /Velocità del brano/)).toHaveCount(0);
-  await expect(labelled(page, /Effetto sull'audio/).first()).toBeVisible();
+  await expect(page.getByRole("group", { name: /Effetti sull'audio/ }).first()).toBeVisible();
 
   // Le modalità sono per brano: un secondo brano parte dal predefinito e ha le sue scelte.
   await page.getByRole("button", { name: "+ Aggiungi brano" }).click();

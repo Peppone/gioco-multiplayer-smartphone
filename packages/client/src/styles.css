@@ -104,6 +104,9 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monos
 .field { display: grid; gap: .3rem; margin: 0; }
 .field .label { font-size: .85rem; opacity: .75; }
 .field .hint { font-size: .75rem; }
+.field.slider .slider-row { display: flex; align-items: center; gap: .6rem; }
+.field.slider input[type=range] { flex: 1; min-width: 0; }
+.field.slider input[type=number] { width: 5rem; }
 .audio-field audio { width: 100%; }
 .audio-field [role=alert] { color: var(--bad, #ff6b6b); }
 .field.lines textarea { width: 100%; font-family: inherit; line-height: 1.35; resize: vertical; }

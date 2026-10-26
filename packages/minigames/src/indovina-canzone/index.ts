@@ -1,7 +1,10 @@
 import { z } from "zod";
 import {
   AUDIO_EFFECTS,
+  EFFECT_AMOUNT,
+  LEGACY_AUDIO_EFFECTS,
   LISTEN_DEFAULTS,
+  MAX_EFFECTS,
   MEDIA_FILE_PATTERN,
   type MinigameType,
   type ParticipantInfo,
@@ -10,7 +13,9 @@ import {
   SPEED_MAX,
   SPEED_MIN,
   type TeamInfo,
+  effectsForListening,
   fairTime,
+  legacyEffectSettings,
   listeningSettledMs,
   resolveListening,
   youtubeId,
@@ -92,18 +97,49 @@ export const indovinaCanzoneConfigSchema = z
               .max(3_600)
               .default(0)
               .meta({ title: "Parti da (secondi)", description: "Punto del brano da cui far partire la musica" }),
-            effect: z
-              .enum(AUDIO_EFFECTS)
-              .default("none")
+            effects: z
+              .array(
+                z.object({
+                  type: z.enum(AUDIO_EFFECTS).meta({
+                    title: "Effetto",
+                    enumLabels: {
+                      blur: "Sfocato (suono ovattato)",
+                      no_voice: "Senza voce (solo base musicale)",
+                      telephone: "Telefono (banda stretta)",
+                      distortion: "Distorsione (suono saturato)",
+                      echo: "Eco",
+                    },
+                  }),
+                  amount: z
+                    .number()
+                    .int()
+                    .min(EFFECT_AMOUNT.min)
+                    .max(EFFECT_AMOUNT.max)
+                    .default(EFFECT_AMOUNT.default)
+                    .meta({
+                      title: "Quantità (%)",
+                      description: `100 = effetto pieno, sotto è più leggero, sopra è esteso (fino a ${EFFECT_AMOUNT.max}). Muovendo il cursore lo si sente subito nell'anteprima del brano`,
+                      widget: "slider",
+                      step: EFFECT_AMOUNT.step,
+                    }),
+                }),
+              )
+              .max(MAX_EFFECTS)
+              .default([])
               .meta({
-                title: "Effetto sull'audio",
-                description: "Rende il brano meno riconoscibile. Funziona solo con i file caricati, non con YouTube. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» l'effetto si attenua mano a mano che passa il tempo",
-                enumLabels: {
-                  none: "Nessuno",
-                  blur: "Sfocato (suono ovattato)",
-                  heavy_blur: "Molto sfocato",
-                  no_voice: "Senza voce (solo base musicale)",
-                },
+                title: "Effetti sull'audio",
+                description: `Rendono il brano meno riconoscibile. Se ne possono sommare fino a ${MAX_EFFECTS}, anche lo stesso più volte: si applicano uno dopo l'altro, nell'ordine dell'elenco, e ognuno ha la sua quantità. Funzionano solo con i file caricati, non con YouTube. «Senza voce» toglie ciò che è al centro del suono (di solito la voce, ma anche parte di basso e batteria) e va bene solo per brani stereo. Con «Svela gradualmente» tutti gli effetti si attenuano mano a mano che passa il tempo`,
+                itemLabel: "Effetto",
+              }),
+            /** Il campo di prima, quando ogni brano aveva un solo effetto: si vede solo nei brani salvati allora, finché non si salvano di nuovo. */
+            effect: z
+              .enum(LEGACY_AUDIO_EFFECTS)
+              .optional()
+              .meta({
+                title: "Effetto della versione precedente",
+                description: "Questo brano era stato salvato con un solo effetto: viene aggiunto all'elenco «Effetti sull'audio» appena si salva. Scegli «Nessuno» per toglierlo",
+                enumLabels: { none: "Nessuno", blur: "Sfocato", heavy_blur: "Molto sfocato", no_voice: "Senza voce" },
+                showWhen: { field: "effect", in: ["blur", "heavy_blur", "no_voice"] },
               }),
             playback: z
               .enum(SONG_LISTEN_MODES)
@@ -227,14 +263,16 @@ export const indovinaCanzoneConfigSchema = z
             }
           })
           // Gli effetti elaborano l'audio nel browser: l'audio di YouTube sta in un iframe e non è accessibile.
-          .refine((song) => song.effect === "none" || !song.youtube, {
+          .refine((song) => (song.effects.length === 0 && (song.effect ?? "none") === "none") || !song.youtube, {
             message: "Gli effetti sull'audio funzionano solo con i file caricati, non con i link YouTube",
           })
           // Velocità e fasi cambiano il suono nel browser, come gli effetti.
           .refine((song) => !song.youtube || !(NEEDS_FILE as readonly string[]).includes(song.playback), {
             message: "Velocità e ovattato a fasi funzionano solo con i file caricati, non con i link YouTube",
             path: ["playback"],
-          }),
+          })
+          // Il vecchio effetto singolo diventa il primo dell'elenco: da qui in poi esiste solo `effects`.
+          .transform(({ effect, effects, ...song }) => ({ ...song, effects: [...legacyEffectSettings(effect), ...effects] })),
       )
       .min(1)
       .max(50)
@@ -310,7 +348,7 @@ export const indovinaCanzoneConfigSchema = z
       .default(50)
       .meta({ title: "Penalità per risposta sbagliata", description: "0 = nessuna penalità" }),
   })
-  .refine((cfg) => !cfg.progressive || cfg.songs.some((s) => s.effect !== "none"), {
+  .refine((cfg) => !cfg.progressive || cfg.songs.some((s) => s.effects.length > 0), {
     message: "«Svela gradualmente» non ha effetto se nessun brano ha un effetto sull'audio: sceglilo nei brani",
     path: ["progressive"],
   })
@@ -507,7 +545,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
   commandSchema,
   sampleConfig: {
     songs: [
-      { audio: "00000000-0000-4000-8000-000000000000.mp3", answer: "Titolo - Artista", categories: [], startSeconds: 0, effect: "none", ...SONG_LISTEN_DEFAULTS },
+      { audio: "00000000-0000-4000-8000-000000000000.mp3", answer: "Titolo - Artista", categories: [], startSeconds: 0, effects: [], ...SONG_LISTEN_DEFAULTS },
     ],
     clipSeconds: 30,
     playback: "continuous",
@@ -523,7 +561,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
   },
   // Il nuovo brano parte senza sorgente: la regia sceglie un file oppure scrive un link YouTube.
   draftConfig: {
-    songs: [{ answer: "", categories: [], startSeconds: 0, effect: "none", ...SONG_LISTEN_DEFAULTS }],
+    songs: [{ answer: "", categories: [], startSeconds: 0, effects: [], ...SONG_LISTEN_DEFAULTS }],
     clipSeconds: 30,
     playback: "continuous",
     loopSeconds: [0.5, 1, 2, 4, 8],
@@ -679,8 +717,8 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
               file: song(s).audio || null,
               youtubeId: song(s).youtube ? youtubeId(song(s).youtube!) : null,
               startSeconds: song(s).startSeconds,
-              // Con l'ovattato a fasi il filtro lo guidano le fasi: l'effetto del brano non vale.
-              effect: listen.stages ? ("heavy_blur" as const) : song(s).effect,
+              // Con l'ovattato a fasi il filtro lo guidano le fasi: lo sfocato del brano non vale, gli altri effetti sì.
+              effects: effectsForListening(song(s).effects, listen.stages),
               playing,
               /** Dove si trova la musica: se suona, parte da `offsetMs` (tempo ascoltato) all'ora server `segmentStart`. */
               offsetMs: playing ? s.offsetMs : s.pausedMs,

@@ -205,10 +205,12 @@ plain("editor: l'anteprima del brano suona con l'effetto scelto e si può confro
   const preview = page.locator("audio[aria-label='Anteprima']").first();
   await expect(preview).toBeVisible();
   // Senza effetto non compare la casella di confronto.
-  await expect(page.getByLabel("Ascolta con l'effetto")).toHaveCount(0);
+  await expect(page.getByLabel("Ascolta con gli effetti")).toHaveCount(0);
 
-  await page.getByLabel("Effetto sull'audio").first().selectOption("heavy_blur");
-  const compare = page.getByLabel("Ascolta con l'effetto").first();
+  await page.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await page.getByLabel("Effetto", { exact: true }).first().selectOption("blur");
+  await page.getByLabel("Quantità (%)", { exact: true }).first().fill("165"); // ≈ il vecchio «molto sfocato»
+  const compare = page.getByLabel("Ascolta con gli effetti").first();
   await expect(compare).toBeChecked();
   await preview.evaluate((a: HTMLAudioElement) => a.play());
   const level = (hz: number) => page.evaluate((f) => (window as any).__db(f) as number, hz);

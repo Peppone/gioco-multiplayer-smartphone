@@ -57,5 +57,47 @@ export function youtubeId(input: string): string | null {
 }
 
 /** Effetti applicabili all'audio di un brano (solo ai file caricati, non ai video YouTube). */
-export const AUDIO_EFFECTS = ["none", "blur", "heavy_blur", "no_voice"] as const;
+export const AUDIO_EFFECTS = ["blur", "no_voice", "telephone", "distortion", "echo"] as const;
 export type AudioEffect = (typeof AUDIO_EFFECTS)[number];
+
+/**
+ * Un effetto con la sua quantità, in percentuale: 100 è l'effetto «pieno» di riferimento, sotto è più leggero, sopra è
+ * esteso (fino a `EFFECT_AMOUNT.max`). Un brano ne ha più d'uno, applicati in serie nell'ordine dell'elenco.
+ */
+export interface EffectSetting {
+  type: AudioEffect;
+  amount: number;
+}
+export const EFFECT_AMOUNT = { min: 10, max: 300, default: 100, step: 5 } as const;
+/** Quanti effetti si possono sommare su uno stesso brano. */
+export const MAX_EFFECTS = 8;
+
+/** Gli effetti del modulo precedente: un solo effetto per brano, in tre intensità fisse. */
+export const LEGACY_AUDIO_EFFECTS = ["none", "blur", "heavy_blur", "no_voice"] as const;
+export type LegacyAudioEffect = (typeof LEGACY_AUDIO_EFFECTS)[number];
+
+/** Il vecchio effetto singolo come elenco: «molto sfocato» è lo sfocato esteso a 165 (stessa frequenza di taglio, circa 450 Hz). */
+export function legacyEffectSettings(effect: LegacyAudioEffect | undefined): EffectSetting[] {
+  switch (effect) {
+    case "blur":
+      return [{ type: "blur", amount: 100 }];
+    case "heavy_blur":
+      return [{ type: "blur", amount: 165 }];
+    case "no_voice":
+      return [{ type: "no_voice", amount: 100 }];
+    default:
+      return [];
+  }
+}
+
+/** Quantità dello sfocato che guida l'ovattato a fasi prima che il filtro segua la curva delle fasi (≈ 450 Hz, «molto sfocato»). */
+export const STAGES_BLUR_AMOUNT = 165;
+
+/**
+ * Gli effetti con cui suona un brano. Con l'ovattato a fasi il filtro passa-basso lo guidano le fasi: lo sfocato del brano
+ * non vale e lo sostituisce quello delle fasi, mentre gli altri effetti restano.
+ */
+export function effectsForListening(effects: EffectSetting[], stages: unknown): EffectSetting[] {
+  if (!stages) return effects;
+  return [{ type: "blur", amount: STAGES_BLUR_AMOUNT }, ...effects.filter((e) => e.type !== "blur")];
+}

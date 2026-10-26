@@ -250,7 +250,7 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
     rate: unknown;
     keepPitch: boolean;
     stages: unknown;
-    effect: string;
+    effects: { type: string; amount: number }[];
     clearAtPercent: number | null;
     segmentStart: number;
     stopAt: number | null;
@@ -315,15 +315,22 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
 
   it("ovattato a fasi: lo schermo riceve le fasi e il filtro «molto sfocato» da cui partire", () => {
     const cfg = must({ clipSeconds: 40 }, { playback: "blur_stages", stage1Seconds: 8, stage2Seconds: 6, stageTransitionSeconds: 2 });
-    expect(musicOf(start(cfg))).toMatchObject({ mode: "blur_stages", effect: "heavy_blur", stages: { firstMs: 8_000, secondMs: 6_000, transitionMs: 2_000 }, rate: null, loop: null });
+    expect(musicOf(start(cfg))).toMatchObject({ mode: "blur_stages", effects: [{ type: "blur", amount: 165 }], stages: { firstMs: 8_000, secondMs: 6_000, transitionMs: 2_000 }, rate: null, loop: null });
   });
 
-  it("con le fasi l'effetto del brano non vale e «Svela gradualmente» non lo schiarisce", () => {
-    const cfg = must({ clipSeconds: 40, progressive: true, clearAtPercent: 60 }, { playback: "blur_stages", effect: "no_voice" }, { effect: "blur" });
-    expect(musicOf(start(cfg))).toMatchObject({ effect: "heavy_blur", clearAtPercent: null });
+  it("con le fasi lo sfocato del brano non vale (lo guidano le fasi) ma gli altri effetti restano; «Svela gradualmente» non schiarisce", () => {
+    const cfg = must(
+      { clipSeconds: 40, progressive: true, clearAtPercent: 60 },
+      { playback: "blur_stages", effects: [{ type: "no_voice", amount: 100 }, { type: "blur", amount: 250 }, { type: "echo", amount: 80 }] },
+      { effects: [{ type: "blur", amount: 100 }] },
+    );
+    expect(musicOf(start(cfg))).toMatchObject({
+      effects: [{ type: "blur", amount: 165 }, { type: "no_voice", amount: 100 }, { type: "echo", amount: 80 }],
+      clearAtPercent: null,
+    });
     // il brano senza fasi si schiarisce come sempre
     const s = cmd(cmd(start(cfg), "skip", 2_000), "next", 2_100);
-    expect(musicOf(cmd(s, "start", 3_000))).toMatchObject({ mode: "continuous", effect: "blur", clearAtPercent: 60 });
+    expect(musicOf(cmd(s, "start", 3_000))).toMatchObject({ mode: "continuous", effects: [{ type: "blur", amount: 100 }], clearAtPercent: 60 });
   });
 
   it("dopo una risposta sbagliata la musica riprende dallo stesso tempo ascoltato, qualunque sia la velocità", () => {
@@ -425,15 +432,16 @@ describe("indovina la canzone: suono che si svela", () => {
   const parse = (extra: object, song: object = {}) => game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x", ...song }], ...extra });
 
   it("lo schermo sa se l'effetto si attenua e a che punto dell'ascolto il suono è nitido", () => {
-    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effect: "heavy_blur" }], progressive: true, clearAtPercent: 80 });
+    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effects: [{ type: "blur", amount: 200 }] }], progressive: true, clearAtPercent: 80 });
     const s = cmd(game.init(cfg, ctx, 0), "start", 1_000);
-    expect(game.screenView(s)).toMatchObject({ music: { effect: "heavy_blur", clearAtPercent: 80 } });
+    expect(game.screenView(s)).toMatchObject({ music: { effects: [{ type: "blur", amount: 200 }], clearAtPercent: 80 } });
     expect(game.screenView(playing())).toMatchObject({ music: { clearAtPercent: null } });
   });
 
   it("serve almeno un brano con un effetto, altrimenti non c'è nulla da svelare", () => {
     expect(parse({ progressive: true }).success).toBe(false);
-    expect(parse({ progressive: true }, { effect: "blur" }).success).toBe(true);
+    expect(parse({ progressive: true }, { effects: [{ type: "blur" }] }).success).toBe(true);
+    expect(parse({ progressive: true }, { effect: "blur" }).success).toBe(true); // il vecchio campo conta ancora
     expect(parse({ progressive: false }).success).toBe(true);
     const r = parse({ progressive: true });
     expect(!r.success && r.error.issues[0]!.message).toMatch(/Svela gradualmente/);
@@ -640,22 +648,73 @@ describe("indovina la canzone: configurazione", () => {
     expect(JSON.stringify(game.viewFor(s, "a", null))).not.toContain("dQw4w9WgXcQ");
   });
 
-  it("l'effetto audio è facoltativo (predefinito: nessuno) e non vale per i link YouTube", () => {
+  it("gli effetti sono facoltativi (predefinito: nessuno) e non valgono per i link YouTube", () => {
     const parse = (song: object) => game.configSchema.safeParse({ songs: [{ answer: "x", ...song }] });
     const plain = parse({ audio: FILE_1 });
-    expect(plain.success && plain.data.songs[0]!.effect).toBe("none");
-    for (const effect of ["blur", "heavy_blur", "no_voice"]) expect(parse({ audio: FILE_1, effect }).success).toBe(true);
-    expect(parse({ audio: FILE_1, effect: "eco" }).success).toBe(false);
+    expect(plain.success && plain.data.songs[0]!.effects).toEqual([]);
+    for (const type of ["blur", "no_voice", "telephone", "distortion", "echo"]) expect(parse({ audio: FILE_1, effects: [{ type }] }).success).toBe(true);
+    expect(parse({ audio: FILE_1, effects: [{ type: "eco" }] }).success).toBe(false);
+    expect(parse({ youtube: "dQw4w9WgXcQ", effects: [{ type: "blur" }] }).success).toBe(false);
     expect(parse({ youtube: "dQw4w9WgXcQ", effect: "blur" }).success).toBe(false);
+    expect(parse({ youtube: "dQw4w9WgXcQ", effects: [] }).success).toBe(true);
     expect(parse({ youtube: "dQw4w9WgXcQ", effect: "none" }).success).toBe(true);
   });
 
-  it("lo schermo riceve l'effetto del brano corrente", () => {
-    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effect: "no_voice" }, { audio: FILE_2, answer: "y" }] });
+  it("più effetti sullo stesso brano, ognuno con la sua quantità (anche estesa), nell'ordine dell'elenco", () => {
+    const parse = (effects: unknown) => game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x", effects }] });
+    const many = parse([{ type: "distortion", amount: 300 }, { type: "blur", amount: 250 }, { type: "echo" }, { type: "blur", amount: 10 }]);
+    expect(many.success && many.data.songs[0]!.effects).toEqual([
+      { type: "distortion", amount: 300 },
+      { type: "blur", amount: 250 },
+      { type: "echo", amount: 100 }, // senza quantità vale il pieno
+      { type: "blur", amount: 10 },
+    ]);
+    expect(parse(Array.from({ length: 8 }, () => ({ type: "echo" }))).success).toBe(true);
+    expect(parse(Array.from({ length: 9 }, () => ({ type: "echo" }))).success).toBe(false);
+    expect(parse([{ type: "blur", amount: 9 }]).success).toBe(false);
+    expect(parse([{ type: "blur", amount: 301 }]).success).toBe(false);
+    expect(parse([{ type: "blur", amount: 99.5 }]).success).toBe(false);
+  });
+
+  it("il vecchio effetto singolo diventa il primo dell'elenco e il campo sparisce", () => {
+    const parseSong = (song: object) => {
+      const r = game.configSchema.safeParse({ songs: [{ audio: FILE_1, answer: "x", ...song }] });
+      if (!r.success) throw new Error(r.error.issues.map((i) => i.message).join("; "));
+      return r.data.songs[0]!;
+    };
+    expect(parseSong({ effect: "blur" }).effects).toEqual([{ type: "blur", amount: 100 }]);
+    expect(parseSong({ effect: "heavy_blur" }).effects).toEqual([{ type: "blur", amount: 165 }]);
+    expect(parseSong({ effect: "no_voice" }).effects).toEqual([{ type: "no_voice", amount: 100 }]);
+    expect(parseSong({ effect: "none" }).effects).toEqual([]);
+    // un brano salvato col vecchio campo e modificato con i nuovi: si sommano, e salvando resta solo l'elenco
+    const mixed = parseSong({ effect: "blur", effects: [{ type: "echo", amount: 150 }] });
+    expect(mixed.effects).toEqual([{ type: "blur", amount: 100 }, { type: "echo", amount: 150 }]);
+    expect(mixed).not.toHaveProperty("effect");
+    // salvato di nuovo, il risultato è stabile
+    expect(parseSong(mixed).effects).toEqual(mixed.effects);
+  });
+
+  it("nell'editor il vecchio campo compare solo nei brani che lo hanno ancora, e la quantità è un cursore", () => {
+    const json = z.toJSONSchema(game.configSchema, { io: "input", unrepresentable: "any" }) as unknown as {
+      properties: { songs: { items: { properties: Record<string, { showWhen?: { field: string; in: string[] }; items?: { properties: Record<string, { widget?: string; minimum?: number; maximum?: number; step?: number; default?: number }> } }> } } };
+    };
+    const props = json.properties.songs.items.properties;
+    expect(props.effect!.showWhen).toEqual({ field: "effect", in: ["blur", "heavy_blur", "no_voice"] });
+    expect(props.effects!.items!.properties.amount).toMatchObject({ widget: "slider", minimum: 10, maximum: 300, step: 5, default: 100 });
+  });
+
+  it("lo schermo riceve gli effetti del brano corrente", () => {
+    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effects: [{ type: "no_voice", amount: 100 }, { type: "echo", amount: 140 }] }, { audio: FILE_2, answer: "y" }] });
     let s = cmd(game.init(cfg, ctx, 0), "start", 1_000);
-    expect(game.screenView(s)).toMatchObject({ music: { effect: "no_voice" } });
+    expect(game.screenView(s)).toMatchObject({ music: { effects: [{ type: "no_voice", amount: 100 }, { type: "echo", amount: 140 }] } });
     s = cmd(cmd(s, "skip"), "next");
-    expect(game.screenView(s)).toMatchObject({ music: { effect: "none" } });
+    expect(game.screenView(s)).toMatchObject({ music: { effects: [] } });
+  });
+
+  it("gli effetti non arrivano mai ai telefoni", () => {
+    const cfg = game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "x", effects: [{ type: "distortion", amount: 250 }] }] });
+    const s = cmd(game.init(cfg, ctx, 0), "start", 1_000);
+    expect(JSON.stringify(game.viewFor(s, "a", null))).not.toMatch(/distortion|effects|amount/);
   });
 
   it("rifiuta nomi di file che non vengono dalla mediateca (path traversal, URL esterni)", () => {

@@ -1,7 +1,7 @@
 import { Howl, Howler } from "howler";
-import type { AudioEffect, Listening } from "@gioco/shared";
+import type { EffectSetting, Listening } from "@gioco/shared";
 import { audio } from "../../audio/audio";
-import { connectEffect } from "./effects";
+import { connectEffects } from "./effects";
 
 /** Opzioni dei lettori che passano da Web Audio. */
 export interface WebAudioOptions {
@@ -24,11 +24,11 @@ export interface MusicBackend {
   /** Da fermo si prepara al secondo indicato, così il prossimo `playAt` parte senza ritardo (negli ascolti a spezzoni). */
   cue(seconds: number): void;
   /**
-   * Solo con un effetto: porta la nitidezza da `from` a `to` (0 = effetto pieno, 1 = suono originale) in `durationMs`.
-   * Senza effetto non c'è nulla da attenuare e non fa nulla.
+   * Solo con degli effetti: porta la nitidezza da `from` a `to` (0 = effetti pieni, 1 = suono originale) in `durationMs`.
+   * Senza effetti non c'è nulla da attenuare e non fa nulla.
    */
   setClarity(from: number, to: number, durationMs: number): void;
-  /** Solo con un filtro (sfocato, molto sfocato): segue una curva di frequenze di taglio (Hz), una ogni `stepMs`. Altrimenti non fa nulla. */
+  /** Solo con lo sfocato tra gli effetti: il filtro segue una curva di frequenze di taglio (Hz), una ogni `stepMs`. Altrimenti non fa nulla. */
   setCutoffCurve(hz: number[], stepMs: number): void;
   /** Solo con l'elemento audio: cambia la velocità del brano (1 = normale). Gli altri lettori non la cambiano. */
   setRate(rate: number): void;
@@ -40,7 +40,7 @@ export interface MusicBackend {
  * problema di CORS): serve per gli effetti e per cambiare la velocità del brano. Usa il contesto di Howler, già
  * sbloccato dal primo tocco sullo schermo.
  */
-export function elementFileBackend(file: string, effect: AudioEffect, options: WebAudioOptions = {}): MusicBackend {
+export function elementFileBackend(file: string, effects: readonly EffectSetting[], options: WebAudioOptions = {}): MusicBackend {
   const el = new Audio(`/media/${file}`);
   el.preload = "auto";
   // Cambiando velocità il browser, di norma, mantiene l'intonazione; qui lo si dice esplicitamente (Safari usa il prefisso).
@@ -48,7 +48,7 @@ export function elementFileBackend(file: string, effect: AudioEffect, options: W
   el.preservesPitch = keepPitch;
   (el as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = keepPitch;
   const ctx = options.ctx ?? (Howler.ctx as AudioContext | null) ?? new AudioContext();
-  const chain = connectEffect(ctx, ctx.createMediaElementSource(el), effect);
+  const chain = connectEffects(ctx, ctx.createMediaElementSource(el), effects);
   return {
     whenReady(cb) {
       if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
@@ -88,10 +88,10 @@ export function elementFileBackend(file: string, effect: AudioEffect, options: W
  * centinaio di millisecondi a partire e a fermarsi, troppi per uno spezzone da mezzo secondo. Gli effetti passano da
  * un nodo d'ingresso fisso, a cui si collega ogni spezzone.
  */
-export function bufferFileBackend(file: string, effect: AudioEffect = "none", options: WebAudioOptions = {}): MusicBackend {
+export function bufferFileBackend(file: string, effects: readonly EffectSetting[] = [], options: WebAudioOptions = {}): MusicBackend {
   const ctx = options.ctx ?? (Howler.ctx as AudioContext | null) ?? new AudioContext();
   const input = ctx.createGain();
-  const chain = connectEffect(ctx, input, effect);
+  const chain = connectEffects(ctx, input, effects);
   let buffer: AudioBuffer | null = null;
   let current: AudioBufferSourceNode | null = null;
   let disposed = false;
@@ -155,8 +155,8 @@ export function bufferFileBackend(file: string, effect: AudioEffect = "none", op
   };
 }
 
-export function fileBackend(file: string, effect: AudioEffect = "none"): MusicBackend {
-  if (effect !== "none") return elementFileBackend(file, effect);
+export function fileBackend(file: string, effects: readonly EffectSetting[] = []): MusicBackend {
+  if (effects.length > 0) return elementFileBackend(file, effects);
   const h = new Howl({ src: [`/media/${file}`], html5: true, preload: true });
   return {
     whenReady(cb) {
@@ -181,10 +181,10 @@ export function fileBackend(file: string, effect: AudioEffect = "none"): MusicBa
 }
 
 /** Il lettore giusto per il brano: spezzoni decodificati in memoria, elemento audio con Web Audio (effetti, velocità, fasi) o lettore semplice. */
-export function fileBackendFor(file: string, effect: AudioEffect, listening: Pick<Listening, "loop" | "rate" | "stages" | "keepPitch">, options: WebAudioOptions = {}): MusicBackend {
-  if (listening.loop) return bufferFileBackend(file, effect, options);
-  if (listening.rate || listening.stages) return elementFileBackend(file, effect, { ...options, keepPitch: listening.keepPitch });
-  return effect === "none" ? fileBackend(file, effect) : elementFileBackend(file, effect, options);
+export function fileBackendFor(file: string, effects: readonly EffectSetting[], listening: Pick<Listening, "loop" | "rate" | "stages" | "keepPitch">, options: WebAudioOptions = {}): MusicBackend {
+  if (listening.loop) return bufferFileBackend(file, effects, options);
+  if (listening.rate || listening.stages) return elementFileBackend(file, effects, { ...options, keepPitch: listening.keepPitch });
+  return effects.length === 0 ? fileBackend(file) : elementFileBackend(file, effects, options);
 }
 
 // ---- YouTube: IFrame Player API ufficiale, senza account né chiave. Serve internet sul PC dello schermo. ----
