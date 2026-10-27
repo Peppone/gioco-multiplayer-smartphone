@@ -1,11 +1,12 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { type MediaItem, youtubeId } from "@gioco/shared";
+import { type EffectSetting, type MediaItem, youtubeId } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
 import { SongCategoryPicker } from "./CategoryManager";
 import { AudioField, Field, ObjectFields, RootCtx } from "./SchemaForm";
 import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
-import { effectsOf, materializeListening, songSource, songSummary, titleFromFile } from "./songs";
+import { AUDIO_KINDS, AUDIO_KIND_NAMES, type AudioKind, PRESET_LEVELS, PRESET_LEVEL_NAMES, hasVariants, nextVariant, presetEffects } from "./presets";
+import { effectsOf, materializeListening, songSource, songSummary, titleFromFile, withZone } from "./songs";
 
 /** Campi dell'ascolto del brano: dove parte, quanto dura e in che modo (le modalità mostrano solo i loro). */
 const LISTEN_KEYS = [
@@ -202,6 +203,36 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
   );
 }
 
+/**
+ * Menu «Camuffa»: tipo di audio e livello riempiono l'elenco degli effetti con una combinazione predefinita (da ascoltare
+ * con l'anteprima e ritoccare a mano); «Altre varianti» cambia il seme degli effetti che lo usano.
+ */
+function DisguisePresets({ song, onChange }: { song: Song; onChange: (song: Song) => void }) {
+  const [kind, setKind] = useState<AudioKind>("voice");
+  const current = effectsOf(song);
+  // Il vecchio effetto singolo si fonde nell'elenco: dopo un preset non resta più.
+  const apply = (effects: EffectSetting[]) => onChange(setKey(setKey(song, "effects", effects), "effect", undefined));
+  return (
+    <div className="disguise-presets" role="group" aria-label="Camuffa">
+      <label className="field">
+        <span className="label">Camuffa: tipo di audio</span>
+        <select aria-label="Tipo di audio" value={kind} onChange={(e) => setKind(e.target.value as AudioKind)}>
+          {AUDIO_KINDS.map((k) => (
+            <option key={k} value={k}>{AUDIO_KIND_NAMES[k]}</option>
+          ))}
+        </select>
+      </label>
+      <div className="row">
+        {PRESET_LEVELS.map((level) => (
+          <button key={level} type="button" onClick={() => apply(presetEffects(kind, level))}>{PRESET_LEVEL_NAMES[level]}</button>
+        ))}
+        <button type="button" disabled={!hasVariants(current)} onClick={() => apply(nextVariant(current))}>Altre varianti</button>
+      </div>
+      <small className="muted">Sostituisce l'elenco degli effetti con una combinazione già pronta: poi la ascolti con l'anteprima e la ritocchi a mano. «Altre varianti» cambia il caso degli effetti che ne usano uno (sillabe mescolate, balbuziente, vocoder).</small>
+    </div>
+  );
+}
+
 /** Pannello «Avanzato» di un brano: tutto ciò che non è il titolo, in sezioni. Le modifiche valgono subito; «Fatto» chiude. */
 function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: { index: number; inLibrary: boolean; schema: JsonSchema; song: Song; onChange: (song: Song) => void; onClose: () => void }) {
   const round = useContext(RootCtx);
@@ -242,7 +273,20 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
             <h3>Brano {index + 1} · {answer}</h3>
             <button type="button" ref={done} onClick={onClose}>Fatto</button>
           </header>
-          {!isYoutube && file && inLibrary && <AudioPreview key={file} file={file} effects={effectsOf(song)} song={song} round={round} />}
+          {!isYoutube && file && inLibrary && (
+            <AudioPreview
+              key={file}
+              file={file}
+              effects={effectsOf(song)}
+              song={song}
+              round={round}
+              onAddZone={(i, zone) => {
+                const list = effectsOf(song);
+                onChange(setKey(setKey(song, "effects", [...list.slice(0, i + 1), withZone(list[i]!, zone), ...list.slice(i + 1)]), "effect", undefined));
+              }}
+              onZoneChange={(i, zone) => onChange(setKey(setKey(song, "effects", effectsOf(song).map((e, j) => (j === i ? withZone(e, zone) : e))), "effect", undefined))}
+            />
+          )}
         </div>
 
         {section(
@@ -280,7 +324,14 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
         {section("Partenza e ascolto", only(LISTEN_KEYS), "Il punto da cui parte il brano e come lo si ascolta in partita: solo per questo brano.")}
         {section(
           "Effetti sull'audio",
-          isYoutube ? <small className="muted">Non disponibili con YouTube.</small> : only(["effect", "effects"]),
+          isYoutube ? (
+            <small className="muted">Non disponibili con YouTube.</small>
+          ) : (
+            <>
+              <DisguisePresets song={song} onChange={onChange} />
+              {only(["effect", "effects"])}
+            </>
+          ),
           "Filtri (sfocato, telefono, eco…) e camuffamenti (al contrario a pezzi, spettro capovolto, sillabe mescolate) stanno nella stessa lista, in serie nell'ordine delle card. L'anteprima li suona tutti.",
         )}
         {section(

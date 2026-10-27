@@ -389,3 +389,16 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .test-phone { margin: 0; display: grid; gap: .3rem; }
 .test-phone figcaption { font-size: .85rem; border-bottom: 3px solid var(--panel-2); padding-bottom: .15rem; }
 .test-phones-bar h3 { margin: 0; }
+
+/* Forma d'onda con le zone degli effetti trascinabili (pannello «Avanzato» di un brano) */
+.waveform { display: grid; gap: .3rem; }
+.waveform-track { position: relative; width: 100%; color: var(--muted, #8a8aa0); background: #0f0f16; border-radius: .4rem; overflow: hidden; touch-action: none; user-select: none; }
+.waveform-track svg { display: block; }
+.waveform-zone { position: absolute; top: 0; bottom: 0; background: rgba(255, 190, 60, .25); border-left: 2px solid #ffbe3c; border-right: 2px solid #ffbe3c; }
+.waveform-grip { position: absolute; inset: 0 14px; cursor: grab; touch-action: none; }
+.waveform-handle { position: absolute; top: 0; bottom: 0; width: 24px; cursor: ew-resize; touch-action: none; }
+.waveform-handle.start { left: -12px; }
+.waveform-handle.end { right: -12px; }
+.waveform-handle:focus-visible, .waveform-grip:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.waveform-effects { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.waveform-effects li { display: flex; gap: .6rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }

@@ -50,6 +50,12 @@ export function effectsOf(song: Record<string, unknown>): EffectSetting[] {
   ];
 }
 
+/** L'effetto con la zona indicata, o senza zona (tutto il brano) se `zone` è `null`. */
+export function withZone(effect: EffectSetting, zone: { from: number; to: number } | null): EffectSetting {
+  const { from: _from, to: _to, ...rest } = effect;
+  return zone ? { ...rest, ...zone } : rest;
+}
+
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 const seconds = (s: number) => `${s.toLocaleString("it-IT", { maximumFractionDigits: 1 })} s`;
 

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type EffectSetting, type Listening, PLAYBACK_MODES, type PlaybackMode, type SongListen, effectZone, effectsForListening, resolveListening } from "@gioco/shared";
-import { fileBackendFor } from "../../minigames/indovina-canzone/backends";
+import { type MusicBackend, fileBackendFor } from "../../minigames/indovina-canzone/backends";
 import { type EffectChain, connectEffects } from "../../minigames/indovina-canzone/effects";
 import { startListening } from "../../minigames/indovina-canzone/listening";
 import { type PreparedFile, prepareFile, splitChain } from "../../minigames/indovina-canzone/prepare";
+import { Waveform } from "./Waveform";
 
 interface Graph {
   source: MediaElementAudioSourceNode;
@@ -63,7 +64,22 @@ const MODE_NAMES: Record<PlaybackMode, string> = {
  * «Prova l'ascolto» fa suonare il brano come lo sentirà lo schermo in partita, con la modalità scelta per questo brano
  * (spezzoni, velocità, fasi), usando lo stesso motore.
  */
-export function AudioPreview({ file, effects, song, round }: { file: string; effects: EffectSetting[]; song: Record<string, unknown>; round: Record<string, unknown> }) {
+export function AudioPreview({
+  file,
+  effects,
+  song,
+  round,
+  onZoneChange,
+  onAddZone,
+}: {
+  file: string;
+  effects: EffectSetting[];
+  song: Record<string, unknown>;
+  round: Record<string, unknown>;
+  /** Se c'è, le zone degli effetti si trascinano su una forma d'onda. */
+  onZoneChange?: (index: number, zone: { from: number; to: number } | null) => void;
+  onAddZone?: (index: number, zone: { from: number; to: number }) => void;
+}) {
   const el = useRef<HTMLAudioElement>(null);
   const [withEffect, setWithEffect] = useState(true);
   const wanted = withEffect ? effects : [];
@@ -130,6 +146,7 @@ export function AudioPreview({ file, effects, song, round }: { file: string; eff
           Ascolta con gli effetti
         </label>
       )}
+      {onZoneChange && effects.length > 0 && <Waveform file={file} effects={effects} onZoneChange={onZoneChange} onAddZone={onAddZone} />}
       {withEffect && <ZoneButtons audio={el} effects={effects} disabled={preparing || !source} />}
       <ListenTrial file={file} effects={effects} song={song} round={round} />
     </div>
@@ -185,44 +202,96 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
   const progressive = typeof song.progressive === "boolean" ? song.progressive : round.progressive === true;
   const clearAtPercent = progressive && !listening.stages ? (num(song.clearAtPercent) ?? num(round.clearAtPercent) ?? 100) : null;
   const [playing, setPlaying] = useState(false);
-  const stopRef = useRef<(() => void) | null>(null);
+  const [updating, setUpdating] = useState(false);
+  // Ciò che suona adesso e, durante un cambio di effetti, il nuovo lettore che si sta preparando.
+  const live = useRef<{ t0: number; backend: MusicBackend; stopRun: () => void; end: ReturnType<typeof setTimeout> } | null>(null);
+  const pending = useRef<{ backend: MusicBackend; cancel: () => void } | null>(null);
 
+  const dropPending = () => {
+    pending.current?.cancel();
+    pending.current?.backend.dispose();
+    pending.current = null;
+    setUpdating(false);
+  };
+  const dropLive = () => {
+    const l = live.current;
+    if (!l) return;
+    l.stopRun();
+    clearTimeout(l.end);
+    l.backend.pause();
+    l.backend.dispose();
+    live.current = null;
+  };
   const stop = () => {
-    stopRef.current?.();
-    stopRef.current = null;
+    dropPending();
+    dropLive();
     setPlaying(false);
   };
 
-  // Cambiando brano, modalità o parametri la prova in corso non vale più; uscendo dalla pagina si ferma.
-  const key = JSON.stringify([file, listening, startSeconds, effects, clearAtPercent]);
+  // Cambiando brano, modalità o parametri la prova in corso non vale più; uscendo dalla pagina si ferma. Gli effetti no: si cambiano a prova in corso (vedi sotto).
+  const key = JSON.stringify([file, listening, startSeconds, clearAtPercent]);
   useEffect(() => stop, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const makeBackend = (fx: EffectSetting[]) =>
+    // Con le fasi il filtro lo guidano le fasi, come in partita.
+    fileBackendFor(file, effectsForListening(fx, listening.stages), listening, {
+      ctx: context(),
+      startSeconds,
+      ignoreMute: true,
+      reveal: clearAtPercent === null ? undefined : { clipMs: listening.clipMs, clearAtPercent },
+    });
+
+  /**
+   * Fa suonare `backend` appena è pronto, così il tempo di caricamento non accorcia il primo spezzone. Con `resumeT0` (l'inizio
+   * della prova in corso) prosegue dal punto già raggiunto: il lettore di prima tace solo a questo punto, senza interruzioni.
+   */
+  const launch = (backend: MusicBackend, resumeT0?: number) => {
+    const cancel = backend.whenReady(() => {
+      pending.current = null;
+      setUpdating(false);
+      const now = Date.now();
+      const t0 = resumeT0 ?? now + TRIAL_LEAD_MS;
+      dropLive();
+      const running = now >= t0;
+      const stopRun = startListening(backend, {
+        listening,
+        startSeconds,
+        offsetMs: running ? now - t0 : 0,
+        segmentStart: running ? now : t0,
+        stopAt: t0 + listening.clipMs,
+        clipMs: listening.clipMs,
+        clearAtPercent,
+        now: Date.now,
+      });
+      live.current = { t0, backend, stopRun, end: setTimeout(stop, Math.max(0, t0 + listening.clipMs + 300 - now)) };
+    });
+    pending.current = { backend, cancel };
+  };
 
   const start = () => {
     stop();
     // Il contesto audio si sblocca qui, nel clic: più avanti (a brano caricato) il browser potrebbe rifiutarlo.
     void context().resume();
-    // Con le fasi il filtro lo guidano le fasi, come in partita.
-    const backend = fileBackendFor(file, effectsForListening(effects, listening.stages), listening, { ctx: context(), startSeconds, ignoreMute: true });
-    let run: (() => void) | undefined;
-    let end: ReturnType<typeof setTimeout> | undefined;
-    // Si parte a brano pronto, così il tempo di caricamento non accorcia il primo spezzone.
-    const cancelReady = backend.whenReady(() => {
-      const t0 = Date.now() + TRIAL_LEAD_MS;
-      run = startListening(backend, { listening, startSeconds, offsetMs: 0, segmentStart: t0, stopAt: t0 + listening.clipMs, clipMs: listening.clipMs, clearAtPercent, now: Date.now });
-      end = setTimeout(stop, TRIAL_LEAD_MS + listening.clipMs + 300);
-    });
-    stopRef.current = () => {
-      cancelReady();
-      run?.();
-      clearTimeout(end);
-      backend.pause();
-      backend.dispose();
-    };
+    launch(makeBackend(effects));
     setPlaying(true);
   };
 
+  // Gli effetti cambiati a prova in corso si sentono senza fermarla: il nuovo lettore si prepara mentre il vecchio continua
+  // (i camuffamenti richiedono qualche secondo), poi prende il suo posto dal punto raggiunto. Più cambi di fila: vale l'ultimo.
+  const effectsKey = JSON.stringify(effects);
+  useEffect(() => {
+    if (!live.current && !pending.current) return;
+    const t = setTimeout(() => {
+      const t0 = live.current?.t0;
+      dropPending();
+      if (t0 !== undefined) setUpdating(true);
+      launch(makeBackend(effects), t0);
+    }, EFFECT_SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [effectsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <div className="listen-trial" data-state={playing ? "playing" : "idle"} data-mode={listening.mode}>
+    <div className="listen-trial" data-state={playing ? "playing" : "idle"} data-updating={updating} data-mode={listening.mode}>
       <button
         type="button"
         aria-pressed={playing}
@@ -231,6 +300,7 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
       >
         {playing ? "■ Ferma la prova" : "▶ Prova l'ascolto"}
       </button>
+      {updating && <small className="muted" role="status">Aggiorno gli effetti senza fermare la prova…</small>}
       <small className="muted">
         {MODE_NAMES[listening.mode]}, {(listening.clipMs / 1000).toLocaleString("it-IT", { maximumFractionDigits: 1 })} s · come in partita, dal secondo {startSeconds.toLocaleString("it-IT", { maximumFractionDigits: 1 })}
       </small>

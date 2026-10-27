@@ -118,3 +118,13 @@ describe("titleFromFile", () => {
     expect(titleFromFile("")).toBe("");
   });
 });
+
+describe("zona di un effetto", () => {
+  it("withZone aggiunge, sostituisce o toglie la zona senza toccare il resto", async () => {
+    const { withZone } = await import("./songs");
+    const e = { type: "silence" as const, amount: 100 };
+    expect(withZone(e, { from: 1, to: 2 })).toEqual({ type: "silence", amount: 100, from: 1, to: 2 });
+    expect(withZone({ ...e, from: 1, to: 2 }, { from: 3, to: 4 })).toEqual({ ...e, from: 3, to: 4 });
+    expect(withZone({ ...e, seed: 5, from: 1, to: 2 }, null)).toEqual({ ...e, seed: 5 });
+  });
+});

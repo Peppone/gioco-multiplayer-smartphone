@@ -98,6 +98,51 @@ plain("lista dei brani: le impostazioni avanzate compaiono nel riassunto della r
   await expect(page.getByLabel("Quantità (%)", { exact: true }).first()).toHaveValue("150");
 });
 
+plain("lista dei brani: il menu «Camuffa» riempie l'elenco degli effetti e «Altre varianti» cambia il seme", async ({ browser, request }) => {
+  const { page } = await newEditor(browser, request);
+  await addSongFiles(page, { name: "preset.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  await page.getByLabel(title(1)).fill("Preset - Artista");
+  const panel = await openAdvanced(page);
+  const kinds = panel.getByLabel("Tipo di audio");
+  const effects = panel.getByLabel("Effetto", { exact: true });
+  const amounts = panel.getByLabel("Quantità (%)", { exact: true });
+
+  // Voce, Medio: al contrario a pezzi 150% + telefono 60%; senza effetti con un seme le varianti non servono
+  await kinds.selectOption("voice");
+  await panel.getByRole("button", { name: "Medio" }).click();
+  await expect(effects).toHaveCount(2);
+  await expect(effects.nth(0)).toHaveValue("reverse_chunks");
+  await expect(amounts.nth(0)).toHaveValue("150");
+  await expect(effects.nth(1)).toHaveValue("telephone");
+  await expect(amounts.nth(1)).toHaveValue("60");
+  await expect(panel.getByRole("button", { name: "Altre varianti" })).toBeDisabled();
+
+  // Jingle, Forte: sostituisce l'elenco (non aggiunge) e ha un effetto con un seme
+  await kinds.selectOption("jingle");
+  await panel.getByRole("button", { name: "Forte" }).click();
+  await expect(effects).toHaveCount(2);
+  await expect(effects.nth(0)).toHaveValue("flip_spectrum");
+  await expect(effects.nth(1)).toHaveValue("shuffle_syllables");
+  const variant = panel.getByRole("button", { name: "Altre varianti" });
+  await expect(variant).toBeEnabled();
+  await closeAdvanced(page);
+  const chips = page.getByRole("list", { name: "Impostazioni del brano 1" });
+  await expect(chips).toContainText("Spettro capovolto 100% + Sillabe mescolate 100%");
+  await expect(chips).not.toContainText("#");
+
+  await openAdvanced(page);
+  await page.getByRole("button", { name: "Altre varianti" }).click();
+  await closeAdvanced(page);
+  await expect(chips).toContainText(/Sillabe mescolate 100% #\d+/);
+  // i bottoni del menu sono grandi come gli altri del pannello
+  await openAdvanced(page);
+  for (const name of ["Leggero", "Medio", "Forte", "Altre varianti"]) {
+    const box = (await page.getByRole("button", { name }).boundingBox())!;
+    expect(box.height, name).toBeGreaterThanOrEqual(40);
+    expect(box.width, name).toBeGreaterThanOrEqual(44);
+  }
+});
+
 plain("lista dei brani: link YouTube incollati in blocco, con il controllo sui link sbagliati", async ({ browser, request }) => {
   const { page } = await newEditor(browser, request);
   const rows = page.locator(".song-row");
@@ -284,4 +329,137 @@ plain("«Prova l'ascolto» suona in ogni modalità anche se l'audio del sito è 
   await panel.getByRole("button", { name: "▶ Prova l'ascolto" }).click();
   await expect.poll(level, { timeout: 10_000 }).toBeGreaterThan(-60);
   await stopTrial();
+});
+
+plain("lista dei brani: le zone degli effetti si trascinano sulla forma d'onda e i campi numerici restano d'accordo", async ({ browser, request }) => {
+  const { page } = await newEditor(browser, request);
+  await addSongFiles(page, { name: "zone.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  const panel = await openAdvanced(page);
+  await expect(panel.locator(".waveform")).toHaveCount(0); // nessuna zona, nessuna forma d'onda
+
+  await panel.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await panel.getByLabel("Effetto", { exact: true }).first().selectOption("silence");
+  await panel.getByLabel("Zona: da (secondi)").fill("2");
+  await panel.getByLabel("Zona: a (secondi)").fill("6");
+  const wave = panel.locator(".waveform");
+  await expect(wave).toBeVisible();
+  await expect(wave).toHaveAttribute("data-duration", /^20\.0/);
+  const track = panel.locator(".waveform-track");
+  const width = (await track.boundingBox())!.width;
+  const from = panel.getByLabel("Zona: da (secondi)");
+  const to = panel.getByLabel("Zona: a (secondi)");
+  const near = (field: import("@playwright/test").Locator, seconds: number) => expect.poll(async () => Number(await field.inputValue())).toBeCloseTo(seconds, 0);
+
+  // Il bordo destro, trascinato di un quinto della larghezza (4 s), porta la fine da 6 a 10 s.
+  const end = panel.getByRole("slider", { name: "Fine della zona 1" });
+  await expect(end).toHaveAttribute("aria-valuenow", "6"); // la forma d'onda è disegnata con la zona giusta
+  const box = (await end.boundingBox())!;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + width * 0.1, y, { steps: 5 });
+  await page.mouse.move(box.x + box.width / 2 + width * 0.2, y, { steps: 5 });
+  await expect.poll(async () => Number(await end.getAttribute("aria-valuenow"))).toBeCloseTo(10, 0); // già durante il trascinamento
+  await expect(to, "i campi si aggiornano al rilascio").toHaveValue("6");
+  await page.mouse.up();
+  await near(to, 10);
+  await expect(from).toHaveValue("2");
+
+  // Il centro sposta tutta la zona senza cambiarne la lunghezza (2–10 → 4–12 con +2 s).
+  const grip = panel.getByRole("slider", { name: "Sposta la zona 1" });
+  const g = (await grip.boundingBox())!;
+  await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(g.x + g.width / 2 + width * 0.1, g.y + g.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await near(from, 4);
+  await near(to, 12);
+
+  // Non si esce dal brano né si scavalca l'inizio: trascinando la fine oltre il bordo si ferma a 20 s.
+  const end2 = (await panel.getByRole("slider", { name: "Fine della zona 1" }).boundingBox())!;
+  await page.mouse.move(end2.x + end2.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(end2.x + end2.width / 2 + width, y, { steps: 6 });
+  await page.mouse.up();
+  await expect(to).toHaveValue("20");
+
+  // Dalla tastiera: frecce ±0,1 s, Maiusc ±1 s.
+  const start = panel.getByRole("slider", { name: "Inizio della zona 1" });
+  await from.fill("4"); // un valore preciso da cui partire (il trascinamento arrotonda al decimo)
+  await expect(start).toHaveAttribute("aria-valuenow", "4");
+  await start.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(from).toHaveValue("4.1");
+  await page.keyboard.press("Shift+ArrowLeft");
+  await expect(from).toHaveValue("3.1");
+
+  // Il riassunto della riga segue la zona.
+  await closeAdvanced(page);
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("Silenzio 100% (3.1–20 s)");
+});
+
+plain("lista dei brani: un effetto qualsiasi si limita a una zona direttamente dalla forma d'onda, e si toglie", async ({ browser, request }) => {
+  const { page } = await newEditor(browser, request);
+  await addSongFiles(page, { name: "zona-libera.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  const panel = await openAdvanced(page);
+  await expect(panel.locator(".waveform")).toHaveCount(0); // senza effetti non serve
+
+  // Un effetto senza preset e senza numeri: la forma d'onda c'è comunque e dice «tutto il brano».
+  await panel.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await panel.getByLabel("Effetto", { exact: true }).first().selectOption("blur");
+  const zones = panel.getByRole("list", { name: "Zone degli effetti" });
+  await expect(zones).toContainText("1. Sfocato: tutto il brano");
+  await expect(panel.getByRole("slider", { name: "Inizio della zona 1" })).toHaveCount(0);
+
+  // «Limita a una zona» propone una zona al centro (lunga un quinto), che poi si trascina; i campi numerici la riflettono.
+  await panel.getByRole("button", { name: "Limita a una zona: effetto 1" }).click();
+  await expect(zones).toContainText("1. Sfocato: 8–12 s");
+  await expect(panel.getByLabel("Zona: da (secondi)")).toHaveValue("8");
+  await expect(panel.getByLabel("Zona: a (secondi)")).toHaveValue("12");
+  await expect(panel.getByRole("slider", { name: "Sposta la zona 1" })).toBeVisible();
+
+  // Si ridimensiona con la tastiera, poi si toglie la zona: l'effetto torna su tutto il brano.
+  await panel.getByRole("slider", { name: "Fine della zona 1" }).focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(panel.getByLabel("Zona: a (secondi)")).toHaveValue("13");
+  await panel.getByRole("button", { name: "Tutto il brano: effetto 1" }).click();
+  await expect(zones).toContainText("1. Sfocato: tutto il brano");
+  await expect(panel.getByLabel("Zona: da (secondi)")).toHaveValue("");
+  await expect(panel.getByRole("slider", { name: "Fine della zona 1" })).toHaveCount(0);
+
+  // Bip e Silenzio hanno bisogno di una zona: non si può toglierla.
+  await panel.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await panel.getByLabel("Effetto", { exact: true }).nth(1).selectOption("beep");
+  await panel.getByRole("button", { name: "Limita a una zona: effetto 2" }).click();
+  await expect(zones).toContainText("2. Bip: 8–12 s");
+  await expect(panel.getByRole("button", { name: "Tutto il brano: effetto 2" })).toHaveCount(0);
+});
+
+plain("lista dei brani: più zone per lo stesso effetto, ognuna con la sua posizione, senza sovrapporsi", async ({ browser, request }) => {
+  const { page } = await newEditor(browser, request);
+  await addSongFiles(page, { name: "piu-zone.wav", mimeType: "audio/wav", buffer: stereoTone(440, 440, 20) });
+  const panel = await openAdvanced(page);
+  await panel.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await panel.getByLabel("Effetto", { exact: true }).first().selectOption("silence");
+  await panel.getByLabel("Zona: da (secondi)").fill("2");
+  await panel.getByLabel("Zona: a (secondi)").fill("4");
+  const zones = panel.getByRole("list", { name: "Zone degli effetti" });
+  await expect(zones).toContainText("1. Silenzio: 2–4 s");
+
+  // Un'altra zona = lo stesso effetto ancora, con le stesse impostazioni, in un posto libero (qui il centro, 8–12 s).
+  await panel.getByRole("button", { name: "Aggiungi un'altra zona: effetto 1" }).click();
+  await expect(zones).toContainText("2. Silenzio: 8–12 s");
+  await expect(panel.getByLabel("Effetto", { exact: true })).toHaveCount(2);
+  await expect(panel.getByRole("slider", { name: "Sposta la zona 2" })).toBeVisible();
+
+  // Una terza: il centro è occupato, prende il primo posto libero della stessa lunghezza (4–8 s) senza toccare le altre.
+  await panel.getByRole("button", { name: "Aggiungi un'altra zona: effetto 2" }).click();
+  await expect(panel.getByLabel("Effetto", { exact: true })).toHaveCount(3);
+  await expect(zones).toContainText("1. Silenzio: 2–4 s");
+  await expect(zones).toContainText("2. Silenzio: 8–12 s");
+  await expect(zones).toContainText("3. Silenzio: 4–8 s");
+
+  // Si sentono sull'anteprima (tutte e tre sono camuffamenti preparati) e il riassunto le elenca.
+  await closeAdvanced(page);
+  await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("Silenzio 100% (2–4 s) + Silenzio 100% (8–12 s) + Silenzio 100% (4–8 s)");
 });
