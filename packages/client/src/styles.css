@@ -351,6 +351,18 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .event-summary { margin: 0; font-size: .85rem; }
 .event-summary .running { color: var(--good-ring, inherit); font-weight: 600; opacity: 1; }
 
+/* Libreria: creazione per famiglia, ricerca, filtri e schede raggruppate */
+.lib-create { background: var(--panel); border-radius: .6rem; padding: .5rem .8rem; margin: .5rem 0; }
+.lib-create summary { cursor: pointer; font-weight: 700; }
+.lib-create-group { display: grid; gap: .3rem; margin-top: .6rem; }
+.lib-create-label { font-size: .8rem; opacity: .75; text-transform: uppercase; letter-spacing: .05em; }
+.lib-browser { display: grid; gap: .6rem; margin: .8rem 0; }
+.lib-search { flex: 1; min-width: 12rem; box-sizing: border-box; }
+.lib-group { margin-bottom: 1rem; }
+.lib-group h4 { margin: .2rem 0 .4rem; opacity: .75; font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; }
+.lib-card { border-left: 5px solid var(--panel-2); }
+.lib-title { min-width: 0; overflow-wrap: anywhere; }
+
 /* Prova rapida di un minigioco */
 .test-form { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; background: var(--panel-2); border-radius: .5rem; padding: .5rem .7rem; }
 .test-form input[type="number"] { width: 5rem; }

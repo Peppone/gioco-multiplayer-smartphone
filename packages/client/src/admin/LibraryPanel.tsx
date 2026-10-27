@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { InstanceView, MinigameTypeView, TestSessionInfo, ThemeId } from "@gioco/shared";
 import { ApiError, api, errorMessage } from "./api";
+import { CATEGORIES, CATEGORY_ICON, CATEGORY_LABEL, type Category, countByCategory, groupInstances, groupTypes } from "./libraryList";
 import { PianetaSchemiPanel } from "./PianetaSchemiPanel";
 import { SchemaForm } from "./schema-form/SchemaForm";
 import { type JsonSchema, defaultValue, parseImport, serializeInstance } from "./schema-form/logic";
@@ -13,7 +14,9 @@ const THEMES: { id: ThemeId; label: string }[] = [
   { id: "boom", label: "Boom" },
 ];
 
-const pretty = (v: unknown) => JSON.stringify(v, null, 2);
+const themeLabel = (i: InstanceView) => THEMES.find((t) => t.id === i.theme)?.label ?? i.theme;
+
+const pretty =(v: unknown) => JSON.stringify(v, null, 2);
 
 function download(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
@@ -66,6 +69,20 @@ export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; o
   useEffect(() => void load(), [load]);
 
   const typeOf = (id: string) => types.find((t) => t.id === id);
+
+  const [query, setQuery] = useState("");
+  const [only, setOnly] = useState<Category | "all">("all");
+  // Rifare i raggruppamenti serve solo quando cambiano i dati o i filtri.
+  const typeGroups = useMemo(() => groupTypes(types), [types]);
+  const counts = useMemo(
+    () => countByCategory(instances, (id) => types.find((t) => t.id === id), themeLabel, query),
+    [instances, types, query],
+  );
+  const groups = useMemo(
+    () => groupInstances(instances, (id) => types.find((t) => t.id === id), themeLabel, query, only),
+    [instances, types, query, only],
+  );
+  const totalCount = CATEGORIES.reduce((n, c) => n + counts[c], 0);
 
   const newDraft = (typeId: string) => {
     const t = typeOf(typeId);
@@ -193,21 +210,19 @@ export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; o
     <section className="panel library">
       <h2>Libreria minigiochi</h2>
 
-      <div className="row">
-        {types.map((t) => (
-          <button key={t.id} className="primary" onClick={() => newDraft(t.id)}>+ {t.title}</button>
+      <details className="lib-create" open>
+        <summary>Crea una nuova istanza</summary>
+        {typeGroups.map((g) => (
+          <div key={g.category} className="lib-create-group" role="group" aria-label={g.label}>
+            <span className="lib-create-label">{CATEGORY_ICON[g.category]} {g.label}</span>
+            <span className="row">
+              {g.types.map((t) => (
+                <button key={t.id} className="primary" onClick={() => newDraft(t.id)}>+ {t.title}</button>
+              ))}
+            </span>
+          </div>
         ))}
-        <label className="file-btn">
-          Importa JSON
-          <input type="file" accept="application/json,.json" multiple hidden onChange={(e) => { void importFiles(e.target.files); e.target.value = ""; }} />
-        </label>
-        <button
-          disabled={instances.length === 0}
-          onClick={() => download("libreria-gioco-ros.json", pretty(instances.map((i) => JSON.parse(serializeInstance(i)))))}
-        >
-          Esporta tutto
-        </button>
-      </div>
+      </details>
 
       {notice && <p className="notice">{notice}</p>}
       {error && <p className="error">{error}</p>}
@@ -260,13 +275,57 @@ export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; o
         </form>
       )}
 
-      <ul className="list">
-        {instances.map((i) => {
+      <div className="lib-browser">
+        <div className="row lib-toolbar">
+          <input
+            type="search"
+            className="lib-search"
+            aria-label="Cerca un'istanza"
+            placeholder="Cerca per titolo, minigioco o tema…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <label className="file-btn">
+            Importa JSON
+            <input type="file" accept="application/json,.json" multiple hidden onChange={(e) => { void importFiles(e.target.files); e.target.value = ""; }} />
+          </label>
+          <button
+            disabled={instances.length === 0}
+            onClick={() => download("libreria-gioco-ros.json", pretty(instances.map((i) => JSON.parse(serializeInstance(i)))))}
+          >
+            Esporta tutto
+          </button>
+        </div>
+        <div className="chips filters" role="group" aria-label="Famiglia di minigioco">
+          <button type="button" className={`chip-btn${only === "all" ? " on" : ""}`} aria-pressed={only === "all"} onClick={() => setOnly("all")}>
+            Tutte <small>{totalCount}</small>
+          </button>
+          {CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`chip-btn${only === c ? " on" : ""}`}
+              aria-pressed={only === c}
+              disabled={counts[c] === 0 && only !== c}
+              onClick={() => setOnly(only === c ? "all" : c)}
+            >
+              {CATEGORY_ICON[c]} {CATEGORY_LABEL[c]} <small>{counts[c]}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {groups.map((g) => (
+      <section key={g.category} className="lib-group" aria-label={g.label}>
+      {(only === "all" || query.trim() !== "") && <h4>{CATEGORY_ICON[g.category]} {g.label} ({g.instances.length})</h4>}
+      <ul className="list library-list">
+        {g.instances.map((i) => {
           const type = typeOf(i.typeId);
           return (
-          <li key={i.id}>
-            <span>
-              {i.title} <small className="muted">· {type?.title ?? i.typeId} · {THEMES.find((t) => t.id === i.theme)?.label}</small>
+          <li key={i.id} className="lib-card">
+            <span className="lib-title">
+              <strong>{i.title}</strong>{" "}
+              <small className="muted">· {type?.title ?? i.typeId} · {themeLabel(i)}</small>
             </span>
             <span className="row">
               {type?.kind === "minigame" && (
@@ -308,8 +367,12 @@ export function LibraryPanel({ onAuthLost, onTest }: { onAuthLost: () => void; o
           </li>
           );
         })}
-        {instances.length === 0 && <li className="muted">Nessuna istanza: creane una con i pulsanti in alto.</li>}
       </ul>
+      </section>
+      ))}
+      {groups.length === 0 && (
+        <p className="muted">{instances.length === 0 ? "Nessuna istanza: creane una con i pulsanti in alto." : "Nessuna istanza corrisponde alla ricerca."}</p>
+      )}
     </section>
   );
 }
