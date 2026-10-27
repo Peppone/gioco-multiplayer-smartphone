@@ -96,23 +96,26 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
     return { plan: { loop, rate, stages }, effects };
   }, [planKey]);
 
+  const clipMs = music?.clipMs ?? 0;
+  const clearAtPercent = music?.clearAtPercent ?? null;
+
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
-    else if (file) backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds });
-    else return;
+    else if (file) {
+      const reveal = clearAtPercent === null ? undefined : { clipMs, clearAtPercent };
+      backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds, reveal });
+    } else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effects, plan, keepPitch, startSeconds, host]);
+  }, [file, video, effects, plan, keepPitch, startSeconds, clipMs, clearAtPercent, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;
   const offsetMs = music?.offsetMs ?? 0;
   const stopAt = music?.stopAt ?? null;
-  const clipMs = music?.clipMs ?? 0;
-  const clearAtPercent = music?.clearAtPercent ?? null;
 
   useEffect(() => {
     const b = backend.current;

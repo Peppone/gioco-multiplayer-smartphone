@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EffectSetting } from "@gioco/shared";
-import { type EffectRenderer, PREPARE_MAX_SECONDS, encodeWav, prepareWindow, renderChain, splitChain } from "./prepare";
+import { type EffectRenderer, PREPARE_MAX_SECONDS, encodeWav, prepareWindow, renderChain, renderSnippets, splitChain } from "./prepare";
+import { snippetReveals } from "./reveal";
 import { disguiseChannels } from "./transforms";
 
 const RATE = 16_000;
@@ -87,6 +88,68 @@ describe("preparazione del file", () => {
     expect(shifted).toEqual(silenced);
     // una zona fuori dal tratto preparato non cambia nulla
     expect(await renderChain([{ type: "silence", amount: 100, from: 50, to: 60 }], input, RATE, render, 10)).toEqual(input);
+  });
+
+  it("«Svela gradualmente»: il camuffamento si attenua lungo il brano e a fine rampa resta l'originale", async () => {
+    const { render } = recorder();
+    const input = [Float32Array.from({ length: RATE * 8 }, (_, i) => 0.6 * Math.sin(i / 5) * Math.sin(i / 900))];
+    const clarity = (s: number) => Math.min(1, Math.max(0, s / 4)); // nitido dopo 4 s
+    const out = (await renderChain([{ type: "reverse_chunks", amount: 200 }], input, RATE, render, 0, clarity))[0]!;
+    const full = disguiseChannels("reverse_chunks", input, RATE, 2, 1)[0]!;
+    const diff = (a: Float32Array, b: Float32Array, from: number, to: number) => {
+      let d = 0;
+      for (let i = Math.round(from * RATE); i < Math.round(to * RATE); i++) d += Math.abs(a[i]! - b[i]!);
+      return d / ((to - from) * RATE);
+    };
+    // all'inizio è il camuffamento pieno; verso la fine della rampa se ne discosta; dopo la rampa è l'originale al campione
+    expect(diff(out, full, 0.05, 0.4)).toBeLessThan(0.05);
+    expect(diff(out, input[0]!, 3.2, 3.9)).toBeLessThan(diff(full, input[0]!, 3.2, 3.9));
+    expect(out.subarray(Math.round(4.1 * RATE))).toEqual(input[0]!.subarray(Math.round(4.1 * RATE)));
+  });
+
+  it("«Svela gradualmente» rispetta la zona e lo spostamento del file preparato", async () => {
+    const { render } = recorder();
+    const input = [tone(300, 4)];
+    const never = () => 0; // sempre pieno: equivale a nessuna rampa
+    const plain = await renderChain([{ type: "silence", amount: 100, from: 11, to: 12 }], input, RATE, render, 10);
+    expect(await renderChain([{ type: "silence", amount: 100, from: 11, to: 12 }], input, RATE, render, 10, never)).toEqual(plain);
+    // la rampa che finisce a 11,5 s del brano: la seconda metà della zona (11,5–12) torna all'originale
+    const half = await renderChain([{ type: "silence", amount: 100, from: 11, to: 12 }], input, RATE, render, 10, (s) => (s >= 11.5 ? 1 : 0));
+    expect(half[0]!.subarray(Math.round(1.1 * RATE), Math.round(1.4 * RATE)).every((v) => v === 0)).toBe(true);
+    expect(half[0]!.subarray(Math.round(1.6 * RATE), Math.round(1.9 * RATE))).toEqual(input[0]!.subarray(Math.round(1.6 * RATE), Math.round(1.9 * RATE)));
+    // fuori dalla zona non cambia nulla
+    expect(half[0]!.subarray(0, Math.round(0.9 * RATE))).toEqual(input[0]!.subarray(0, Math.round(0.9 * RATE)));
+  });
+
+  it("a spezzoni: una versione per spezzone, una dopo l'altra, ognuna con la nitidezza del suo momento", async () => {
+    const { render } = recorder();
+    const input = [Float32Array.from({ length: RATE * 12 }, (_, i) => 0.6 * Math.sin(i / 5) * Math.sin(i / 900))];
+    const loop = { snippetsMs: [1_000, 2_000, 2_000], pauseMs: 500 };
+    const snippets = snippetReveals(loop, 4, { clipMs: 8_000, clearAtPercent: 50 }); // nitido dopo 4 s ascoltati
+    const out = (await renderSnippets([{ type: "reverse_chunks", amount: 200 }], input, RATE, snippets, render))[0]!;
+    expect(out.length).toBe(RATE * 5);
+    const at = (s: number) => Math.round(s * RATE);
+    const original = (from: number, to: number) => input[0]!.subarray(at(from), at(to));
+    const full = disguiseChannels("reverse_chunks", [original(4, 5)], RATE, 2, 1)[0]!;
+    // il primo spezzone (1 s, tutto camuffato) è il camuffamento pieno di 1 s di brano dal secondo 4
+    const first = out.subarray(0, at(1));
+    let d = 0;
+    for (let i = at(0.05); i < at(0.4); i++) d += Math.abs(first[i]! - full[i]!);
+    expect(d / (at(0.4) - at(0.05))).toBeLessThan(0.05);
+    // il terzo spezzone comincia quando sono già passati 1+0,5+2+0,5 = 4 s: è nitido, quindi è l'originale al campione
+    expect(out.subarray(at(3), at(5))).toEqual(original(4, 6));
+    // il secondo (3 s ascoltati su 4) è quasi nitido: più vicino all'originale del primo
+    const diff = (a: Float32Array, b: Float32Array) => a.reduce((s, v, i) => s + Math.abs(v - b[i]!), 0) / a.length;
+    expect(diff(out.subarray(at(1), at(1.5)), original(4, 4.5))).toBeLessThan(diff(out.subarray(0, at(0.5)), original(4, 4.5)));
+  });
+
+  it("a spezzoni: uno spezzone oltre la fine del brano si chiude col silenzio e gli spostamenti restano quelli del piano", async () => {
+    const { render } = recorder();
+    const input = [tone(300, 3)];
+    const snippets = snippetReveals({ snippetsMs: [1_000, 1_000], pauseMs: 0 }, 2.5, { clipMs: 2_000, clearAtPercent: 100 });
+    const out = (await renderSnippets([{ type: "silence", amount: 100, from: 0, to: 100 }], input, RATE, snippets, render))[0]!;
+    expect(out.length).toBe(RATE * 2);
+    expect(snippets[1]!.offsetSeconds).toBe(1);
   });
 
   it("la finestra preparata parte da «Parti da» e dura al massimo il limite, senza uscire dal file", () => {

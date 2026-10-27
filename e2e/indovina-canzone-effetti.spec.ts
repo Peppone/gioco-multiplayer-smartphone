@@ -157,6 +157,11 @@ plain("editor: filtri e camuffamenti stanno nella stessa lista di card e l'antep
     "Al contrario a pezzi (camuffa le parole, resta il ritmo)",
     "Spettro capovolto (acuti e gravi scambiati, voce aliena)",
     "Sillabe mescolate (pezzi in ordine sparso, rompe anche il ritmo)",
+    "Balbuziente (frammenti ripetuti e saltati)",
+    "Vocoder a bande (resta la sagoma del suono, senza parole)",
+    "Canticchiato (resta solo la melodia, per voci sole)",
+    "Bip (copre una zona, come la censura in TV)",
+    "Silenzio (toglie una zona)",
   ]);
 
   // Spettro capovolto da solo: il tono a 1 kHz esce a 3 kHz (e l'anteprima aspetta il file preparato).
@@ -245,4 +250,122 @@ test("partita: le sillabe mescolate suonano anche con «Parti da» in fondo al f
   // Le sillabe cambiano di posto ma non di frequenza: i due toni ci sono ancora.
   await expect.poll(() => level(screen.page, 400), { timeout: 10_000 }).toBeGreaterThan(-50);
   expect(await level(screen.page, 1_600)).toBeGreaterThan(-50);
+});
+
+test("partita: «Svela gradualmente» attenua il camuffamento nel file, fino al suono originale", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "uno-khz.wav", stereoTone(1_000, 1_000, 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Rampa camuffamento e2e",
+      config: { songs: [{ audio: song, answer: "a", progressive: true, clearAtPercent: 100, effects: [{ type: "flip_spectrum", amount: 100 }] }], clipSeconds: 8 },
+    },
+  ]);
+  const { screen, admin } = g;
+  await screen.context.addInitScript(TAP_SCRIPT);
+  await screen.page.reload();
+  await unlockAudio(screen.page);
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  // All'inizio il tono a 1 kHz esce capovolto, a 3 kHz.
+  await expect.poll(() => level(screen.page, 3_000), { timeout: 10_000 }).toBeGreaterThan(-50);
+  // I camuffamenti si calcolano in un Worker, non nel thread della pagina.
+  expect(screen.page.workers().some((w) => /disguise\.worker/.test(w.url()))).toBe(true);
+  // Alla fine della rampa è tornato il tono originale e il capovolto è sparito (nell'ultimo gradino ne resta ~1/8).
+  await expect.poll(async () => (await level(screen.page, 1_000)) > (await level(screen.page, 3_000)) + 10, { timeout: 15_000 }).toBe(true);
+});
+
+test("partita: bip e vocoder su due zone partono (il file preparato non resta muto)", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "uno-khz.wav", stereoTone(440, 440, 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Zona e2e",
+      config: { songs: [{ audio: song, answer: "a", effects: [{ type: "beep", amount: 100, from: 0, to: 20 }, { type: "vocoder", amount: 100, seed: 4, from: 25, to: 29 }] }], clipSeconds: 30 },
+    },
+  ]);
+  const { screen, admin, a } = g;
+  await screen.context.addInitScript(TAP_SCRIPT);
+  await screen.page.reload();
+  await unlockAudio(screen.page);
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  // Nella zona del bip il 440 Hz è coperto da un tono a 1 kHz.
+  await expect.poll(() => level(screen.page, 1_000), { timeout: 10_000 }).toBeGreaterThan(-50);
+  expect(await level(screen.page, 440)).toBeLessThan((await level(screen.page, 1_000)) - 25);
+  expect(a.traffic.text()).not.toMatch(/"beep"|"vocoder"|"effects"/);
+});
+
+test("partita a spezzoni: «Svela gradualmente» attenua il camuffamento spezzone dopo spezzone", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "uno-khz.wav", stereoTone(1_000, 1_000, 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Rampa a spezzoni e2e",
+      config: {
+        songs: [{ audio: song, answer: "a", playback: "loops", loopSeconds: [2, 2, 8], loopPauseSeconds: 1, progressive: true, clearAtPercent: 100, effects: [{ type: "flip_spectrum", amount: 100 }] }],
+      },
+    },
+  ]);
+  const { screen, admin, a } = g;
+  await screen.context.addInitScript(TAP_SCRIPT);
+  await screen.page.reload();
+  await unlockAudio(screen.page);
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  const flipped = async () => (await level(screen.page, 3_000)) > (await level(screen.page, 1_000)) + 10;
+  const clear = async () => (await level(screen.page, 1_000)) > (await level(screen.page, 3_000)) + 5;
+  // Il primo spezzone è tutto camuffato (3 kHz); l'ultimo, ascoltato più avanti nella rampa, è tornato quasi nitido (1 kHz).
+  await expect.poll(flipped, { timeout: 10_000 }).toBe(true);
+  expect(screen.page.workers().some((w) => /disguise\.worker/.test(w.url()))).toBe(true);
+  await expect.poll(clear, { timeout: 25_000, intervals: [100] }).toBe(true);
+  expect(a.traffic.text()).not.toMatch(/flip_spectrum|"effects"/);
+});
+
+plain("editor: gli effetti si cambiano durante «Prova l'ascolto» senza fermarla", async ({ browser, request }) => {
+  const admin = await openAdmin(browser, await adminToken(request));
+  const { page } = admin;
+  await admin.context.addInitScript(TAP_SCRIPT);
+  await page.reload();
+  await page.getByRole("button", { name: "Libreria" }).click();
+  await page.getByRole("button", { name: "+ Indovina la canzone" }).click();
+  await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni prova viva"));
+  await addSongFiles(page, { name: "grave-e-acuto.wav", mimeType: "audio/wav", buffer: stereoTone([200, 3_000], [200, 3_000], 30) });
+  await openAdvanced(page);
+  const trial = page.locator(".listen-trial");
+  const types = page.getByLabel("Effetto", { exact: true });
+  const amounts = page.getByLabel("Quantità (%)", { exact: true });
+  const treble = async () => (await level(page, 200)) - (await level(page, 3_000));
+
+  await page.getByRole("button", { name: "▶ Prova l'ascolto" }).click();
+  await expect(trial).toHaveAttribute("data-state", "playing");
+  await expect.poll(() => level(page, 3_000), { timeout: 10_000 }).toBeGreaterThan(-50);
+  const plain0 = await treble();
+
+  // Un filtro aggiunto a prova in corso si sente: gli acuti calano. La prova non si è fermata.
+  await page.getByRole("button", { name: "+ Aggiungi effetto" }).click();
+  await types.first().selectOption("blur");
+  await amounts.first().fill("300");
+  await expect.poll(async () => (await treble()) > plain0 + 15, { timeout: 10_000 }).toBe(true);
+  await expect(trial).toHaveAttribute("data-state", "playing");
+
+  // Un camuffamento richiede la preparazione del file: la prova continua mentre si prepara, poi prende il posto.
+  await types.first().selectOption("flip_spectrum");
+  await expect(trial).toHaveAttribute("data-state", "playing");
+  await expect(trial).toHaveAttribute("data-updating", "false", { timeout: 20_000 });
+  await expect(trial).toHaveAttribute("data-state", "playing");
+  // Il 3 kHz capovolto esce a 1 kHz: il suono è cambiato davvero.
+  await expect.poll(async () => (await level(page, 1_000)) > (await level(page, 3_000)) + 5, { timeout: 10_000 }).toBe(true);
+
+  // Tolto l'effetto, torna l'originale, sempre senza fermarsi.
+  await page.getByRole("group", { name: /Effetti sull'audio/ }).getByRole("button", { name: "Elimina" }).first().click();
+  await expect.poll(async () => (await level(page, 3_000)) > (await level(page, 1_000)) + 5, { timeout: 20_000 }).toBe(true);
+  await expect(trial).toHaveAttribute("data-state", "playing");
+
+  // Si ferma a comando come prima.
+  await page.getByRole("button", { name: "■ Ferma la prova" }).click();
+  await expect(trial).toHaveAttribute("data-state", "idle");
 });

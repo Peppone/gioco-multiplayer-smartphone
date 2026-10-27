@@ -76,10 +76,10 @@ export function startListening(b: MusicBackend, run: ListeningRun): () => void {
       pos = loopPosition(loop, heard);
     }
     run.onLoop?.(pos);
-    if (pos.sounding) b.playAt(run.startSeconds + pos.songMs / 1000, pos.nextChangeMs! - heard);
+    if (pos.sounding) b.playAt(run.startSeconds + pos.songMs / 1000, pos.nextChangeMs! - heard, pos.index);
     else {
       b.pause();
-      b.cue(run.startSeconds); // il prossimo spezzone riparte dall'inizio senza ritardo
+      b.cue(run.startSeconds, pos.index + 1); // il prossimo spezzone riparte dall'inizio senza ritardo
     }
     if (pos.nextChangeMs !== null) timer = setTimeout(step, Math.max(1, run.segmentStart + pos.nextChangeMs - run.offsetMs - run.now()));
   };
