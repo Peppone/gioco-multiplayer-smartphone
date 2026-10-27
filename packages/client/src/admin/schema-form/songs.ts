@@ -111,5 +111,17 @@ export function materializeListening(song: Record<string, unknown>, round: Recor
   } else if (num(song.clipSeconds) === undefined) {
     patch.clipSeconds = num(round.clipSeconds) ?? ROUND_LISTEN_DEFAULTS.clipSeconds;
   }
+  // «Svela gradualmente» si decide brano per brano: chi seguiva il round (acceso) riceve i suoi valori.
+  if (song.progressive === undefined && round.progressive === true) {
+    patch.progressive = effectsOf(song).length > 0;
+    if (num(song.clearAtPercent) === undefined) patch.clearAtPercent = num(round.clearAtPercent) ?? 100;
+  }
   return Object.keys(patch).length === 0 ? song : { ...song, ...patch };
+}
+
+/** Il titolo proposto per un brano caricato da file: il nome del file senza l'ultima estensione (vuoto se non resta nulla). */
+export function titleFromFile(fileName: string): string {
+  const base = fileName.replace(/^.*[\\/]/, "");
+  const dot = base.lastIndexOf(".");
+  return (dot > 0 ? base.slice(0, dot) : base).trim();
 }

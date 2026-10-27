@@ -109,6 +109,18 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monos
 .field.slider input[type=number] { width: 5rem; }
 .audio-field audio { width: 100%; }
 .audio-field [role=alert] { color: var(--bad, #ff6b6b); }
+/* Gestore delle categorie del quiz e scelta delle categorie di un brano */
+.category-manager .category-list { list-style: none; margin: .4rem 0; padding: 0; display: grid; gap: .4rem; }
+.category-manager .category-row { display: grid; grid-template-columns: 1fr auto auto; gap: .5rem; align-items: center; }
+.category-manager .category-row .hint { grid-column: 1 / -1; }
+.category-manager .category-row input { min-width: 0; }
+.category-manager button, .song-categories button { min-height: 2.75rem; min-width: 3rem; }
+.category-manager .bad, .song-categories .bad { color: var(--bad, #ff6b6b); opacity: 1; }
+.category-add { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
+.category-add input { flex: 1; min-width: 12rem; }
+.song-category-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+.song-category-list label.check { display: inline-flex; align-items: center; gap: .4rem; min-height: 2.75rem; padding: 0 .9rem; border-radius: 1.4rem; background: var(--panel-2); cursor: pointer; }
+.song-category-list label.check.on { background: var(--primary); color: #fff; }
 /* Elenco dei brani: una riga per brano, tutto il resto nel pannello «Avanzato» */
 .song-list .song-row { display: grid; grid-template-columns: auto 1fr auto; gap: .6rem; align-items: start; background: var(--panel); border: 1px solid var(--panel-2); border-radius: .6rem; padding: .6rem .8rem; }
 .song-list .song-num { font-weight: 700; opacity: .6; padding-top: .55rem; min-width: 1.5rem; text-align: right; }

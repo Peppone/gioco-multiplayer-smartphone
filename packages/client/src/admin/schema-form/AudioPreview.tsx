@@ -182,7 +182,8 @@ function ZoneButtons({ audio, effects, disabled }: { audio: React.RefObject<HTML
 function ListenTrial({ file, effects, song, round }: { file: string; effects: EffectSetting[]; song: Record<string, unknown>; round: Record<string, unknown> }) {
   const listening = useMemo(() => listeningFromForm(song, round), [JSON.stringify(song), JSON.stringify(round)]); // eslint-disable-line react-hooks/exhaustive-deps
   const startSeconds = num(song.startSeconds) ?? 0;
-  const clearAtPercent = round.progressive === true && !listening.stages ? (num(round.clearAtPercent) ?? 100) : null;
+  const progressive = typeof song.progressive === "boolean" ? song.progressive : round.progressive === true;
+  const clearAtPercent = progressive && !listening.stages ? (num(song.clearAtPercent) ?? num(round.clearAtPercent) ?? 100) : null;
   const [playing, setPlaying] = useState(false);
   const stopRef = useRef<(() => void) | null>(null);
 

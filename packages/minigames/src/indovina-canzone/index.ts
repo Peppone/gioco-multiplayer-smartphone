@@ -40,6 +40,9 @@ export const LOOP_LEAD_MS = 400;
 export const OTHER_CATEGORY = "Altri brani";
 const OTHER_KEY = "\u0000altri";
 
+/** Chi decide la categoria di un round: le squadre a turno, la regia, oppure è già fissata nel setup. */
+export const ROUND_SELECTIONS = ["teams", "host", "fixed"] as const;
+
 /** Come si ascolta un brano: la sua scelta, o «inherit» = la modalità del round. */
 const SONG_LISTEN_MODES = ["inherit", ...PLAYBACK_MODES] as const;
 /** Modalità che elaborano l'audio nel browser: servono i file caricati (non YouTube). */
@@ -61,6 +64,16 @@ const showWhen = (...modes: (typeof SONG_LISTEN_MODES)[number][]) => ({ showWhen
 
 export const indovinaCanzoneConfigSchema = z
   .object({
+    /** Il catalogo delle categorie del quiz (gestore): i brani ne scelgono tra queste. Le categorie dei brani non elencate contano lo stesso. */
+    categories: z
+      .array(z.string().trim().min(1).max(30))
+      .max(40)
+      .default([])
+      .meta({
+        title: "Categorie del quiz",
+        description: "Il gestore delle categorie: aggiungi, rinomina o elimina. I brani scelgono le loro categorie tra queste; rinominando una categoria cambia anche nei brani",
+        widget: "categories",
+      }),
     songs: z
       .array(
         z
@@ -284,6 +297,21 @@ export const indovinaCanzoneConfigSchema = z
                 description: "Il suono cambia in modo morbido, non di colpo. 0 = di colpo. Il brano torna normale dopo: fase 1 + fase 2 + due passaggi",
                 ...showWhen("blur_stages"),
               }),
+            progressive: z
+              .boolean()
+              .optional()
+              .meta({ title: "Svela gradualmente il suono: gli effetti di questo brano si attenuano col tempo, fino al brano intero", description: "Serve almeno un effetto sul brano" }),
+            clearAtPercent: z
+              .number()
+              .int()
+              .min(20)
+              .max(100)
+              .optional()
+              .meta({
+                title: "Suono nitido al (% dell'ascolto)",
+                description: "100 = nitido solo alla fine; 80 = gli ultimi 20% si sentono interi",
+                showWhen: { field: "progressive", in: ["true"] },
+              }),
             points: z
               .number()
               .int()
@@ -359,18 +387,55 @@ export const indovinaCanzoneConfigSchema = z
     progressive: z
       .boolean()
       .default(false)
-      .meta({ title: "Svela gradualmente il suono: l'effetto di ogni brano si attenua col tempo, fino al brano intero" }),
+      .meta({ title: "Svela gradualmente il suono", description: "Predefinito dei brani senza una scelta propria (istanze salvate prima): ora si decide brano per brano", hidden: true }),
     clearAtPercent: z
       .number()
       .int()
       .min(20)
       .max(100)
       .default(100)
-      .meta({ title: "Suono nitido al (% dell'ascolto)", description: "Solo con «Svela gradualmente». 100 = nitido solo alla fine; 80 = gli ultimi 20% si sentono interi" }),
+      .meta({ title: "Suono nitido al (% dell'ascolto)", description: "Predefinito dei brani (istanze salvate prima)", hidden: true }),
+    /** Round per categoria. Vuoto = nessun round: i brani vanno in ordine (o si sceglie la categoria di ogni brano). */
+    rounds: z
+      .array(
+        z.object({
+          selection: z
+            .enum(ROUND_SELECTIONS)
+            .default("teams")
+            .meta({
+              title: "Chi decide la categoria",
+              enumLabels: {
+                teams: "Le squadre a rotazione (sceglie il capitano)",
+                host: "La regia, tra un round e l'altro",
+                fixed: "Fissa: la scelgo io adesso",
+              },
+            }),
+          category: z
+            .string()
+            .trim()
+            .max(30)
+            .optional()
+            .meta({ title: "Categoria del round", description: "Una categoria del quiz con abbastanza brani", widget: "category", showWhen: { field: "selection", in: ["fixed"] } }),
+          songs: z
+            .number()
+            .int()
+            .min(1)
+            .max(50)
+            .default(3)
+            .meta({ title: "Brani del round", description: "Se la categoria finisce prima, il round si chiude. Un brano già suonato non torna mai, nemmeno in un altro round con la stessa categoria" }),
+        }),
+      )
+      .max(30)
+      .default([])
+      .meta({
+        title: "Round per categoria",
+        description: "Ogni round suona dei brani di una sola categoria. Tra un round e l'altro la categoria è scelta dalle squadre a turno (il capitano della squadra di turno, poi la sorte se scade il tempo), dalla regia, oppure è fissata qui. Senza round i brani vanno in ordine",
+        itemLabel: "Round",
+      }),
     pickCategory: z
       .boolean()
       .default(false)
-      .meta({ title: "I capisquadra scelgono la categoria del prossimo brano, a turno" }),
+      .meta({ title: "I capisquadra scelgono la categoria del prossimo brano, a turno", description: "Un brano per volta, senza round. Con dei round qui sopra non vale" }),
     pickSeconds: z
       .number()
       .int()
@@ -400,13 +465,37 @@ export const indovinaCanzoneConfigSchema = z
       .default(50)
       .meta({ title: "Penalità per risposta sbagliata", description: "0 = nessuna penalità" }),
   })
-  .refine((cfg) => !cfg.progressive || cfg.songs.some((s) => s.effects.length > 0), {
-    message: "«Svela gradualmente» non ha effetto se nessun brano ha un effetto sull'audio: sceglilo nei brani",
-    path: ["progressive"],
+  .superRefine((cfg, ctx) => {
+    cfg.songs.forEach((song, i) => {
+      if (song.progressive === true && song.effects.length === 0) {
+        ctx.addIssue({ code: "custom", path: ["songs", i, "progressive"], message: `Brano ${i + 1}: «Svela gradualmente» non ha effetto se il brano non ha effetti sull'audio: aggiungine uno` });
+      }
+    });
   })
   .refine((cfg) => !cfg.pickCategory || cfg.songs.some((s) => s.categories.length > 0), {
     message: "Per far scegliere la categoria almeno un brano deve averne una",
     path: ["pickCategory"],
+  })
+  // Un round con la categoria fissata deve avere i brani per giocarlo (anche sommando i round che ripetono la categoria).
+  .superRefine((cfg, ctx) => {
+    const requested = new Map<string, number>();
+    cfg.rounds.forEach((round, i) => {
+      if (round.selection !== "fixed") return;
+      const name = round.category ?? "";
+      if (name === "") {
+        ctx.addIssue({ code: "custom", path: ["rounds", i, "category"], message: `Round ${i + 1}: scegli la categoria` });
+        return;
+      }
+      const key = fixedKey(name);
+      const have = cfg.songs.filter((s) => (key === OTHER_KEY ? s.categories.length === 0 : s.categories.some((c) => keyOf(c) === key))).length;
+      const total = (requested.get(key) ?? 0) + round.songs;
+      requested.set(key, total);
+      if (have === 0) {
+        ctx.addIssue({ code: "custom", path: ["rounds", i, "category"], message: `Round ${i + 1}: nessun brano ha la categoria «${name}»` });
+      } else if (total > have) {
+        ctx.addIssue({ code: "custom", path: ["rounds", i, "songs"], message: `Round ${i + 1}: i round «${name}» chiedono ${total} brani in tutto, ma ce ne sono ${have}` });
+      }
+    });
   })
   // Se il suono torna normale dopo la fine dell'ascolto non si sentirebbe mai com'è il brano: meglio dirlo al salvataggio.
   .superRefine((cfg, ctx) => {
@@ -489,6 +578,14 @@ export interface IndovinaCanzoneState {
   pickDeadline: number;
   /** Categoria scelta per il brano corrente (nome da mostrare), se si sceglie la categoria. */
   category: string | null;
+  /** Turni di scelta consumati dalle squadre: dice a quale squadra tocca (le scelte della regia o automatiche non contano). */
+  turn: number;
+  /** Round in corso (indice in `cfg.rounds`; -1 prima del primo e sempre senza round) e brani già suonati in questo round. */
+  round: number;
+  roundPlayed: number;
+  /** Categoria del round in corso (chiave e nome), una volta decisa. */
+  roundKey: string | null;
+  roundName: string | null;
 }
 
 const byMerit = (a: Press, b: Press) =>
@@ -562,28 +659,103 @@ function formChoosers(players: ParticipantInfo[], teams: TeamInfo[]): Chooser[] 
 }
 
 /** A chi tocca scegliere la categoria (nessuno se non ci sono squadre: sceglie la regia o la sorte). */
-const chooserOf = (s: IndovinaCanzoneState): Chooser | null => (s.choosers.length > 0 ? s.choosers[s.picks % s.choosers.length]! : null);
+const chooserOf = (s: IndovinaCanzoneState): Chooser | null =>
+  s.choosers.length > 0 && pickerOf(s) === "teams" ? s.choosers[s.turn % s.choosers.length]! : null;
+
+/** Chi decide la categoria adesso: con i round lo dice il round (la regia può sempre sostituire chi tocca); senza, le squadre. */
+const pickerOf = (s: IndovinaCanzoneState): "teams" | "host" => (s.cfg.rounds[s.round]?.selection === "host" ? "host" : "teams");
+
+/** La chiave della categoria fissata in un round: il nome in minuscolo, o quella dei brani senza categoria. */
+function fixedKey(name: string): string {
+  return keyOf(name) === keyOf(OTHER_CATEGORY) ? OTHER_KEY : keyOf(name);
+}
+
+/** Brani non ancora suonati di una categoria (indici in `cfg.songs`). */
+const candidatesIn = (s: IndovinaCanzoneState, key: string): number[] =>
+  s.cfg.songs.flatMap((song, i) => (!s.used.includes(i) && categoriesOf(song).some((c) => c.key === key) ? [i] : []));
 
 /** Assegna un brano della categoria: tra quelli non ancora suonati ne estrae uno con il seme. */
 function choose(s: IndovinaCanzoneState, key: string): IndovinaCanzoneState {
   const option = availableCategories(s).find((c) => c.key === key);
   if (!option) return s;
-  const candidates = s.cfg.songs.flatMap((song, i) => (!s.used.includes(i) && categoriesOf(song).some((c) => c.key === key) ? [i] : []));
+  // Con i round la scelta decide la categoria di tutto il round; i turni li consumano solo le squadre che scelgono.
+  if (s.cfg.rounds.length > 0) {
+    const byTeams = pickerOf(s) === "teams" && s.phase === "choosing";
+    const started: IndovinaCanzoneState = { ...s, roundKey: option.key, roundName: option.name, roundPlayed: 0, picks: s.picks + 1, turn: byTeams ? s.turn + 1 : s.turn };
+    return playRoundSong(started);
+  }
+  const candidates = candidatesIn(s, key);
   const index = candidates[mix(s.seed, s.picks) % candidates.length]!;
-  return { ...startSong(s, index), category: option.name, picks: s.picks + 1 };
+  return { ...startSong(s, index), category: option.name, picks: s.picks + 1, turn: s.turn + 1 };
 }
 
 function startSong(s: IndovinaCanzoneState, index: number): IndovinaCanzoneState {
   return { ...s, index, used: [...s.used, index], phase: "idle", offsetMs: 0, pausedMs: 0, queue: [], current: 0, locked: [], outcome: null, category: null };
 }
 
+/** Il prossimo brano del round in corso: della sua categoria, non ancora suonato (nemmeno in un round precedente), scelto con il seme. */
+function playRoundSong(s: IndovinaCanzoneState): IndovinaCanzoneState {
+  const candidates = candidatesIn(s, s.roundKey!);
+  const index = candidates[mix(s.seed, 10_000 + s.used.length) % candidates.length]!;
+  return { ...startSong(s, index), category: s.roundName, roundPlayed: s.roundPlayed + 1 };
+}
+
+/**
+ * Con i round: dopo l'ultimo brano di un round si passa al successivo. La categoria è già fissata nel setup, oppure si ferma
+ * il gioco a farla scegliere (squadre a turno o regia). Un round con la categoria esaurita si salta; finiti i round, il quiz è concluso.
+ */
+function advanceRounds(s: IndovinaCanzoneState, now: number): IndovinaCanzoneState {
+  const current = s.cfg.rounds[s.round];
+  if (current && s.roundKey && s.roundPlayed < current.songs && candidatesIn(s, s.roundKey).length > 0) return playRoundSong(s);
+  for (let r = s.round + 1; r < s.cfg.rounds.length; r++) {
+    const rd = s.cfg.rounds[r]!;
+    const base: IndovinaCanzoneState = { ...s, round: r, roundPlayed: 0, roundKey: null, roundName: null };
+    const options = availableCategories(base);
+    if (rd.selection === "fixed") {
+      const fixed = options.find((c) => c.key === fixedKey(rd.category ?? ""));
+      if (!fixed) continue; // categoria già esaurita da altri round: si salta
+      return playRoundSong({ ...base, roundKey: fixed.key, roundName: fixed.name });
+    }
+    if (options.length === 0) break;
+    if (options.length === 1) return playRoundSong({ ...base, roundKey: options[0]!.key, roundName: options[0]!.name }); // niente da scegliere
+    // Alle squadre il tempo è contato; la regia sceglie quando vuole.
+    const deadline = rd.selection === "teams" ? now + s.cfg.pickSeconds * 1000 : 0;
+    return { ...base, phase: "choosing", queue: [], current: 0, locked: [], outcome: null, category: null, pickDeadline: deadline };
+  }
+  return { ...s, phase: "done" };
+}
+
 /** Passa al brano successivo: in ordine, oppure fermandosi a far scegliere la categoria. */
 function advance(s: IndovinaCanzoneState, now: number): IndovinaCanzoneState {
   if (s.used.length >= s.cfg.songs.length) return { ...s, phase: "done" };
+  if (s.cfg.rounds.length > 0) return advanceRounds(s, now);
   if (!s.cfg.pickCategory) return startSong(s, s.used.length);
   const options = availableCategories(s);
   if (options.length === 1) return choose(s, options[0]!.key); // niente da scegliere
   return { ...s, phase: "choosing", queue: [], current: 0, locked: [], outcome: null, category: null, pickDeadline: now + s.cfg.pickSeconds * 1000 };
+}
+
+const hasRounds = (s: IndovinaCanzoneState) => s.cfg.rounds.length > 0;
+
+/** Il round in corso per lo schermo: numero, brani suonati (in `done`/`choosing` il round che sta per cominciare) e categoria. */
+function roundInfo(s: IndovinaCanzoneState) {
+  if (!hasRounds(s) || s.round < 0) return null;
+  const rd = s.cfg.rounds[s.round]!;
+  const choosing = s.phase === "choosing";
+  return {
+    number: s.round + 1,
+    total: s.cfg.rounds.length,
+    song: choosing ? 0 : s.roundPlayed,
+    songs: rd.songs,
+    category: choosing ? null : s.roundName,
+  };
+}
+
+/** Il round in corso a parole, per il pannello della regia. */
+function roundLabel(s: IndovinaCanzoneState): string | null {
+  const r = roundInfo(s);
+  if (!r) return null;
+  return `Round ${r.number} di ${r.total}${r.category ? ` · ${r.category}` : ""}${r.song > 0 ? ` · brano ${r.song} di ${r.songs}` : ""}`;
 }
 
 export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzoneState, Input, Command> = {
@@ -605,6 +777,8 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
     loopPauseSeconds: 1.5,
     progressive: false,
     clearAtPercent: 100,
+    categories: [],
+    rounds: [],
     pickCategory: false,
     pickSeconds: 20,
     maxPoints: 100,
@@ -620,6 +794,8 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
     loopPauseSeconds: 1.5,
     progressive: false,
     clearAtPercent: 100,
+    categories: [],
+    rounds: [],
     pickCategory: false,
     pickSeconds: 20,
     maxPoints: 100,
@@ -650,6 +826,11 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
       picks: 0,
       pickDeadline: 0,
       category: null,
+      turn: 0,
+      round: -1,
+      roundPlayed: 0,
+      roundKey: null,
+      roundName: null,
     };
     return advance(base, now);
   },
@@ -695,7 +876,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
       return { ...s, phase: "resolved", pausedMs: clipMs(s), outcome: { playerId: null, points: 0 } };
     }
     // Tempo scaduto per scegliere: la categoria è estratta a sorte.
-    if (s.phase === "choosing" && now >= s.pickDeadline) {
+    if (s.phase === "choosing" && pickerOf(s) === "teams" && now >= s.pickDeadline) {
       const options = availableCategories(s);
       return choose(s, options[mix(s.seed, s.picks + 1_000) % options.length]!.key);
     }
@@ -784,15 +965,17 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
               keepPitch: listen.keepPitch,
               stages: listen.stages,
               /** Percentuale dell'ascolto a cui il suono è nitido; assente se l'effetto non si attenua. */
-              clearAtPercent: s.cfg.progressive && !listen.stages ? s.cfg.clearAtPercent : null,
+              clearAtPercent: (song(s).progressive ?? s.cfg.progressive) && !listen.stages ? (song(s).clearAtPercent ?? s.cfg.clearAtPercent) : null,
             },
       category: s.category,
+      round: roundInfo(s),
       choosing: choosing
         ? {
+            by: pickerOf(s),
             team: chooser ? { id: chooser.teamId, name: chooser.name, color: chooser.color } : null,
             captain: chooser ? { playerId: chooser.captainId, nickname: nick(s, chooser.captainId) } : null,
             openedAt: s.pickDeadline - s.cfg.pickSeconds * 1000,
-            deadline: s.pickDeadline,
+            deadline: pickerOf(s) === "teams" ? s.pickDeadline : null,
             options: availableCategories(s).map(({ key, name, left }) => ({ key, name, left })),
           }
         : null,
@@ -819,8 +1002,16 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
       position: position >= 0 ? position - s.current : null,
       won: s.outcome?.playerId === playerId,
       // Solo il capitano di turno riceve le categorie tra cui scegliere; gli altri vedono chi sceglie.
-      pick: picker ? { openedAt: s.pickDeadline - s.cfg.pickSeconds * 1000, deadline: s.pickDeadline, options:availableCategories(s).map(({ key, name, left }) => ({ key, name, left })) } : null,
+      pick: picker
+        ? {
+            openedAt: s.pickDeadline - s.cfg.pickSeconds * 1000,
+            deadline: s.pickDeadline,
+            round: hasRounds(s) ? s.round + 1 : null,
+            options: availableCategories(s).map(({ key, name, left }) => ({ key, name, left })),
+          }
+        : null,
       chooserName: chooser ? chooser.name : null,
+      /** Con i round: a chi decide non serve altro; la scelta spetta alla regia se `chooserName` manca. */
       category: s.category,
     };
   },
@@ -841,7 +1032,14 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
         total: s.cfg.songs.length,
         answer: q?.answer,
         category: s.category,
-        chooser: chooser ? `${chooser.name} (${nick(s, chooser.captainId)})` : choosing ? "nessuna squadra: sceglie la regia o la sorte" : null,
+        round: roundLabel(s),
+        chooser: chooser
+          ? `${chooser.name} (${nick(s, chooser.captainId)})`
+          : choosing
+            ? pickerOf(s) === "host"
+              ? "la regia (scegli una categoria qui sotto)"
+              : "nessuna squadra: sceglie la regia o la sorte"
+            : null,
         points: q ? maxPointsOf(s) : 0,
         answering: answering ? nick(s, s.queue[s.current]?.playerId) : null,
         queue: answering ? s.queue.map((p) => nick(s, p.playerId)) : [],
@@ -855,7 +1053,7 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
         { id: "skip", label: "Salta il brano", enabled: ["idle", "playing", "collecting", "answering", "paused"].includes(s.phase), danger: true },
         {
           id: "next",
-          label: s.used.length >= s.cfg.songs.length ? "Concludi" : "Prossimo brano",
+          label: advance(s, 0).phase === "done" ? "Concludi" : "Prossimo brano",
           enabled: s.phase === "resolved",
         },
       ],

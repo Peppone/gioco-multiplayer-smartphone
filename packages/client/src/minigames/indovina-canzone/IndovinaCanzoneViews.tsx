@@ -43,11 +43,15 @@ interface ScreenView {
   /** Assente mentre si sceglie la categoria: il brano non è ancora stato scelto. */
   music: Music | null;
   category: string | null;
+  /** Il round in corso (quando il quiz ha dei round per categoria); `song` è 0 mentre se ne sceglie la categoria. */
+  round: { number: number; total: number; song: number; songs: number; category: string | null } | null;
   choosing: {
+    /** Chi decide la categoria: le squadre a turno (con tempo) oppure la regia (senza). */
+    by: "teams" | "host";
     team: { id: string; name: string; color: string | null } | null;
     captain: { playerId: string; nickname: string | null } | null;
     openedAt: number;
-    deadline: number;
+    deadline: number | null;
     options: CategoryOption[];
   } | null;
   answering: { playerId: string; nickname: string | null } | null;
@@ -64,7 +68,7 @@ interface PlayerView {
   position: number | null;
   won: boolean;
   /** Solo per il capitano della squadra di turno nella scelta della categoria. */
-  pick: { openedAt: number; deadline: number; options: CategoryOption[] } | null;
+  pick: { openedAt: number; deadline: number; round: number | null; options: CategoryOption[] } | null;
   chooserName: string | null;
   category: string | null;
 }
@@ -180,17 +184,26 @@ export function IndovinaCanzoneScreen({ view, clock, theme }: ViewProps) {
       <div ref={ytHost} className="yt-hidden" aria-hidden />
       <Sfx theme={theme} text="BZZT!" trigger={answeringId ?? null} />
       <Sfx theme={theme} text="BAM!" trigger={hasWinner ? v.index : null} />
-      <p className="muted">Brano {v.index + 1} di {v.total}</p>
+      {v.round ? (
+        <p className="muted song-round" data-round={v.round.number}>
+          Round {v.round.number} di {v.round.total}
+          {v.round.song > 0 && ` · brano ${v.round.song} di ${v.round.songs}`}
+        </p>
+      ) : (
+        <p className="muted">Brano {v.index + 1} di {v.total}</p>
+      )}
       <h2 className="question note" aria-hidden>🎵</h2>
       {v.category && v.phase !== "choosing" && <p className="muted song-category">Categoria: <b>{v.category}</b></p>}
       {v.phase === "choosing" && v.choosing && (
         <>
           <p className="big">
             {v.choosing.team
-              ? `🎯 Tocca a ${v.choosing.team.name}: ${v.choosing.captain?.nickname ?? "il capitano"} sceglie la categoria!`
-              : "🎯 Si sceglie la categoria…"}
+              ? `🎯 Tocca a ${v.choosing.team.name}: ${v.choosing.captain?.nickname ?? "il capitano"} sceglie la categoria${v.round ? " per tutti" : ""}!`
+              : v.choosing.by === "host"
+                ? "🎯 La regia sceglie la categoria…"
+                : "🎯 Si sceglie la categoria…"}
           </p>
-          <Countdown openedAt={v.choosing.openedAt} deadline={v.choosing.deadline} clock={clock} />
+          {v.choosing.deadline !== null && <Countdown openedAt={v.choosing.openedAt} deadline={v.choosing.deadline} clock={clock} />}
           <CategoryChips options={v.choosing.options} />
         </>
       )}
@@ -265,7 +278,7 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
     return (
       <div className="buzzer-ctrl pick-ctrl">
         <h2>🎯 Scegli la categoria!</h2>
-        <p className="muted">Sei il capitano: scegli per la tua squadra.</p>
+        <p className="muted">{v.pick.round ? `Round ${v.pick.round}: sei il capitano, scegli per tutti.` : "Sei il capitano: scegli per la tua squadra."}</p>
         <Countdown openedAt={v.pick.openedAt} deadline={v.pick.deadline} clock={clock} />
         <div className="pick-grid">
           {v.pick.options.map((o) => (

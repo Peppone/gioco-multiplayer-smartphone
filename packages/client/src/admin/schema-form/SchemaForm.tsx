@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { MediaItem } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
+import { CategoryManager, CategoryPickField } from "./CategoryManager";
 import { SongList } from "./SongList";
 import { effectsOf } from "./songs";
 import { type JsonSchema, defaultValue, isShown, moveItem, setKey } from "./logic";
@@ -15,6 +16,8 @@ export interface FormContext {
 const FormCtx = createContext<FormContext>({ teams: [], players: [], instances: [] });
 /** L'intera configurazione in modifica, per i widget che hanno bisogno dei valori del livello superiore (es. i predefiniti del round). */
 export const RootCtx = createContext<Record<string, unknown>>({});
+/** Per i widget che cambiano più campi insieme (es. rinominare una categoria nel catalogo, nei brani e nei round). */
+export const RootChangeCtx = createContext<(value: Record<string, unknown>) => void>(() => undefined);
 
 interface FieldProps {
   schema: JsonSchema;
@@ -35,6 +38,10 @@ export function Field({ schema, value, onChange, label, required, siblings }: Fi
 
   if ((schema.widget === "contestant" || schema.widget === "instance") && schema.type !== "array") {
     return <PickField schema={schema} value={value} onChange={onChange} labelText={labelText} required={required} siblings={siblings} />;
+  }
+
+  if (schema.widget === "category" && schema.type !== "array") {
+    return <CategoryPickField schema={schema} value={value} onChange={onChange} labelText={labelText} />;
   }
 
   if (schema.widget === "audio") {
@@ -148,7 +155,7 @@ export function Field({ schema, value, onChange, label, required, siblings }: Fi
 }
 
 /** Brano audio: si carica un file dal computer della regia oppure si sceglie tra quelli già caricati. */
-export function AudioField({ schema, value, onChange, labelText, siblings, showPreview = true }: Pick<FieldProps, "schema" | "value" | "onChange" | "siblings"> & { labelText: string; showPreview?: boolean }) {
+export function AudioField({ schema, value, onChange, labelText, siblings, showPreview = true }: Pick<FieldProps, "schema" | "siblings" | "value"> & { onChange: (value: string | undefined, fileName?: string) => void; labelText: string; showPreview?: boolean }) {
   const [library, setLibrary] = useState<MediaItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -166,7 +173,7 @@ export function AudioField({ schema, value, onChange, labelText, siblings, showP
     try {
       const item = await uploadAudio(picked);
       setLibrary((l) => [item, ...l]);
-      onChange(item.file);
+      onChange(item.file, item.name);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -181,7 +188,7 @@ export function AudioField({ schema, value, onChange, labelText, siblings, showP
       <input type="file" accept="audio/*,video/mp4,.mp4" aria-label={`Carica ${labelText}`} disabled={busy} onChange={(e) => { void upload(e.target.files?.[0]); e.target.value = ""; }} />
       {busy && <small className="muted">Caricamento in corso…</small>}
       {library.length > 0 && (
-        <select aria-label={`Scegli ${labelText} già caricato`} value={file ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value)}>
+        <select aria-label={`Scegli ${labelText} già caricato`} value={file ?? ""} onChange={(e) => onChange(e.target.value === "" ? undefined : e.target.value, library.find((m) => m.file === e.target.value)?.name)}>
           <option value="">{file && !current ? "(file non trovato)" : "Scegli tra i brani caricati…"}</option>
           {library.map((m) => <option key={m.file} value={m.file}>{m.name}</option>)}
         </select>
@@ -279,6 +286,7 @@ function LinesField({ schema, value, onChange, label, required }: FieldProps) {
 
 function ArrayField(props: FieldProps) {
   if (props.schema.widget === "lines") return <LinesField {...props} />;
+  if (props.schema.widget === "categories") return <CategoryManager schema={props.schema} />;
   if (props.schema.widget === "songs") return <SongList schema={props.schema} value={props.value} onChange={props.onChange} />;
   const { schema, value, onChange, label, required } = props;
   const list = Array.isArray(value) ? value : [];
@@ -372,9 +380,11 @@ export function SchemaForm({
   return (
     <FormCtx.Provider value={context ?? { teams: [], players: [], instances: [] }}>
       <RootCtx.Provider value={(value as Record<string, unknown>) ?? {}}>
-        <div className="schema-form">
-          <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
-        </div>
+        <RootChangeCtx.Provider value={onChange as (value: Record<string, unknown>) => void}>
+          <div className="schema-form">
+            <ObjectFields schema={schema} value={(value as Record<string, unknown>) ?? {}} onChange={onChange} />
+          </div>
+        </RootChangeCtx.Provider>
       </RootCtx.Provider>
     </FormCtx.Provider>
   );

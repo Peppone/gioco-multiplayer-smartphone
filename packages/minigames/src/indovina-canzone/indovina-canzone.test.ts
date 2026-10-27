@@ -438,13 +438,34 @@ describe("indovina la canzone: suono che si svela", () => {
     expect(game.screenView(playing())).toMatchObject({ music: { clearAtPercent: null } });
   });
 
-  it("serve almeno un brano con un effetto, altrimenti non c'è nulla da svelare", () => {
-    expect(parse({ progressive: true }).success).toBe(false);
-    expect(parse({ progressive: true }, { effects: [{ type: "blur" }] }).success).toBe(true);
-    expect(parse({ progressive: true }, { effect: "blur" }).success).toBe(true); // il vecchio campo conta ancora
-    expect(parse({ progressive: false }).success).toBe(true);
-    const r = parse({ progressive: true });
-    expect(!r.success && r.error.issues[0]!.message).toMatch(/Svela gradualmente/);
+  it("si decide brano per brano: serve un effetto sul brano, altrimenti non c'è nulla da svelare", () => {
+    expect(parse({}, { progressive: true }).success).toBe(false);
+    expect(parse({}, { progressive: true, effects: [{ type: "blur" }] }).success).toBe(true);
+    expect(parse({}, { progressive: true, effect: "blur" }).success).toBe(true); // il vecchio campo conta ancora
+    expect(parse({}, { progressive: false }).success).toBe(true);
+    const r = parse({}, { progressive: true });
+    expect(!r.success && r.error.issues[0]!.message).toMatch(/Brano 1: «Svela gradualmente»/);
+  });
+
+  it("ogni brano ha il suo svelamento e la sua nitidezza; chi non sceglie segue il predefinito del round (istanze vecchie)", () => {
+    const blur = [{ type: "blur", amount: 200 }];
+    const cfg = game.configSchema.parse({
+      songs: [
+        { audio: FILE_1, answer: "a", effects: blur, progressive: true, clearAtPercent: 70 },
+        { audio: FILE_2, answer: "b", effects: blur, progressive: false },
+        { audio: FILE_2, answer: "c", effects: blur },
+      ],
+      progressive: false,
+    });
+    let s = game.init(cfg, ctx, 0);
+    const clear = () => (game.screenView(cmd(s, "start", 1_000)) as { music: { clearAtPercent: number | null } }).music.clearAtPercent;
+    expect(clear()).toBe(70);
+    s = cmd(cmd(s, "skip", 1), "next", 2);
+    expect(clear()).toBeNull();
+    s = cmd(cmd(s, "skip", 3), "next", 4);
+    expect(clear()).toBeNull(); // il predefinito del round è spento
+    const old = game.init(game.configSchema.parse({ songs: [{ audio: FILE_1, answer: "a", effects: blur }], progressive: true, clearAtPercent: 60 }), ctx, 0);
+    expect(game.screenView(cmd(old, "start", 1_000))).toMatchObject({ music: { clearAtPercent: 60 } });
   });
 
   it("la percentuale di nitidezza sta tra 20 e 100", () => {

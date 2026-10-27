@@ -32,6 +32,9 @@ plain("lista dei brani: più file insieme, la riga vuota iniziale si riempie e i
   await addSongFiles(page, [wav("uno.wav"), wav("due.wav"), wav("tre.wav")]);
   await expect(rows).toHaveCount(3);
   await expect(page.getByLabel(title(1))).toHaveValue("Primo - Artista");
+  // Gli altri brani propongono come titolo il nome del file senza estensione.
+  await expect(page.getByLabel(title(2))).toHaveValue("due");
+  await expect(page.getByLabel(title(3))).toHaveValue("tre");
   await expect(rows.nth(0).locator(".song-source")).toContainText("uno.wav");
   await expect(rows.nth(1).locator(".song-source")).toContainText("due.wav");
   await expect(rows.nth(2).locator(".song-source")).toContainText("tre.wav");
@@ -65,7 +68,12 @@ plain("lista dei brani: le impostazioni avanzate compaiono nel riassunto della r
   await panel.getByRole("button", { name: "+ Aggiungi effetto" }).click();
   await panel.getByLabel("Effetto", { exact: true }).first().selectOption("blur");
   await panel.getByLabel("Quantità (%)", { exact: true }).first().fill("150");
-  await panel.getByLabel("Categorie").first().fill("Anni 80\nRock");
+  // Le categorie si scelgono tra quelle del quiz: una nuova si crea al volo (entra anche nel gestore).
+  for (const category of ["Anni 80", "Rock"]) {
+    await panel.getByLabel("Nuova categoria per questo brano").fill(category);
+    await panel.getByLabel("Nuova categoria per questo brano").press("Enter");
+    await expect(panel.getByRole("checkbox", { name: category })).toBeChecked();
+  }
   await panel.getByLabel("Punti massimi").fill("200");
   // Escape chiude il pannello.
   await page.keyboard.press("Escape");

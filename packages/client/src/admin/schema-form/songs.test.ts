@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectsOf, materializeListening, songSource, songSummary } from "./songs";
+import { effectsOf, materializeListening, songSource, songSummary, titleFromFile } from "./songs";
 
 describe("camuffamenti nell'elenco degli effetti", () => {
   it("compaiono nel riassunto con gli altri effetti, nell'ordine, e la variante solo se non è la prima", () => {
@@ -105,5 +105,16 @@ describe("sorgente di un brano", () => {
   it("senza né file né link non c'è sorgente", () => {
     expect(songSource({ audio: "", youtube: " " }, [])).toBeNull();
     expect(songSource({}, [])).toBeNull();
+  });
+});
+
+describe("titleFromFile", () => {
+  it("toglie solo l'ultima estensione e il percorso", () => {
+    expect(titleFromFile("Queen - Bohemian Rhapsody.mp3")).toBe("Queen - Bohemian Rhapsody");
+    expect(titleFromFile("brano.finale.m4a")).toBe("brano.finale");
+    expect(titleFromFile("C:\\musica\\uno.wav")).toBe("uno");
+    expect(titleFromFile("senza-estensione")).toBe("senza-estensione");
+    expect(titleFromFile(".mp3")).toBe(".mp3");
+    expect(titleFromFile("")).toBe("");
   });
 });

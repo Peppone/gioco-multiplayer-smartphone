@@ -238,10 +238,13 @@ plain("editor: categorie, spezzoni e scelta della categoria si configurano dal m
   await page.getByPlaceholder("Titolo (es. Quiz anni 80)").fill(unique("Canzoni categorie"));
   await page.getByLabel("Titolo e artista (solo regia)").first().fill("Prova - Artista");
 
-  // Le categorie del brano si scrivono una per riga, nel pannello «Avanzato», e compaiono nel riassunto della riga.
+  // Le categorie del brano si scelgono (o si creano) nel pannello «Avanzato» e compaiono nel riassunto della riga.
   await openAdvanced(page);
   await page.getByLabel("Link YouTube (facoltativo)").first().fill("https://youtu.be/_9HHju9_hMM");
-  await page.getByLabel("Categorie").first().fill("Anni 80\nRock");
+  for (const category of ["Anni 80", "Rock"]) {
+    await page.getByLabel("Nuova categoria per questo brano").fill(category);
+    await page.getByLabel("Nuova categoria per questo brano").press("Enter");
+  }
   // L'ascolto si decide brano per brano, nello stesso pannello: a spezzoni, con i valori predefiniti 0,5 · 1 · 2 · 4 · 8.
   await expect(page.getByLabel("Come si ascolta")).toHaveCount(0); // non c'è più un predefinito del round nel modulo
   await page.getByLabel("Modalità di ascolto del brano").selectOption("loops");
@@ -250,11 +253,11 @@ plain("editor: categorie, spezzoni e scelta della categoria si configurano dal m
   await closeAdvanced(page);
   await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("categorie: Anni 80, Rock");
   await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("ascolto a spezzoni crescenti (0,5 · 1 · 2 · 4 · 8 s)");
-  // Senza un effetto su almeno un brano «Svela gradualmente» non si salva, e il messaggio lo spiega.
-  await page.getByLabel(/Svela gradualmente il suono/).check();
-  await page.getByRole("button", { name: "Salva" }).click();
-  await expect(page.getByText(/non ha effetto se nessun brano ha un effetto/)).toBeVisible();
-  await page.getByLabel(/Svela gradualmente il suono/).uncheck();
+  // «Svela gradualmente» sta nel pannello del brano e con YouTube non c'è; non è più un'impostazione del round.
+  await openAdvanced(page);
+  await expect(page.locator('[data-section="Svela gradualmente"]')).toContainText("Non disponibile con YouTube");
+  await closeAdvanced(page);
+  await expect(page.getByLabel(/Svela gradualmente il suono/)).toHaveCount(0);
 
   await page.getByLabel(/I capisquadra scelgono la categoria/).check();
   await page.getByRole("button", { name: "Salva" }).click();

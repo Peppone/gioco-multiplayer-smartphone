@@ -2,13 +2,13 @@
 
 La musica suona **solo sullo schermo condiviso**; i telefoni sono buzzer. Chi si prenota per primo (ora equa, come nel buzzer) ferma la musica e risponde a voce; la regia dice se è giusta. Più si ascolta, meno punti vale la risposta.
 
-Questa guida riguarda le funzioni che rendono il brano più o meno riconoscibile e la scelta della categoria. Per il resto (file o link YouTube, punti, penalità) vedi il modulo dell'istanza: ogni campo ha la sua descrizione.
+Questa guida riguarda le funzioni che rendono il brano più o meno riconoscibile, le categorie (gestore, round per categoria, scelta delle squadre). Per il resto (file o link YouTube, punti, penalità) vedi il modulo dell'istanza: ogni campo ha la sua descrizione.
 
 ## Come si compila l'elenco dei brani
 
 Il modulo mostra i brani come **un elenco**, una riga per brano: il numero, il campo «Titolo e artista (solo regia)», da dove viene il brano (nome del file o `▶ YouTube <id>`) e, sotto, un **riassunto** di ciò che hai cambiato rispetto al predefinito (per esempio «parte da 12 s», «ascolto a spezzoni crescenti (0,5 · 1 · 2 s)», «effetti: Sfocato 150% + Eco 55%», «categorie: Anni 80, Rock», «200 punti»). Un brano con le impostazioni normali mostra «impostazioni predefinite».
 
-- **«+ Aggiungi file»** carica uno o più file insieme (un brano per file); **«+ Aggiungi link YouTube»** apre un campo dove incolli uno o più link, uno per riga (se uno è sbagliato non si aggiunge nulla e il messaggio dice quale); **«+ Aggiungi un file già caricato…»** sceglie dalla mediateca. Un nuovo brano riempie prima la riga ancora senza sorgente (quella vuota con cui nasce l'elenco, anche se hai già scritto il titolo).
+- **«+ Aggiungi file»** carica uno o più file insieme (un brano per file); **«+ Aggiungi link YouTube»** apre un campo dove incolli uno o più link, uno per riga (se uno è sbagliato non si aggiunge nulla e il messaggio dice quale); **«+ Aggiungi un file già caricato…»** sceglie dalla mediateca. Un brano caricato da file propone come **titolo il nome del file senza estensione** (un titolo già scritto non si tocca; vale anche cambiando file dal pannello «Avanzato» se il titolo è vuoto). Un nuovo brano riempie prima la riga ancora senza sorgente (quella vuota con cui nasce l'elenco, anche se hai già scritto il titolo).
 - Ogni riga si sposta con ↑ ↓ e si elimina con ✕.
 - **«Avanzato…»** apre il pannello del brano, a finestra sopra la pagina (si chiude con «Fatto» o con Esc; le modifiche valgono subito). Contiene: la **sorgente** (cambiare file o link, con l'anteprima e «Prova l'ascolto»), le **categorie**, **«Partenza e ascolto»** (da dove parte il brano e modalità, durata, spezzoni, velocità o fasi: tutto per questo brano), gli **effetti sull'audio** (filtri e camuffamenti, nella stessa lista di card) e i **punti**.
 - Con un link YouTube gli effetti, la velocità, l'ovattato a fasi e i camuffamenti non sono disponibili (l'audio sta in un video incorporato).
@@ -110,11 +110,11 @@ Nel modulo, sotto il lettore di ogni brano, **«▶ Prova l'ascolto»** fa suona
 
 ## Svelare gradualmente il suono
 
-Di solito gli effetti restano uguali per tutto l'ascolto. Con **«Svela gradualmente il suono»** (impostazione del round) si attenuano col passare del tempo, fino al brano intero (vedi sopra come si attenua ciascun effetto).
+Di solito gli effetti restano uguali per tutto l'ascolto. Con **«Svela gradualmente il suono»** (sezione «Svela gradualmente» del pannello «Avanzato» di **ogni brano**: ognuno ha la sua scelta e la sua nitidezza) si attenuano col passare del tempo, fino al brano intero (vedi sopra come si attenua ciascun effetto).
 
 **«Suono nitido al (% dell'ascolto)»** dice a che punto dell'ascolto il brano è intero: 100 = solo all'ultimo istante, 80 = gli ultimi 20% si sentono interi.
 
-Il tempo che conta è quello **ascoltato**: se la musica si ferma (prenotazione, risposta sbagliata) il suono resta com'era, e ripartendo continua da lì. Funziona solo con i file caricati (non con YouTube, il cui audio non si può elaborare). Il round non si salva se «Svela gradualmente» è acceso ma nessun brano ha un effetto.
+Il tempo che conta è quello **ascoltato**: se la musica si ferma (prenotazione, risposta sbagliata) il suono resta com'era, e ripartendo continua da lì. Funziona solo con i file caricati (non con YouTube, il cui audio non si può elaborare). Un brano con «Svela gradualmente» acceso ma senza effetti non si salva (il messaggio dice quale brano). Le istanze salvate prima, con la scelta nel round, la ritrovano brano per brano all'apertura nel modulo (dove hanno effetti); finché non si salva, un brano senza scelta propria segue ancora il predefinito del round.
 
 ## Ascolto a spezzoni crescenti
 
@@ -128,9 +128,41 @@ Il tempo che conta è quello **ascoltato**: se la musica si ferma (prenotazione,
 - Con i file caricati lo schermo decodifica il brano in memoria e programma attacco e stacco di ogni spezzone **al campione**: anche uno spezzone da mezzo secondo dura mezzo secondo. L'ascolto parte 0,4 s dopo il comando della regia (`LOOP_LEAD_MS`), così con un po' di latenza il primo spezzone non è accorciato. Con **YouTube** gli spezzoni funzionano ma sono meno precisi (il lettore impiega qualche centinaio di millisecondi a partire e a fermarsi): per spezzoni brevi usa i file.
 - Si combina con gli effetti e con «Svela gradualmente» (il suono si schiarisce lungo tutto l'ascolto).
 
-## Categorie scelte dai capisquadra
+## Gestore delle categorie
 
-Ogni brano può avere **una o più categorie** (una per riga, fino a 5, per esempio «Anni 80» e «Rock»). Con **«I capisquadra scelgono la categoria del prossimo brano»**:
+Nel modulo dell'istanza, **sopra l'elenco dei brani**, il riquadro **«Categorie del quiz»** è il catalogo delle categorie di questo quiz (fino a 40, nome fino a 30 caratteri).
+
+- **Aggiungi**: scrivi il nome e premi Invio o «+ Aggiungi categoria». Un nome già presente (maiuscole a parte), vuoto, troppo lungo o «Altri brani» non vale e il riquadro dice perché.
+- **Rinomina**: cambia il nome nel campo della riga e premi Invio (o esci dal campo; Esc annulla). Il nuovo nome vale **ovunque**: nei brani e nei round con la categoria fissa. Un nome già usato non si accetta.
+- **Elimina** (✕): toglie la categoria da tutti i brani (che restano, magari senza categoria) e svuota i round che la fissavano, così il salvataggio ti avvisa.
+- Ogni riga dice **quanti brani** hanno quella categoria; sotto, quanti brani non ne hanno nessuna (stanno in «Altri brani»).
+- Le categorie scritte nei brani salvati prima del gestore entrano da sole nel catalogo.
+- I brani le scelgono nella sezione **«Categorie»** del loro pannello «Avanzato»: una casella per ogni categoria (fino a 5 per brano) e un campo per crearne una nuova al volo, che entra anche nel catalogo. Il catalogo appartiene all'istanza: due quiz diversi hanno cataloghi diversi.
+
+Le funzioni sono pure e testate (`packages/client/src/admin/schema-form/categories.ts`, `categories.test.ts`).
+
+## Round per categoria
+
+Tra i dati del quiz, **«Round per categoria»** è un elenco di round (fino a 30). Ogni round suona **i brani di una sola categoria**; quando finiscono i suoi brani si passa al round successivo. Per ogni round si decide:
+
+- **Chi decide la categoria**:
+  - **Le squadre a rotazione** (predefinito): prima del round tocca al **capitano** della squadra di turno, che sceglie per tutti dal telefono tra le categorie con brani ancora da suonare. Le squadre si alternano in ordine di nome, un round ciascuna; scaduto **«Tempo per scegliere»** la categoria è estratta a sorte (e il turno passa lo stesso). La regia può sempre scegliere al posto del capitano con i pulsanti *Scegli «…»*.
+  - **La regia**: nessun capitano e nessun tempo; la scelta si fa con i pulsanti *Scegli «…»* del pannello. I telefoni mostrano «Sceglie la regia…». La scelta della regia non consuma il turno delle squadre.
+  - **Fissa**: la categoria è scelta nel setup (da un menu con le categorie del quiz e il numero di brani) e il round parte da solo.
+- **Brani del round** (1–50). Se la categoria finisce prima, il round si chiude.
+
+Regole:
+
+1. **Un brano suonato non torna mai**, in nessun round, anche se la categoria si ripete. Un brano con due categorie, una volta suonato, sparisce da entrambe. Il brano di ogni giro è estratto dalla categoria con il seme del round (stesso seme, stessa partita).
+2. Le categorie offerte sono solo quelle con almeno un brano ancora da suonare, con il conto di quanti ne restano. Se ne resta una sola non c'è niente da scegliere e il round parte da solo.
+3. Un round con la categoria fissa già esaurita (per esempio da un altro round) si salta; finiti i round, o i brani, il quiz si conclude. L'ultimo brano dell'ultimo round mostra «Concludi» nel pannello della regia.
+4. Lo schermo mostra «Round 2 di 4 · brano 1 di 3» e la categoria; il pannello della regia ha la stessa riga. Mentre si sceglie, **nessuna vista mostra file, titoli o risposte**, e solo il capitano di turno riceve l'elenco delle categorie (il test anti-leak lo verifica).
+5. **Controlli al salvataggio**: un round con la categoria fissa deve avere una categoria, con dei brani; sommando i round che ripetono la categoria non si possono chiedere più brani di quanti ce ne sono. I round con la categoria da scegliere non hanno vincoli.
+6. **Senza round** il quiz funziona come prima (brani in ordine, oppure «I capisquadra scelgono la categoria del prossimo brano»). Con dei round quell'opzione non vale.
+
+## Categorie scelte dai capisquadra (un brano per volta, senza round)
+
+Ogni brano può avere **una o più categorie** (fino a 5, per esempio «Anni 80» e «Rock»; si scelgono dal [gestore](#gestore-delle-categorie)). Con **«I capisquadra scelgono la categoria del prossimo brano»**:
 
 1. Prima di ogni brano compare la fase **«scelta della categoria»**. Tocca alle squadre **a turno** (in ordine di nome): sceglie il **capitano** della squadra di turno, dal suo telefono, tra le categorie che hanno ancora brani da suonare (con quanti ne restano).
 2. Il server estrae un brano **non ancora suonato** di quella categoria. Un brano in due categorie, una volta suonato, sparisce da entrambe. I brani senza categoria stanno in «Altri brani».
@@ -149,6 +181,8 @@ Il quiz è un minigioco **a squadre** (`teamBased`): con le [squadre temporanee]
 ## Test e verifica
 
 - `indovina-canzone.test.ts`: funzioni pure (spezzoni, anticipo, scelta, turni, sorte, regia, brani esauriti) e **anti-leak**.
+- `rounds.test.ts`: round per categoria (categoria fissa, scelta delle squadre a turno, della regia, sorte, brani mai ripetuti tra round, round saltati o chiusi prima, «Concludi», anti-leak, controlli al salvataggio). `packages/client/src/admin/schema-form/categories.test.ts`: gestore delle categorie (aggiungi, rinomina ovunque, elimina, catalogo delle istanze vecchie).
+- E2E `e2e/indovina-canzone-round.spec.ts`: gestore (aggiungere, rinominare, eliminare, caselle nei brani, round che seguono, salvataggio e riapertura), errore di un round con troppo pochi brani e partita a round (capitano di turno, brani dello stesso round senza nuova scelta, round scelto dalla regia senza tempo né pulsanti ai telefoni, categoria esaurita, nessun file o titolo prima della scelta). Le sezioni dell'editor sono anche in `indovina-canzone-lista.spec.ts` e `indovina-canzone-categorie.spec.ts`.
 - `packages/shared/src/playback.test.ts`: tempi degli spezzoni, curva della nitidezza, velocità (posizione nel brano = integrale della velocità, confrontata con l'integrale numerico), fasi dell'ovattato e scelta della modalità di ogni brano con i predefiniti del round.
 - `packages/client/src/minigames/indovina-canzone/effects.test.ts`: quantità di ogni effetto (100% = valori di prima, monotone su 0–300%, curva della saturazione, eco stabile). `packages/shared/src/media.test.ts`: conversione del vecchio effetto singolo ed effetti con le fasi.
 - `packages/client/src/minigames/indovina-canzone/listening.test.ts`: il motore di riproduzione con un lettore finto e timer finti (spezzoni, velocità e passaggio, curva del filtro, ripartenza a metà, annullamento, timer in anticipo).

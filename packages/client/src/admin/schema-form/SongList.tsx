@@ -2,9 +2,10 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { type MediaItem, youtubeId } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
+import { SongCategoryPicker } from "./CategoryManager";
 import { AudioField, Field, ObjectFields, RootCtx } from "./SchemaForm";
 import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
-import { effectsOf, materializeListening, songSource, songSummary } from "./songs";
+import { effectsOf, materializeListening, songSource, songSummary, titleFromFile } from "./songs";
 
 /** Campi dell'ascolto del brano: dove parte, quanto dura e in che modo (le modalità mostrano solo i loro). */
 const LISTEN_KEYS = [
@@ -64,7 +65,8 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
     const created: Song[] = [];
     for (const source of sources) {
       const empty = next.findIndex((s) => songSource(s, []) === null);
-      if (empty >= 0) next[empty] = { ...next[empty], ...source };
+      // Il titolo già scritto non si tocca: il nome del file è solo una proposta.
+      if (empty >= 0) next[empty] = { ...next[empty], ...source, ...(String(next[empty]!.answer ?? "").trim() !== "" ? { answer: next[empty]!.answer } : {}) };
       else created.push({ ...(defaultValue(itemSchema) as Song), ...source });
     }
     const room = Math.max(0, max - next.length);
@@ -81,7 +83,7 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
       try {
         const item = await uploadAudio(file);
         setLibrary((l) => [item, ...l.filter((m) => m.file !== item.file)]);
-        created.push({ audio: item.file });
+        created.push({ audio: item.file, answer: titleFromFile(item.name) });
       } catch (e) {
         problems.push(`${file.name}: ${errorMessage(e)}`);
       }
@@ -169,7 +171,7 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
             aria-label="Aggiungi un file già caricato"
             disabled={full}
             value=""
-            onChange={(e) => e.target.value !== "" && add([{ audio: e.target.value }])}
+            onChange={(e) => e.target.value !== "" && add([{ audio: e.target.value, answer: titleFromFile(library.find((m) => m.file === e.target.value)?.name ?? "") }])}
           >
             <option value="">+ Aggiungi un file già caricato…</option>
             {library.map((m) => <option key={m.file} value={m.file}>{m.name}</option>)}
@@ -247,7 +249,13 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
           "Sorgente",
           <>
             {!isYoutube && (
-              <AudioField schema={props.audio ?? {}} value={song.audio} onChange={(v) => onChange(v === undefined ? setKey(song, "audio", undefined) : setKey(setKey(song, "audio", v), "youtube", undefined))} labelText="Brano" siblings={song} showPreview={false} />
+              <AudioField schema={props.audio ?? {}} value={song.audio} onChange={(v, fileName) => {
+                if (v === undefined) return onChange(setKey(song, "audio", undefined));
+                const chosen = setKey(setKey(song, "audio", v), "youtube", undefined);
+                // Un titolo vuoto si riempie con il nome del file scelto.
+                const proposal = fileName ? titleFromFile(fileName) : "";
+                onChange(proposal !== "" && String(song.answer ?? "").trim() === "" ? setKey(chosen, "answer", proposal) : chosen);
+              }} labelText="Brano" siblings={song} showPreview={false} />
             )}
             {!file && (
               <label className="field">
@@ -268,12 +276,17 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
           </>,
         )}
 
-        {section("Categorie", fieldOf("categories"))}
+        {section("Categorie", <SongCategoryPicker song={song} onChange={onChange} />, "Si scelgono tra le categorie del quiz (gestore delle categorie, sopra l'elenco dei brani). Un brano può averne fino a 5.")}
         {section("Partenza e ascolto", only(LISTEN_KEYS), "Il punto da cui parte il brano e come lo si ascolta in partita: solo per questo brano.")}
         {section(
           "Effetti sull'audio",
           isYoutube ? <small className="muted">Non disponibili con YouTube.</small> : only(["effect", "effects"]),
           "Filtri (sfocato, telefono, eco…) e camuffamenti (al contrario a pezzi, spettro capovolto, sillabe mescolate) stanno nella stessa lista, in serie nell'ordine delle card. L'anteprima li suona tutti.",
+        )}
+        {section(
+          "Svela gradualmente",
+          isYoutube ? <small className="muted">Non disponibile con YouTube.</small> : only(["progressive", "clearAtPercent"]),
+          "Gli effetti di questo brano si attenuano col passare dell'ascolto, fino al brano intero. Il tempo che conta è quello ascoltato: se la musica si ferma il suono resta com'era.",
         )}
         {section("Punti", fieldOf("points"))}
       </div>
