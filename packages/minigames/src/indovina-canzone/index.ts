@@ -22,6 +22,8 @@ import {
   fairTime,
   legacyEffectSettings,
   listeningSettledMs,
+  loopPosition,
+  repetitionPoints,
   resolveListening,
   youtubeId,
 } from "@gioco/shared";
@@ -51,6 +53,8 @@ const NEEDS_FILE = ["speed", "speed_then_normal", "blur_stages"] as const;
 const SONG_LISTEN_DEFAULTS = {
   playback: "inherit" as const,
   loopSeconds: [] as number[],
+  repeatSeconds: LISTEN_DEFAULTS.repeatSeconds,
+  repeatCount: LISTEN_DEFAULTS.repeatCount,
   speed: LISTEN_DEFAULTS.speed,
   keepPitch: LISTEN_DEFAULTS.keepPitch,
   normalAfterSeconds: LISTEN_DEFAULTS.normalAfterSeconds,
@@ -205,6 +209,7 @@ export const indovinaCanzoneConfigSchema = z
                   inherit: "Come nel round",
                   continuous: "Continuo",
                   loops: "A spezzoni crescenti",
+                  repeat: "Ripetizioni sempre più nitide",
                   speed: "Più lento o più veloce",
                   speed_then_normal: "Velocità diversa all'inizio, poi normale",
                   blur_stages: "Molto ovattato, poi poco, poi normale",
@@ -236,7 +241,28 @@ export const indovinaCanzoneConfigSchema = z
               .min(0.2)
               .max(10)
               .optional()
-              .meta({ title: "Pausa tra gli spezzoni di questo brano (secondi)", description: "Tempo di silenzio tra uno spezzone e il successivo", ...showWhen("loops") }),
+              .meta({ title: "Pausa tra gli spezzoni di questo brano (secondi)", description: "Tempo di silenzio tra uno spezzone e il successivo", ...showWhen("loops", "repeat") }),
+            repeatSeconds: z
+              .number()
+              .min(0.5)
+              .max(60)
+              .default(LISTEN_DEFAULTS.repeatSeconds)
+              .meta({
+                title: "Durata dello spezzone che si ripete (secondi)",
+                description: "Lo stesso pezzo del brano, dal punto «Parti da», si ripete a ogni giro",
+                ...showWhen("repeat"),
+              }),
+            repeatCount: z
+              .number()
+              .int()
+              .min(2)
+              .max(12)
+              .default(LISTEN_DEFAULTS.repeatCount)
+              .meta({
+                title: "Quante volte si ripete",
+                description: "A ogni giro effetti e camuffamenti si attenuano; l'ultimo è il brano originale. I punti scendono a ogni giro (da massimi a minimi)",
+                ...showWhen("repeat"),
+              }),
             speed: z
               .number()
               .min(SPEED_MIN)
@@ -602,7 +628,7 @@ const listening = (s: IndovinaCanzoneState) => resolveListening(s.cfg, song(s));
 /** Durata dell'ascolto del brano corrente (tempo ascoltato): i secondi scelti, oppure il totale degli spezzoni. */
 const clipMs = (s: IndovinaCanzoneState) => listening(s).clipMs;
 /** Anticipo con cui parte (o riparte) l'ascolto dopo il comando della regia. */
-const leadMs = (s: IndovinaCanzoneState) => (listening(s).mode === "loops" ? LOOP_LEAD_MS : 0);
+const leadMs = (s: IndovinaCanzoneState) => (listening(s).loop ? LOOP_LEAD_MS : 0);
 const maxPointsOf = (s: IndovinaCanzoneState) => song(s).points ?? s.cfg.maxPoints;
 /** Ora server in cui la musica arriva alla fine dell'ascolto, se riparte da `segmentStart`. */
 const stopAt = (s: IndovinaCanzoneState) => s.segmentStart + clipMs(s) - s.offsetMs;
@@ -895,7 +921,13 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
       case "correct": {
         if (s.phase !== "answering") return s;
         const press = s.queue[s.current]!;
-        const points = speedPoints(Math.min(s.cfg.minPoints, maxPointsOf(s)), maxPointsOf(s), 0, clipMs(s), press.heardMs);
+        const lowest = Math.min(s.cfg.minPoints, maxPointsOf(s));
+        const listen = listening(s);
+        // Ripetizioni: i punti scendono a gradini, un giro dopo l'altro; negli altri ascolti dipendono dal tempo ascoltato.
+        const points =
+          listen.stepped && listen.loop
+            ? repetitionPoints(lowest, maxPointsOf(s), loopPosition(listen.loop, press.heardMs).index, listen.loop.snippetsMs.length)
+            : speedPoints(lowest, maxPointsOf(s), 0, clipMs(s), press.heardMs);
         return { ...s, phase: "resolved", totals: addTo(s.totals, press.playerId, points), outcome: { playerId: press.playerId, points } };
       }
       case "wrong": {
@@ -961,11 +993,13 @@ export const indovinaCanzone: MinigameType<IndovinaCanzoneConfig, IndovinaCanzon
               /** Come si ascolta: lo schermo ricava da qui posizione, velocità e filtro dal tempo ascoltato. */
               mode: listen.mode,
               loop: listen.loop,
+              /** Ripetizioni sempre più nitide: ogni giro ha la sua nitidezza (l'ultimo è l'originale). */
+              stepped: listen.stepped,
               rate: listen.rate,
               keepPitch: listen.keepPitch,
               stages: listen.stages,
               /** Percentuale dell'ascolto a cui il suono è nitido; assente se l'effetto non si attenua. */
-              clearAtPercent: (song(s).progressive ?? s.cfg.progressive) && !listen.stages ? (song(s).clearAtPercent ?? s.cfg.clearAtPercent) : null,
+              clearAtPercent: (song(s).progressive ?? s.cfg.progressive) && !listen.stages && !listen.stepped ? (song(s).clearAtPercent ?? s.cfg.clearAtPercent) : null,
             },
       category: s.category,
       round: roundInfo(s),

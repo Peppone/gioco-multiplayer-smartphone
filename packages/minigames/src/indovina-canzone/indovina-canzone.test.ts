@@ -247,6 +247,7 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
     mode: string;
     clipMs: number;
     loop: unknown;
+    stepped: boolean;
     rate: unknown;
     keepPitch: boolean;
     stages: unknown;
@@ -257,6 +258,16 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
   };
   const musicOf = (s: IndovinaCanzoneState) => (game.screenView(s) as { music: MusicView }).music;
   const start = (cfg: ReturnType<typeof must>, now = 1_000) => cmd(game.init(cfg, ctx, 0), "start", now);
+
+  it("ripetizioni: i punti scendono a ogni giro e lo schermo sa che la nitidezza segue i giri", () => {
+    const cfg = must({ maxPoints: 100, minPoints: 20 }, { playback: "repeat", repeatSeconds: 4, repeatCount: 5, loopPauseSeconds: 1, effects: [{ type: "blur", amount: 200 }] });
+    const s0 = start(cfg, 1_000);
+    expect(musicOf(s0)).toMatchObject({ mode: "repeat", stepped: true, clearAtPercent: null, loop: { pauseMs: 1_000 }, segmentStart: 1_000 + LOOP_LEAD_MS });
+    const t0 = 1_000 + LOOP_LEAD_MS;
+    const pointsAt = (heard: number) => cmd(game.onTick(press(s0, "a", t0 + heard), t0 + heard + 1_000), "correct").totals.a;
+    // Giro 1: 0–4 s, pausa fino a 5 s; giro 2: 5–9 s…; l'ultimo giro (5°) vale il minimo.
+    expect([500, 3_900, 5_500, 10_500, 15_500, 24_000].map(pointsAt)).toEqual([100, 100, 80, 60, 40, 20]);
+  });
 
   it("senza scelte proprie ogni brano segue il round, come prima", () => {
     const cfg = must({ playback: "loops", loopSeconds: [1, 2], loopPauseSeconds: 1 }, {}, {});
@@ -417,7 +428,8 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
     const props = json.properties.songs.items.properties;
     const shownIn = (key: string) => props[key]!.showWhen?.in ?? "sempre";
     expect(shownIn("loopSeconds")).toEqual(["loops"]);
-    expect(shownIn("loopPauseSeconds")).toEqual(["loops"]);
+    expect(shownIn("loopPauseSeconds")).toEqual(["loops", "repeat"]);
+    for (const k of ["repeatSeconds", "repeatCount"]) expect(shownIn(k)).toEqual(["repeat"]);
     expect(shownIn("speed")).toEqual(["speed", "speed_then_normal"]);
     expect(shownIn("keepPitch")).toEqual(["speed", "speed_then_normal"]);
     expect(shownIn("normalAfterSeconds")).toEqual(["speed_then_normal"]);

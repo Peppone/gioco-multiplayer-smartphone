@@ -15,6 +15,8 @@ const LISTEN_KEYS = [
   "clipSeconds",
   "loopSeconds",
   "loopPauseSeconds",
+  "repeatSeconds",
+  "repeatCount",
   "speed",
   "keepPitch",
   "normalAfterSeconds",

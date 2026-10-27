@@ -82,11 +82,18 @@ Ogni brano sceglie **la propria modalità di ascolto**, nella sezione «Partenza
 | Come nel round | quella del round | durata dell'ascolto (facoltativa) |
 | Continuo | il brano, di seguito | durata dell'ascolto (facoltativa) |
 | A spezzoni crescenti | spezzoni sempre più lunghi, con una pausa in mezzo | durate degli spezzoni e pausa (vuoti = quelli del round) |
+| Ripetizioni sempre più nitide | lo stesso spezzone ripetuto N volte, con una pausa in mezzo; a ogni giro effetti e camuffamenti si attenuano e l'ultimo giro è l'originale | durata dello spezzone, numero di giri (2–12), pausa |
 | Più lento o più veloce | il brano a velocità costante | velocità (0,5–2), mantieni l'intonazione, durata |
 | Velocità diversa, poi normale | il brano parte alla velocità scelta e torna normale con un passaggio morbido | velocità, dopo quanti secondi torna normale, durata del passaggio, mantieni l'intonazione, durata |
 | Molto ovattato, poi poco, poi normale | filtro forte, poi leggero, poi nessun filtro, con passaggi morbidi | secondi della fase 1, secondi della fase 2, durata di ogni passaggio, durata |
 
 Un round può mescolare le modalità: un brano a spezzoni, il successivo più lento, il successivo continuo con 8 secondi. Punti e fine dell'ascolto seguono sempre il **tempo ascoltato** (a orologio), qualunque sia la modalità: con la velocità doppia 30 secondi fanno sentire un minuto di brano, ma i punti scendono sui 30 secondi.
+
+### Ripetizioni sempre più nitide
+
+Lo spezzone dal punto «Parti da» si ripete `repeatCount` volte. Il primo giro ha tutti gli effetti del brano alla quantità scelta; a ogni giro la nitidezza sale a gradini uguali (`repetitionClarity`) e l'ultimo giro suona senza effetti, cioè l'originale. Vale per gli effetti in tempo reale e per i camuffamenti (nel file preparato ogni spezzone ha la sua versione). «Svela gradualmente» non serve: la nitidezza segue i giri.
+
+**Punti**: scendono a gradini, un giro dopo l'altro, dai punti massimi del brano (primo giro) ai minimi (ultimo giro), in base al giro in cui è stata fatta la prenotazione (`repetitionPoints`; una prenotazione in pausa conta per il giro appena finito). Se serve l'originale per capire, si guadagna poco.
 
 ### Più lento o più veloce
 

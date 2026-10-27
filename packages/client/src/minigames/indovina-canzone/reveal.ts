@@ -1,4 +1,4 @@
-import { type RatePlan, clarityAt, songMsAt } from "@gioco/shared";
+import { type RatePlan, clarityAt, repetitionClarity, songMsAt } from "@gioco/shared";
 
 // ---- «Svela gradualmente» per i camuffamenti ----
 //
@@ -16,6 +16,8 @@ const SCAN_SECONDS = 0.1;
 export interface RevealPlan {
   clipMs: number;
   clearAtPercent: number;
+  /** Ripetizioni sempre più nitide: ogni spezzone ha una nitidezza fissa (la prima volta la più offuscata, l'ultima l'originale). */
+  stepped?: boolean;
 }
 
 /** Il tempo ascoltato (ms) a cui il brano è arrivato al punto `songMs` dall'inizio dell'ascolto: l'inverso di `songMsAt`, che non scende mai. */
@@ -55,13 +57,15 @@ export interface SnippetReveal {
 export function snippetReveals(loop: { snippetsMs: readonly number[]; pauseMs: number }, startSeconds: number, plan: RevealPlan): SnippetReveal[] {
   let heardMs = 0;
   let offsetSeconds = 0;
-  return loop.snippetsMs.map((durationMs) => {
+  return loop.snippetsMs.map((durationMs, index, all) => {
     const heardStartMs = heardMs;
     const out: SnippetReveal = {
       fromSeconds: startSeconds,
       lengthSeconds: durationMs / 1000,
       offsetSeconds,
-      clarity: (songSeconds) => clarityAt(heardStartMs + Math.max(0, songSeconds - startSeconds) * 1000, plan.clipMs, plan.clearAtPercent),
+      clarity: plan.stepped
+        ? () => repetitionClarity(index, all.length)
+        : (songSeconds) => clarityAt(heardStartMs + Math.max(0, songSeconds - startSeconds) * 1000, plan.clipMs, plan.clearAtPercent),
     };
     heardMs += durationMs + loop.pauseMs;
     offsetSeconds += durationMs / 1000;

@@ -23,6 +23,8 @@ interface Music {
   mode: PlaybackMode;
   /** Ascolto a spezzoni crescenti; assente negli altri. */
   loop: LoopPlan | null;
+  /** Ripetizioni sempre più nitide: ogni giro dello spezzone attenua gli effetti, l'ultimo è l'originale. */
+  stepped: boolean;
   /** Brano più lento o più veloce, con l'eventuale ritorno alla velocità normale; assente negli altri. */
   rate: RatePlan | null;
   keepPitch: boolean;
@@ -90,27 +92,29 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const keepPitch = music?.keepPitch ?? true;
   const startSeconds = music?.startSeconds ?? 0;
   // I piani sono oggetti nuovi a ogni vista: si confrontano per contenuto, altrimenti la musica ripartirebbe a ogni aggiornamento.
-  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? []]);
+  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? [], music?.stepped ?? false]);
   const { plan, effects } = useMemo(() => {
-    const [loop, rate, stages, effects] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null, EffectSetting[]];
-    return { plan: { loop, rate, stages }, effects };
+    const [loop, rate, stages, effects, stepped] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null, EffectSetting[], boolean];
+    return { plan: { loop, rate, stages, stepped }, effects };
   }, [planKey]);
 
   const clipMs = music?.clipMs ?? 0;
-  const clearAtPercent = music?.clearAtPercent ?? null;
+  const stepped = plan.stepped;
+  // Con le ripetizioni la nitidezza segue i giri, non il tempo: serve comunque un piano di svelamento (per i camuffamenti).
+  const clearAtPercent = stepped ? 100 : (music?.clearAtPercent ?? null);
 
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
     else if (file) {
-      const reveal = clearAtPercent === null ? undefined : { clipMs, clearAtPercent };
+      const reveal = clearAtPercent === null ? undefined : { clipMs, clearAtPercent, stepped };
       backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds, reveal });
     } else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effects, plan, keepPitch, startSeconds, clipMs, clearAtPercent, host]);
+  }, [file, video, effects, plan, keepPitch, startSeconds, clipMs, clearAtPercent, stepped, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;

@@ -34,6 +34,8 @@ export function listeningFromForm(song: Record<string, unknown>, round: Record<s
     clipSeconds: num(song.clipSeconds),
     loopSeconds: nums(song.loopSeconds),
     loopPauseSeconds: num(song.loopPauseSeconds),
+    repeatSeconds: num(song.repeatSeconds),
+    repeatCount: num(song.repeatCount),
     speed: num(song.speed),
     normalAfterSeconds: num(song.normalAfterSeconds),
     speedTransitionSeconds: num(song.speedTransitionSeconds),
@@ -52,6 +54,7 @@ export function listeningFromForm(song: Record<string, unknown>, round: Record<s
 const MODE_NAMES: Record<PlaybackMode, string> = {
   continuous: "continuo",
   loops: "a spezzoni crescenti",
+  repeat: "ripetizioni sempre più nitide",
   speed: "più lento o più veloce",
   speed_then_normal: "velocità diversa, poi normale",
   blur_stages: "molto ovattato, poi poco, poi normale",
@@ -200,7 +203,8 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
   const listening = useMemo(() => listeningFromForm(song, round), [JSON.stringify(song), JSON.stringify(round)]); // eslint-disable-line react-hooks/exhaustive-deps
   const startSeconds = num(song.startSeconds) ?? 0;
   const progressive = typeof song.progressive === "boolean" ? song.progressive : round.progressive === true;
-  const clearAtPercent = progressive && !listening.stages ? (num(song.clearAtPercent) ?? num(round.clearAtPercent) ?? 100) : null;
+  // Con le ripetizioni la nitidezza segue i giri: «Svela gradualmente» non serve.
+  const clearAtPercent = listening.stepped ? 100 : progressive && !listening.stages ? (num(song.clearAtPercent) ?? num(round.clearAtPercent) ?? 100) : null;
   const [playing, setPlaying] = useState(false);
   const [updating, setUpdating] = useState(false);
   // Ciò che suona adesso e, durante un cambio di effetti, il nuovo lettore che si sta preparando.
@@ -238,7 +242,7 @@ function ListenTrial({ file, effects, song, round }: { file: string; effects: Ef
       ctx: context(),
       startSeconds,
       ignoreMute: true,
-      reveal: clearAtPercent === null ? undefined : { clipMs: listening.clipMs, clearAtPercent },
+      reveal: clearAtPercent === null ? undefined : { clipMs: listening.clipMs, clearAtPercent, stepped: listening.stepped },
     });
 
   /**

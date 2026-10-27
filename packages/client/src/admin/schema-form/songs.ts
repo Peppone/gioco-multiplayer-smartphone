@@ -21,6 +21,7 @@ export const EFFECT_SHORT_NAMES: Record<EffectSetting["type"], string> = {
 export const MODE_NAMES: Record<PlaybackMode, string> = {
   continuous: "continuo",
   loops: "a spezzoni crescenti",
+  repeat: "ripetizioni sempre più nitide",
   speed: "più lento o più veloce",
   speed_then_normal: "velocità diversa, poi normale",
   blur_stages: "molto ovattato, poi poco, poi normale",
@@ -85,8 +86,10 @@ export function songSummary(song: Record<string, unknown>): string[] {
     const clip = num(song.clipSeconds);
     const loops = Array.isArray(song.loopSeconds) ? song.loopSeconds.filter((v): v is number => typeof v === "number") : [];
     const speed = num(song.speed);
-    const detail = mode === "loops" && loops.length > 0 ? ` (${loops.map((v) => v.toLocaleString("it-IT")).join(" · ")} s)` : (mode === "speed" || mode === "speed_then_normal") && speed ? ` (×${speed.toLocaleString("it-IT")})` : "";
-    out.push(`ascolto ${MODE_NAMES[mode]}${detail}${clip && mode !== "loops" ? `, ${seconds(clip)}` : ""}`);
+    const repeatCount = num(song.repeatCount);
+    const repeatSeconds = num(song.repeatSeconds);
+    const detail = mode === "repeat" && repeatCount && repeatSeconds ? ` (${repeatCount} × ${seconds(repeatSeconds)})` : mode === "loops" && loops.length > 0 ? ` (${loops.map((v) => v.toLocaleString("it-IT")).join(" · ")} s)` : (mode === "speed" || mode === "speed_then_normal") && speed ? ` (×${speed.toLocaleString("it-IT")})` : "";
+    out.push(`ascolto ${MODE_NAMES[mode]}${detail}${clip && mode !== "loops" && mode !== "repeat" ?`, ${seconds(clip)}` : ""}`);
   } else if (!mode && num(song.clipSeconds)) {
     out.push(`ascolto ${seconds(num(song.clipSeconds)!)}`);
   }
@@ -113,6 +116,8 @@ export function materializeListening(song: Record<string, unknown>, round: Recor
     const roundLoops = Array.isArray(round.loopSeconds) ? round.loopSeconds.filter((v): v is number => typeof v === "number") : [];
     const ownLoops = Array.isArray(song.loopSeconds) ? song.loopSeconds.filter((v): v is number => typeof v === "number") : [];
     if (ownLoops.length === 0) patch.loopSeconds = roundLoops.length > 0 ? roundLoops : ROUND_LISTEN_DEFAULTS.loopSeconds;
+    if (num(song.loopPauseSeconds) === undefined) patch.loopPauseSeconds = num(round.loopPauseSeconds) ?? ROUND_LISTEN_DEFAULTS.loopPauseSeconds;
+  } else if (mode === "repeat") {
     if (num(song.loopPauseSeconds) === undefined) patch.loopPauseSeconds = num(round.loopPauseSeconds) ?? ROUND_LISTEN_DEFAULTS.loopPauseSeconds;
   } else if (num(song.clipSeconds) === undefined) {
     patch.clipSeconds = num(round.clipSeconds) ?? ROUND_LISTEN_DEFAULTS.clipSeconds;

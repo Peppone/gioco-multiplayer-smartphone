@@ -9,6 +9,8 @@ import {
   loopPosition,
   loopTotalMs,
   rateAt,
+  repetitionClarity,
+  repetitionPoints,
   resolveListening,
   songMsAt,
   stageLevel,
@@ -45,6 +47,26 @@ describe("ascolto a spezzoni", () => {
 
   it("un tempo negativo vale come l'inizio", () => {
     expect(loopPosition(plan, -50)).toMatchObject({ index: 0, sounding: true, songMs: 0 });
+  });
+});
+
+describe("ripetizioni sempre più nitide", () => {
+  const l = resolveListening({}, { playback: "repeat", repeatSeconds: 4, repeatCount: 3, loopPauseSeconds: 1 });
+
+  it("ripete lo stesso spezzone, con la pausa dopo ciascuno", () => {
+    expect(l).toMatchObject({ mode: "repeat", stepped: true, loop: { snippetsMs: [4_000, 4_000, 4_000], pauseMs: 1_000 }, clipMs: 15_000 });
+    expect(resolveListening({}, { playback: "loops" }).stepped).toBe(false);
+  });
+
+  it("la nitidezza sale a gradini uguali e l'ultimo giro è l'originale", () => {
+    expect([0, 1, 2].map((i) => repetitionClarity(i, 3))).toEqual([0, 0.5, 1]);
+    expect(repetitionClarity(0, 1)).toBe(1);
+    expect(repetitionClarity(9, 3)).toBe(1);
+  });
+
+  it("i punti scendono a ogni giro, da massimi a minimi", () => {
+    expect([0, 1, 2, 3, 4].map((i) => repetitionPoints(20, 100, i, 5))).toEqual([100, 80, 60, 40, 20]);
+    expect(repetitionPoints(20, 100, 0, 1)).toBe(100);
   });
 });
 
