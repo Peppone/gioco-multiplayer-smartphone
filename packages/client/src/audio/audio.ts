@@ -31,6 +31,10 @@ class AudioManager {
 
   constructor() {
     Howler.mute(this.muted);
+    // Howler, al primo suono creato, se il contesto audio non è a 44100 Hz (quasi tutti i PC: 48000) lo chiude e ne apre uno
+    // nuovo. Se succede dopo che il quiz musicale si è legato al vecchio contesto, la musica si blocca alla prima pausa:
+    // meglio che avvenga qui, prima che qualcuno lo usi.
+    new Howl({ src: ["/sounds/gameshow/tick.wav"], preload: false }).unload();
   }
 
   isMuted(): boolean {
