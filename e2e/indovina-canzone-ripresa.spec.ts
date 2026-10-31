@@ -57,3 +57,40 @@ for (const [mode, extra] of Object.entries(MODES)) test(`indovina la canzone (${
   expect(later?.muted).toBe(false);
   expect(later?.error).toBeNull();
 });
+
+test("indovina la canzone: con la riprenotazione chi sbaglia vede il conto alla rovescia e poi può prenotarsi di nuovo", async ({ newGame, request }) => {
+  const song = await uploadTone(request, "riprenota.wav", stereoTone(440, 440, 30));
+  const g = await newGame([
+    {
+      typeId: "indovina-canzone",
+      title: "Riprenotazione e2e",
+      config: { songs: [{ audio: song, answer: SECRET }], clipSeconds: 30, rebuzz: true, rebuzzCooldownSeconds: 4 },
+    },
+  ]);
+  const { screen, admin, a, b } = g;
+  await admin.page.getByRole("button", { name: /Avvia round 1/ }).click();
+  await admin.page.getByRole("button", { name: "Fai partire la musica" }).click();
+  await expect(a.page.getByRole("button", { name: "LO SO!" })).toBeEnabled();
+
+  await a.page.getByRole("button", { name: "LO SO!" }).click();
+  await expect(screen.page.getByText(/risponde!/)).toBeVisible();
+  await expect(a.page.getByTestId("rebuzz-wait")).toHaveCount(0);
+  await admin.page.getByRole("button", { name: "Risposta sbagliata" }).click();
+
+  // Solo chi ha sbagliato vede l'attesa; il pulsante è spento finché non finisce.
+  await expect(a.page.getByTestId("rebuzz-wait")).toBeVisible();
+  await expect(b.page.getByTestId("rebuzz-wait")).toHaveCount(0);
+  await admin.page.getByRole("button", { name: "Riprendi la musica" }).click();
+  await expect(screen.page.getByText(/PRENOTATEVI/)).toBeVisible();
+  await expect(a.page.getByRole("button", { name: "Hai sbagliato…" })).toBeDisabled();
+  await expect(b.page.getByRole("button", { name: "LO SO!" })).toBeEnabled();
+
+  // Finita l'attesa il pulsante torna attivo e la prenotazione vale.
+  await expect(a.page.getByRole("button", { name: "LO SO!" })).toBeEnabled({ timeout: 8_000 });
+  await expect(a.page.getByTestId("rebuzz-wait")).toHaveCount(0);
+  await a.page.getByRole("button", { name: "LO SO!" }).click();
+  await expect(a.page.getByText("Tocca a te: rispondi a voce!")).toBeVisible();
+
+  await admin.page.getByRole("button", { name: "Risposta corretta" }).click();
+  await admin.page.getByRole("button", { name: "Concludi" }).click();
+});

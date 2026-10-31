@@ -131,6 +131,7 @@ Il tempo che conta è quello **ascoltato**: se la musica si ferma (prenotazione,
 - L'ascolto dura la somma di spezzoni e pause (compresa l'ultima pausa, per rispondere): **«Durata dell'ascolto» non vale più**.
 - Ci si può prenotare **anche durante le pause**. Il tempo ascoltato è quello trascorso, pause comprese, quindi anche i punti scendono lungo tutta la durata.
 - Dopo una risposta sbagliata la musica riprende dal punto in cui si era fermata.
+- **Riprenotazione** (facoltativa, per istanza: «Chi sbaglia può prenotarsi di nuovo per lo stesso brano» + «Attesa prima di riprenotarsi»): chi la regia segna sbagliata esce dall'elenco dei bloccati e ha un'attesa (`cooldowns` nello stato, ora server) durante la quale le sue prenotazioni sono ignorate, contando l'ora di arrivo sul server. L'attesa vale per il giocatore o, con «A chi vale l'attesa» = squadra (`rebuzzScope`), anche per i suoi compagni. Il telefono mostra il conto alla rovescia a chi aspetta (`cooldownUntil` nella sua vista, mai nello schermo né negli altri telefoni). Cambiando brano (`startSong`, `advance`) l'attesa si azzera. Test: `indovina-canzone.test.ts` ed `e2e/indovina-canzone-ripresa.spec.ts`.
 - Lo schermo mostra «Spezzone 2 di 5 (1 s)» e se sta suonando o è in pausa.
 - Con i file caricati lo schermo decodifica il brano in memoria e programma attacco e stacco di ogni spezzone **al campione**: anche uno spezzone da mezzo secondo dura mezzo secondo. L'ascolto parte 0,4 s dopo il comando della regia (`LOOP_LEAD_MS`), così con un po' di latenza il primo spezzone non è accorciato. Con **YouTube** gli spezzoni funzionano ma sono meno precisi (il lettore impiega qualche centinaio di millisecondi a partire e a fermarsi): per spezzoni brevi usa i file.
 - Si combina con gli effetti e con «Svela gradualmente» (il suono si schiarisce lungo tutto l'ascolto).
@@ -150,13 +151,13 @@ Le funzioni sono pure e testate (`packages/client/src/admin/schema-form/categori
 
 ## Round per categoria
 
-Tra i dati del quiz, **«Round per categoria»** è un elenco di round (fino a 30). Ogni round suona **i brani di una sola categoria**; quando finiscono i suoi brani si passa al round successivo. Per ogni round si decide:
+Tra i dati del quiz, **«Round per categoria»** è un elenco di round (fino a 100). Ogni round suona **i brani di una sola categoria**; quando finiscono i suoi brani si passa al round successivo. Per ogni round si decide:
 
 - **Chi decide la categoria**:
   - **Le squadre a rotazione** (predefinito): prima del round tocca al **capitano** della squadra di turno, che sceglie per tutti dal telefono tra le categorie con brani ancora da suonare. Le squadre si alternano in ordine di nome, un round ciascuna; scaduto **«Tempo per scegliere»** la categoria è estratta a sorte (e il turno passa lo stesso). La regia può sempre scegliere al posto del capitano con i pulsanti *Scegli «…»*.
   - **La regia**: nessun capitano e nessun tempo; la scelta si fa con i pulsanti *Scegli «…»* del pannello. I telefoni mostrano «Sceglie la regia…». La scelta della regia non consuma il turno delle squadre.
   - **Fissa**: la categoria è scelta nel setup (da un menu con le categorie del quiz e il numero di brani) e il round parte da solo.
-- **Brani del round** (1–50). Se la categoria finisce prima, il round si chiude.
+- **Brani del round** (1–1000). Se la categoria finisce prima, il round si chiude.
 
 Regole:
 
@@ -166,6 +167,15 @@ Regole:
 4. Lo schermo mostra «Round 2 di 4 · brano 1 di 3» e la categoria; il pannello della regia ha la stessa riga. Mentre si sceglie, **nessuna vista mostra file, titoli o risposte**, e solo il capitano di turno riceve l'elenco delle categorie (il test anti-leak lo verifica).
 5. **Controlli al salvataggio**: un round con la categoria fissa deve avere una categoria, con dei brani; sommando i round che ripetono la categoria non si possono chiedere più brani di quanti ce ne sono. I round con la categoria da scegliere non hanno vincoli.
 6. **Senza round** il quiz funziona come prima (brani in ordine, oppure «I capisquadra scelgono la categoria del prossimo brano»). Con dei round quell'opzione non vale.
+
+## Più brani, ordine, ripetizioni e round al volo
+
+- **Fino a 1000 brani** per quiz (e fino a 100 round).
+- **Esportare e importare i brani** (sotto l'elenco): «Esporta i brani (JSON)» salva tutti i brani con effetti, camuffamenti, ascolto, punti e categorie; «Importa brani da file» e «Aggiungi i brani di un'altra istanza…» li **uniscono** a quelli già presenti (in fondo all'elenco, senza toccare i tuoi). Si saltano i doppioni (stesso file o video e stesso titolo) e si rispetta il massimo; le categorie nuove entrano nel catalogo. Si salva poi come ogni modifica. I file audio non viaggiano nel JSON: restano nella libreria del server, quindi l'importazione vale tra istanze dello stesso server. Funzioni pure in `schema-form/songTransfer.ts`.
+- **Ordine dei brani** (`songOrder`): *Automatico* (in ordine senza categorie; a caso quando si sceglie la categoria o ci sono i round, come prima), *In ordine, come nell'elenco* (anche dentro le categorie) oppure *A caso* (con il seme della partita: ripetibile, nessun brano due volte).
+- **Round tutti uguali**: «Numero di round» (`roundCount`) e «Brani per round» (`roundSongs`) fissano il quiz senza elencare i round a mano (chi li elenca li mantiene); chi sceglie la categoria è `roundSelection` (squadre o regia).
+- **Ripeti il brano**: nel pannello della regia, mentre la musica suona, durante la risposta o la pausa, **oppure dopo la chiusura del brano e prima del prossimo**, «Ripeti il brano» lo fa ripartire dall'inizio come un nuovo tentativo: prenotazioni azzerate e, se era già stato assegnato, i punti del vincitore ritirati (le penalità per le risposte sbagliate restano).
+- **Aggiungi un round** (solo con i round): a brano chiuso, anche dopo l'ultimo round, la regia aggiunge un round uguale all'ultimo (se questo aveva la categoria fissa, la scelgono come da impostazione) finché restano brani da suonare; poi «Prossimo brano» continua. Il quiz non si chiude da solo prima che la regia abbia premuto «Concludi».
 
 ## Categorie scelte dai capisquadra (un brano per volta, senza round)
 

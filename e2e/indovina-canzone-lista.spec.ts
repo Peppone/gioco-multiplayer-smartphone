@@ -463,3 +463,29 @@ plain("lista dei brani: più zone per lo stesso effetto, ognuna con la sua posiz
   await closeAdvanced(page);
   await expect(page.getByRole("list", { name: "Impostazioni del brano 1" })).toContainText("Silenzio 100% (2–4 s) + Silenzio 100% (8–12 s) + Silenzio 100% (4–8 s)");
 });
+
+plain("lista dei brani: esporta e importa i brani con unione, senza doppioni", async ({ browser, request }) => {
+  const { page } = await newEditor(browser, request);
+  await addSongFiles(page, [wav("a.wav"), wav("b.wav")]);
+  await expect(page.locator(".song-row")).toHaveCount(2);
+
+  // Esportazione: il file contiene i due brani.
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Esporta i brani (JSON)" }).click();
+  const file = await download;
+  const bundle = JSON.parse(await (await import("node:fs/promises")).readFile(await file.path(), "utf8"));
+  expect(bundle.songs).toHaveLength(2);
+
+  // Importando lo stesso file nulla si duplica; con un brano in più viene aggiunto in fondo.
+  bundle.songs.push({ ...bundle.songs[0], answer: "Terzo", audio: bundle.songs[1].audio });
+  bundle.categories = ["Importata"];
+  const buffer = Buffer.from(JSON.stringify(bundle));
+  await page.getByLabel("Importa brani da file").setInputFiles({ name: "brani.json", mimeType: "application/json", buffer });
+  await expect(page.getByTestId("song-import-notice")).toContainText("Importati 1 brani");
+  await expect(page.getByTestId("song-import-notice")).toContainText("2 già presenti");
+  await expect(page.locator(".song-row")).toHaveCount(3);
+
+  // Un file che non è un elenco di brani è rifiutato con un messaggio.
+  await page.getByLabel("Importa brani da file").setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from("{}") });
+  await expect(page.getByRole("alert").filter({ hasText: "non contiene brani" })).toBeVisible();
+});

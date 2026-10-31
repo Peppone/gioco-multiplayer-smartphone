@@ -2,7 +2,7 @@ import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { type BlurStagesPlan, type EffectSetting, type ClockSync, type LoopPlan, type LoopPosition, type PlaybackMode, type RatePlan } from "@gioco/shared";
 import { useAudioState, useSfx } from "../../audio/useAudio";
 import { Sfx } from "../../ui/Sfx";
-import { Countdown } from "../Countdown";
+import { Countdown, useServerNow } from "../Countdown";
 import { type MusicBackend, fileBackendFor, youtubeBackend } from "./backends";
 import { holdListening, startListening } from "./listening";
 import type { ControllerProps, ViewProps } from "../types";
@@ -66,6 +66,11 @@ interface PlayerView {
   phase: ScreenView["phase"];
   canBuzz: boolean;
   buzzed: boolean;
+  /** Solo dopo una risposta sbagliata con la riprenotazione: ora server da cui ci si può prenotare di nuovo, e durata dell'attesa. */
+  cooldownUntil?: number | null;
+  cooldownMs?: number;
+  /** L'attesa vale per tutta la squadra. */
+  cooldownTeam?: boolean;
   isAnswering: boolean;
   position: number | null;
   won: boolean;
@@ -260,6 +265,7 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
   const answering = v.phase !== "done" && v.isAnswering;
   const wasAnswering = useRef(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const nowMs = useServerNow(clock, 100);
 
   useEffect(() => {
     if (answering && !wasAnswering.current) sfx("start");
@@ -308,11 +314,16 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
     );
   }
 
+  // Dopo una risposta sbagliata (con la riprenotazione) il pulsante resta spento fino alla fine dell'attesa.
+  const cooldownUntil = v.cooldownUntil ?? null;
+  const cooling = cooldownUntil !== null && cooldownUntil > nowMs;
+  const canBuzz = v.canBuzz && !cooling;
+  const waitLabel = v.cooldownTeam ? "Squadra in attesa…" : "Hai sbagliato…";
   let label = "Aspetta…";
   if (v.phase === "idle") label = "Ascolta lo schermo…";
-  if (v.phase === "playing" || v.phase === "collecting") label = v.buzzed ? "Prenotato!" : "LO SO!";
+  if (v.phase === "playing" || v.phase === "collecting") label = v.buzzed ? "Prenotato!" : cooling ? waitLabel : "LO SO!";
   if (v.phase === "answering") label = v.isAnswering ? "Tocca a te: rispondi a voce!" : v.buzzed ? `Sei in coda (${v.position})` : "Aspetta…";
-  if (v.phase === "paused") label = "La musica riparte…";
+  if (v.phase === "paused") label = cooling ? waitLabel : "La musica riparte…";
   if (v.phase === "resolved") label = v.won ? "Hai indovinato! 🎉" : "Brano chiuso";
 
   return (
@@ -321,10 +332,10 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
       {v.category && <p className="muted">Categoria: <b>{v.category}</b></p>}
       <button
         className={`buzz-btn ${v.isAnswering ? "answering" : ""}`}
-        disabled={!v.canBuzz}
+        disabled={!canBuzz}
         // pointerdown e non click: niente ritardo di 300 ms su mobile.
         onPointerDown={() => {
-          if (!v.canBuzz) return;
+          if (!canBuzz) return;
           send({ type: "buzz" });
           navigator.vibrate?.(30); // Android; iOS la ignora
           sfx("buzz", 0.5);
@@ -332,6 +343,12 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
       >
         {label}
       </button>
+      {cooling && cooldownUntil !== null && v.phase !== "resolved" && (
+        <div className="rebuzz-wait" data-testid="rebuzz-wait">
+          <p className="muted">Potrai prenotarti di nuovo tra:</p>
+          <Countdown openedAt={cooldownUntil - (v.cooldownMs ?? 0)} deadline={cooldownUntil} clock={clock} />
+        </div>
+      )}
     </div>
   );
 }
