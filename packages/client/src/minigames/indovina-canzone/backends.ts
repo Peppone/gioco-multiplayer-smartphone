@@ -2,7 +2,8 @@ import { Howl, Howler } from "howler";
 import type { EffectSetting, Listening } from "@gioco/shared";
 import { audio } from "../../audio/audio";
 import { connectEffects } from "./effects";
-import { type PreparedFile, prepareFile, splitChain } from "./prepare";
+import { PREPARE_MAX_SECONDS, type PreparedFile, prepareFile, splitChain } from "./prepare";
+import { type RevealPlan, revealClarity, snippetReveals } from "./reveal";
 
 /** Opzioni dei lettori che passano da Web Audio. */
 export interface WebAudioOptions {
@@ -19,6 +20,8 @@ export interface WebAudioOptions {
   ignoreMute?: boolean;
   /** Da dove parte il brano (s): serve a decidere quanto file preparare quando ci sono dei camuffamenti. */
   startSeconds?: number;
+  /** Con «Svela gradualmente»: i camuffamenti si schiariscono nel file preparato (ascolto continuo o a spezzoni; vedi reveal.ts). */
+  reveal?: RevealPlan;
 }
 
 /** Un lettore di musica, indipendente dalla sorgente (file del server o video YouTube nascosto). */
@@ -27,12 +30,13 @@ export interface MusicBackend {
   whenReady(cb: () => void): () => void;
   /**
    * Fa suonare dal secondo indicato. Con `maxMs` il lettore si ferma da solo dopo quel tempo, con precisione al campione
-   * se la sorgente lo permette (gli spezzoni da mezzo secondo non possono dipendere dai timer della pagina).
+   * se la sorgente lo permette (gli spezzoni da mezzo secondo non possono dipendere dai timer della pagina). Negli ascolti
+   * a spezzoni `snippet` dice quale (da 0): con «Svela gradualmente» e dei camuffamenti ognuno ha la sua versione del file.
    */
-  playAt(seconds: number, maxMs?: number): void;
+  playAt(seconds: number, maxMs?: number, snippet?: number): void;
   pause(): void;
   /** Da fermo si prepara al secondo indicato, così il prossimo `playAt` parte senza ritardo (negli ascolti a spezzoni). */
-  cue(seconds: number): void;
+  cue(seconds: number, snippet?: number): void;
   /**
    * Solo con degli effetti: porta la nitidezza da `from` a `to` (0 = effetti pieni, 1 = suono originale) in `durationMs`.
    * Senza effetti non c'è nulla da attenuare e non fa nulla.
@@ -203,9 +207,21 @@ function preparedFileBackend(file: string, effects: readonly EffectSetting[], li
   let ready = false;
   let disposed = false;
   const waiting = new Set<() => void>();
-  const shift = (seconds: number) => Math.max(0, seconds - (prepared?.offsetSeconds ?? 0));
+  const startSeconds = options.startSeconds ?? 0;
+  // Negli spezzoni con «Svela gradualmente» il file preparato è la successione delle versioni degli spezzoni (se non pesa troppo).
+  const snippets =
+    options.reveal && listening.loop && listening.loop.snippetsMs.reduce((a, b) => a + b, 0) / 1000 <= PREPARE_MAX_SECONDS
+      ? snippetReveals(listening.loop, startSeconds, options.reveal)
+      : undefined;
+  const shift = (seconds: number, snippet?: number) => {
+    const offsets = prepared?.snippetOffsets;
+    // Lo spezzone `snippet` comincia a `offsets[snippet]` nel file preparato; `seconds` conta dal punto di partenza del brano.
+    if (offsets && snippet !== undefined && offsets[snippet] !== undefined) return offsets[snippet]! + Math.max(0, seconds - startSeconds);
+    return Math.max(0, seconds - (prepared?.offsetSeconds ?? 0));
+  };
 
-  prepareFile(file, pre, { startSeconds: options.startSeconds, signal: abort.signal }).then(
+  const reveal = options.reveal && !listening.loop ? revealClarity(options.reveal, listening.rate, startSeconds) : undefined;
+  prepareFile(file, pre, { startSeconds: options.startSeconds, signal: abort.signal, reveal, snippets }).then(
     (done) => {
       if (disposed) return done.dispose();
       prepared = done;
@@ -230,9 +246,9 @@ function preparedFileBackend(file: string, effects: readonly EffectSetting[], li
       return () => void waiting.delete(cb);
     },
     // Il file preparato comincia da «Parti da»: i punti del brano originale si spostano indietro di tanto.
-    playAt: (seconds, maxMs) => inner?.playAt(shift(seconds), maxMs),
+    playAt: (seconds, maxMs, snippet) => inner?.playAt(shift(seconds, snippet), maxMs),
     pause: () => inner?.pause(),
-    cue: (seconds) => inner?.cue(shift(seconds)),
+    cue: (seconds, snippet) => inner?.cue(shift(seconds, snippet)),
     setClarity: (from, to, durationMs) => inner?.setClarity(from, to, durationMs),
     setCutoffCurve: (hz, stepMs) => inner?.setCutoffCurve(hz, stepMs),
     setRate: (rate) => inner?.setRate(rate),

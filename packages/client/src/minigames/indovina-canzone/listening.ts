@@ -1,4 +1,4 @@
-import { type Listening, type LoopPosition, type BlurStagesPlan, clarityAt, loopPosition, rateAt, songMsAt, stageLevel, stagesEndMs } from "@gioco/shared";
+import { type Listening, type LoopPosition, type BlurStagesPlan, clarityAt, loopPosition, rateAt, repetitionClarity, songMsAt, stageLevel, stagesEndMs } from "@gioco/shared";
 import type { MusicBackend } from "./backends";
 import { cutoffForStage } from "./effects";
 
@@ -19,7 +19,7 @@ export function stagesCurve(plan: BlurStagesPlan, heardMs: number, stepMs = CURV
 
 /** Cosa fa suonare e come, dal punto di vista di un lettore: tutto in funzione del tempo ascoltato. */
 export interface ListeningRun {
-  listening: Pick<Listening, "loop" | "rate" | "stages">;
+  listening: Pick<Listening, "loop" | "rate" | "stages"> & { stepped?: boolean };
   /** Punto del brano da cui parte l'ascolto (secondi). */
   startSeconds: number;
   /** Tempo ascoltato (ms) alla partenza (o ripartenza) e ora, nella scala di `now`, in cui l'ascolto (ri)parte. */
@@ -36,8 +36,12 @@ export interface ListeningRun {
   onLoop?: (position: LoopPosition | null) => void;
 }
 
-const clarityOf = (run: Pick<ListeningRun, "clearAtPercent" | "clipMs">, heardMs: number) =>
-  run.clearAtPercent === null ? 0 : clarityAt(heardMs, run.clipMs, run.clearAtPercent);
+const clarityOf = (run: Pick<ListeningRun, "clearAtPercent" | "clipMs" | "listening">, heardMs: number) => {
+  const { loop, stepped } = run.listening;
+  // Ripetizioni: la nitidezza è quella del giro (durante la pausa resta quella del giro appena finito).
+  if (stepped && loop) return repetitionClarity(loopPosition(loop, heardMs).index, loop.snippetsMs.length);
+  return run.clearAtPercent === null ? 0 : clarityAt(heardMs, run.clipMs, run.clearAtPercent);
+};
 
 /** La musica è ferma: il suono resta com'era al momento dello stop (nitidezza e frequenza del filtro). */
 export function holdListening(b: MusicBackend, run: Pick<ListeningRun, "listening" | "offsetMs" | "clipMs" | "clearAtPercent" | "onLoop">): void {
@@ -76,10 +80,15 @@ export function startListening(b: MusicBackend, run: ListeningRun): () => void {
       pos = loopPosition(loop, heard);
     }
     run.onLoop?.(pos);
-    if (pos.sounding) b.playAt(run.startSeconds + pos.songMs / 1000, pos.nextChangeMs! - heard);
+    // Ripetizioni sempre più nitide: a ogni giro gli effetti si attenuano di un gradino (fisso per tutto lo spezzone).
+    if (run.listening.stepped) {
+      const c = clarityOf(run, heard);
+      b.setClarity(c, c, 0);
+    }
+    if (pos.sounding) b.playAt(run.startSeconds + pos.songMs / 1000, pos.nextChangeMs! - heard, pos.index);
     else {
       b.pause();
-      b.cue(run.startSeconds); // il prossimo spezzone riparte dall'inizio senza ritardo
+      b.cue(run.startSeconds, pos.index + 1); // il prossimo spezzone riparte dall'inizio senza ritardo
     }
     if (pos.nextChangeMs !== null) timer = setTimeout(step, Math.max(1, run.segmentStart + pos.nextChangeMs - run.offsetMs - run.now()));
   };
@@ -93,7 +102,7 @@ export function startListening(b: MusicBackend, run: ListeningRun): () => void {
     }
     step();
     const heard = heardNow();
-    if (run.clearAtPercent !== null) b.setClarity(clarityOf(run, heard), 1, Math.max(0, (run.clipMs * run.clearAtPercent) / 100 - heard));
+    if (run.clearAtPercent !== null && !run.listening.stepped) b.setClarity(clarityOf(run, heard), 1, Math.max(0, (run.clipMs * run.clearAtPercent) / 100 - heard));
     if (stages) b.setCutoffCurve(stagesCurve(stages, heard), CURVE_STEP_MS);
     // Il passaggio alla velocità normale: si aggiorna la velocità a piccoli passi finché non è tornata normale.
     if (rate && rate.untilMs !== null && heard < rate.untilMs + rate.transitionMs) {

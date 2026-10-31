@@ -132,7 +132,7 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monos
 .song-list .song-chips li { font-size: .75rem; background: var(--panel-2); border-radius: 1rem; padding: .15rem .6rem; }
 .song-list .song-chips li.muted { background: transparent; padding-left: 0; }
 .song-list .song-row .tools { display: flex; gap: .25rem; flex-wrap: wrap; justify-content: flex-end; }
-.song-list .song-add { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.song-list .song-add, .song-list .song-transfer { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
 .song-list .file-btn.disabled { opacity: .5; cursor: default; }
 .song-list .song-links { display: grid; gap: .4rem; }
 .song-list .song-links textarea { width: 100%; box-sizing: border-box; font-family: inherit; }
@@ -148,9 +148,9 @@ textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace, monos
 .song-dialog .song-section { display: grid; gap: .6rem; border: 1px solid var(--panel-2); border-radius: .6rem; padding: .6rem .8rem; }
 .song-dialog .song-section h4 { margin: 0; }
 /* Bottoni larghi a sufficienza per un clic o un tocco sicuri */
-.song-list .song-row .tools button, .song-list .song-add button, .song-list .song-links button, .song-list .file-btn { min-height: 2.75rem; min-width: 3rem; padding: .5rem 1.1rem; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.song-list .song-row .tools button, .song-list .song-add button, .song-list .song-transfer button, .song-list .song-links button, .song-list .file-btn { min-height: 2.75rem; min-width: 3rem; padding: .5rem 1.1rem; font-size: 1rem; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
 .song-list .song-row .tools button[aria-label^="Avanzato"] { min-width: 8rem; padding: .5rem 1.5rem; font-weight: 600; }
-.song-list .song-add select { min-height: 2.75rem; }
+.song-list .song-add select, .song-list .song-transfer select { min-height: 2.75rem; }
 .song-dialog button, .song-dialog .tools button, .song-dialog .item-head button { min-height: 2.75rem; min-width: 3rem; padding: .5rem 1.1rem; font-size: 1rem; }
 .song-dialog-top > header button { min-width: 7rem; padding: .5rem 1.8rem; font-weight: 600; }
 .song-dialog .item-head .tools { gap: .5rem; }
@@ -389,3 +389,16 @@ fieldset.field legend { padding: 0 .4rem; font-weight: 600; }
 .test-phone { margin: 0; display: grid; gap: .3rem; }
 .test-phone figcaption { font-size: .85rem; border-bottom: 3px solid var(--panel-2); padding-bottom: .15rem; }
 .test-phones-bar h3 { margin: 0; }
+
+/* Forma d'onda con le zone degli effetti trascinabili (pannello «Avanzato» di un brano) */
+.waveform { display: grid; gap: .3rem; }
+.waveform-track { position: relative; width: 100%; color: var(--muted, #8a8aa0); background: #0f0f16; border-radius: .4rem; overflow: hidden; touch-action: none; user-select: none; }
+.waveform-track svg { display: block; }
+.waveform-zone { position: absolute; top: 0; bottom: 0; background: rgba(255, 190, 60, .25); border-left: 2px solid #ffbe3c; border-right: 2px solid #ffbe3c; }
+.waveform-grip { position: absolute; inset: 0 14px; cursor: grab; touch-action: none; }
+.waveform-handle { position: absolute; top: 0; bottom: 0; width: 24px; cursor: ew-resize; touch-action: none; }
+.waveform-handle.start { left: -12px; }
+.waveform-handle.end { right: -12px; }
+.waveform-handle:focus-visible, .waveform-grip:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.waveform-effects { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.waveform-effects li { display: flex; gap: .6rem; align-items: center; justify-content: space-between; flex-wrap: wrap; }

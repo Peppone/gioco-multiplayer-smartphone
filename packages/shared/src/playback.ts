@@ -41,7 +41,7 @@ export function loopPosition(plan: LoopPlan, elapsedMs: number): LoopPosition {
 // ---- Modalità di ascolto per brano ----
 
 /** Come si ascolta un brano. Si sceglie brano per brano; il round fornisce solo il predefinito (continuo o a spezzoni). */
-export const PLAYBACK_MODES = ["continuous", "loops", "speed", "speed_then_normal", "blur_stages"] as const;
+export const PLAYBACK_MODES = ["continuous", "loops", "repeat", "speed", "speed_then_normal", "blur_stages"] as const;
 export type PlaybackMode = (typeof PLAYBACK_MODES)[number];
 
 /** Velocità e transizione del brano, in funzione del tempo ascoltato. */
@@ -70,6 +70,8 @@ export interface Listening {
   /** Durata dell'ascolto (ms): tempo ascoltato, non posizione nel brano. */
   clipMs: number;
   loop: LoopPlan | null;
+  /** Ripetizioni sempre più nitide: ogni giro dello stesso spezzone ha una nitidezza fissa, l'ultimo è l'originale. */
+  stepped: boolean;
   rate: RatePlan | null;
   /** Con velocità diversa da 1: true = cambia solo il tempo, false = cambia anche l'intonazione (come un disco rallentato). */
   keepPitch: boolean;
@@ -90,6 +92,8 @@ export const LISTEN_DEFAULTS = {
   normalAfterSeconds: 8,
   speedTransitionSeconds: 2,
   keepPitch: true,
+  repeatSeconds: 6,
+  repeatCount: 5,
   stage1Seconds: 8,
   stage2Seconds: 8,
   stageTransitionSeconds: 3,
@@ -113,6 +117,9 @@ export interface SongListen {
   /** Vuoto o assente = gli spezzoni del round. */
   loopSeconds?: number[];
   loopPauseSeconds?: number;
+  /** Ripetizioni: durata dello spezzone e numero di giri (la pausa è `loopPauseSeconds`). */
+  repeatSeconds?: number;
+  repeatCount?: number;
   speed?: number;
   normalAfterSeconds?: number;
   speedTransitionSeconds?: number;
@@ -129,9 +136,15 @@ export function resolveListening(round: Partial<RoundListen>, song: SongListen =
   const base = { ...ROUND_LISTEN_DEFAULTS, ...round };
   const mode: PlaybackMode = song.playback && song.playback !== "inherit" ? song.playback : base.playback;
   const clipMs = toMs(song.clipSeconds ?? base.clipSeconds);
-  const none = { loop: null, rate: null, stages: null, keepPitch: true };
+  const none = { loop: null, stepped: false, rate: null, stages: null, keepPitch: true };
 
   switch (mode) {
+    case "repeat": {
+      const count = Math.max(1, Math.round(song.repeatCount ?? LISTEN_DEFAULTS.repeatCount));
+      const each = toMs(song.repeatSeconds ?? LISTEN_DEFAULTS.repeatSeconds);
+      const loop: LoopPlan = { snippetsMs: Array.from({ length: count }, () => each), pauseMs: toMs(song.loopPauseSeconds ?? base.loopPauseSeconds) };
+      return { ...none, mode, clipMs: loopTotalMs(loop), loop, stepped: true };
+    }
     case "loops": {
       const seconds = song.loopSeconds && song.loopSeconds.length > 0 ? song.loopSeconds : base.loopSeconds;
       const loop: LoopPlan = { snippetsMs: seconds.map(toMs), pauseMs: toMs(song.loopPauseSeconds ?? base.loopPauseSeconds) };
@@ -223,6 +236,19 @@ export function listeningSettledMs(l: Listening): number | null {
   if (l.rate) return rateSettledMs(l.rate);
   if (l.stages) return stagesEndMs(l.stages);
   return null;
+}
+
+/** Nitidezza del giro `index` (da 0) su `count`: il primo è il più offuscato, l'ultimo l'originale (1). Con un solo giro è l'originale. */
+export function repetitionClarity(index: number, count: number): number {
+  if (count <= 1) return 1;
+  return Math.min(1, Math.max(0, index / (count - 1)));
+}
+
+/** Punti di chi risponde durante il giro `index` (da 0) su `count`: da `max` al primo giro a `min` all'ultimo, a gradini uguali. */
+export function repetitionPoints(min: number, max: number, index: number, count: number): number {
+  if (count <= 1) return max;
+  const x = Math.min(1, Math.max(0, index / (count - 1)));
+  return Math.round(max - (max - min) * x);
 }
 
 /**

@@ -1,13 +1,30 @@
 import { EFFECT_SEED, type EffectSetting, effectZone, isBufferEffect, isPreparedEffect } from "@gioco/shared";
 import { connectEffects } from "./effects";
-import { disguiseChannels, inZone, limitChannels, pasteZone, zoneRange } from "./transforms";
+import { type SnippetReveal, revealRegions } from "./reveal";
+import { type Disguiser, disguiseInWorker, disguiseInline } from "./disguise-async";
+import { limitChannels, pasteZone, zoneRange } from "./transforms";
+
+/** Come `inZone` (transforms.ts), con una trasformazione asincrona (che può girare in un Worker). */
+async function inZoneAsync(
+  channels: Float32Array[],
+  sampleRate: number,
+  zone: { from: number; to: number } | null,
+  run: (part: Float32Array[]) => Promise<Float32Array[]>,
+): Promise<Float32Array[]> {
+  const range = zoneRange(zone, sampleRate, channels[0]?.length ?? 0);
+  if (!range) return channels;
+  if (!zone) return run(channels);
+  const [start, end] = range;
+  return pasteZone(channels, await run(channels.map((c) => c.slice(start, end))), start, sampleRate);
+}
 
 // ---- Preparazione del file: i camuffamenti rielaborano i campioni prima che il brano suoni ----
 //
 // Gli effetti «in tempo reale» (sfocato, telefono…) filtrano il suono mentre suona; i camuffamenti (al contrario a pezzi,
 // spettro capovolto, sillabe mescolate) no: servono i campioni. L'elenco degli effetti si applica comunque in serie, nel
 // suo ordine, quindi tutto ciò che sta fino all'ultimo camuffamento si prepara in anticipo (sul file decodificato) e il
-// resto resta in tempo reale, dove «Svela gradualmente» può ancora attenuarlo.
+// resto resta in tempo reale, dove «Svela gradualmente» lo attenua con la rampa del lettore. I camuffamenti si attenuano
+// invece nel file stesso (`reveal`, vedi reveal.ts), a tratti.
 
 /** Frequenza a cui si prepara il file (il browser ricampiona alla decodifica). */
 export const PREPARE_RATE = 44_100;
@@ -48,6 +65,8 @@ export async function renderChain(
   sampleRate: number,
   render: EffectRenderer,
   offsetSeconds = 0,
+  reveal?: (songSeconds: number) => number,
+  disguise: Disguiser = disguiseInline,
 ): Promise<Float32Array[]> {
   let current = channels;
   let run: EffectSetting[] = [];
@@ -64,7 +83,18 @@ export async function renderChain(
     if (isBufferEffect(effect.type)) {
       await flush();
       const { type } = effect;
-      current = inZone(current, sampleRate, local, (part) => disguiseChannels(type, part, sampleRate, effect.amount / 100, effect.seed ?? EFFECT_SEED.default));
+      const seed = effect.seed ?? EFFECT_SEED.default;
+      if (!reveal) {
+        current = await inZoneAsync(current, sampleRate, local, (part) => disguise(type, part, sampleRate, effect.amount / 100, seed));
+        continue;
+      }
+      // «Svela gradualmente»: ogni tratto del brano ha la quantità che gli spetta, dentro la zona dell'effetto (se c'è).
+      const [start, end] = range;
+      const regions = revealRegions(reveal, offsetSeconds + start / sampleRate, offsetSeconds + end / sampleRate);
+      for (const region of regions) {
+        const k = (effect.amount / 100) * (1 - region.clarity);
+        current = await inZoneAsync(current, sampleRate, { from: region.from - offsetSeconds, to: region.to - offsetSeconds }, (part) => disguise(type, part, sampleRate, k, seed));
+      }
     } else if (local) {
       await flush();
       const [start, end] = range;
@@ -128,21 +158,61 @@ export interface PreparedFile {
   url: string;
   /** Il file preparato comincia a questo secondo del brano originale: i punti da cui far suonare vanno spostati indietro di tanto. */
   offsetSeconds: number;
+  /** Solo negli ascolti a spezzoni con «Svela gradualmente»: dove comincia ogni spezzone nel file preparato (s). */
+  snippetOffsets?: number[];
   dispose(): void;
 }
 
 /**
- * Scarica il file, lo decodifica, applica `pre` e lo restituisce come WAV in memoria. Se `signal` si ferma prima della
- * fine non restituisce nulla (rifiuta con `AbortError`).
+ * Una versione preparata per ogni spezzone, una dopo l'altra in un file solo: ognuno parte dal suo punto del brano, con la
+ * nitidezza del suo momento (`SnippetReveal.clarity`). Uno spezzone più lungo di quanto resta del brano si chiude col silenzio,
+ * così gli spostamenti (`offsetSeconds`) restano quelli del piano.
  */
-export async function prepareFile(file: string, pre: readonly EffectSetting[], options: { startSeconds?: number; signal?: AbortSignal } = {}): Promise<PreparedFile> {
+export async function renderSnippets(
+  pre: readonly EffectSetting[],
+  channels: Float32Array[],
+  sampleRate: number,
+  snippets: readonly SnippetReveal[],
+  render: EffectRenderer,
+  disguise: Disguiser = disguiseInline,
+): Promise<Float32Array[]> {
+  const lengths = snippets.map((s) => Math.round(s.lengthSeconds * sampleRate));
+  const out = channels.map(() => new Float32Array(lengths.reduce((a, b) => a + b, 0)));
+  let at = 0;
+  for (const [i, snippet] of snippets.entries()) {
+    const from = Math.min(channels[0]?.length ?? 0, Math.round(snippet.fromSeconds * sampleRate));
+    const slice = channels.map((c) => c.slice(from, from + lengths[i]!));
+    const done = await renderChain(pre, slice, sampleRate, render, snippet.fromSeconds, snippet.clarity, disguise);
+    done.forEach((c, k) => out[k]!.set(c.subarray(0, lengths[i]!), at));
+    at += lengths[i]!;
+  }
+  return out;
+}
+
+/**
+ * Scarica il file, lo decodifica, applica `pre` e lo restituisce come WAV in memoria. Se `signal` si ferma prima della
+ * fine non restituisce nulla (rifiuta con `AbortError`). Con `snippets` (ascolto a spezzoni) il file preparato è la
+ * successione delle versioni degli spezzoni.
+ */
+export async function prepareFile(
+  file: string,
+  pre: readonly EffectSetting[],
+  options: { startSeconds?: number; signal?: AbortSignal; reveal?: (songSeconds: number) => number; snippets?: readonly SnippetReveal[] } = {},
+): Promise<PreparedFile> {
   const { signal } = options;
   const response = await fetch(`/media/${file}`, { signal });
   const data = await response.arrayBuffer();
   const decoded = await new OfflineAudioContext(1, 1, PREPARE_RATE).decodeAudioData(data);
+  if (options.snippets) {
+    const all = Array.from({ length: Math.min(2, decoded.numberOfChannels) }, (_, c) => decoded.getChannelData(c));
+    const out = await renderSnippets(pre, all, PREPARE_RATE, options.snippets, renderEffectsOffline, disguiseInWorker);
+    signal?.throwIfAborted();
+    const url = URL.createObjectURL(encodeWav(out, PREPARE_RATE));
+    return { url, offsetSeconds: 0, snippetOffsets: options.snippets.map((s) => s.offsetSeconds), dispose: () => URL.revokeObjectURL(url) };
+  }
   const { from, to, offsetSeconds } = prepareWindow(options.startSeconds ?? 0, decoded.length, PREPARE_RATE);
   const channels = Array.from({ length: Math.min(2, decoded.numberOfChannels) }, (_, c) => decoded.getChannelData(c).slice(from, to));
-  const out = await renderChain(pre, channels, PREPARE_RATE, renderEffectsOffline, offsetSeconds);
+  const out = await renderChain(pre, channels, PREPARE_RATE, renderEffectsOffline, offsetSeconds, options.reveal, disguiseInWorker);
   signal?.throwIfAborted();
   const url = URL.createObjectURL(encodeWav(out, PREPARE_RATE));
   return { url, offsetSeconds, dispose: () => URL.revokeObjectURL(url) };

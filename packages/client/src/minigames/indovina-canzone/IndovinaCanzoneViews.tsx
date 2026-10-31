@@ -2,7 +2,7 @@ import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { type BlurStagesPlan, type EffectSetting, type ClockSync, type LoopPlan, type LoopPosition, type PlaybackMode, type RatePlan } from "@gioco/shared";
 import { useAudioState, useSfx } from "../../audio/useAudio";
 import { Sfx } from "../../ui/Sfx";
-import { Countdown } from "../Countdown";
+import { Countdown, useServerNow } from "../Countdown";
 import { type MusicBackend, fileBackendFor, youtubeBackend } from "./backends";
 import { holdListening, startListening } from "./listening";
 import type { ControllerProps, ViewProps } from "../types";
@@ -23,6 +23,8 @@ interface Music {
   mode: PlaybackMode;
   /** Ascolto a spezzoni crescenti; assente negli altri. */
   loop: LoopPlan | null;
+  /** Ripetizioni sempre più nitide: ogni giro dello spezzone attenua gli effetti, l'ultimo è l'originale. */
+  stepped: boolean;
   /** Brano più lento o più veloce, con l'eventuale ritorno alla velocità normale; assente negli altri. */
   rate: RatePlan | null;
   keepPitch: boolean;
@@ -64,6 +66,11 @@ interface PlayerView {
   phase: ScreenView["phase"];
   canBuzz: boolean;
   buzzed: boolean;
+  /** Solo dopo una risposta sbagliata con la riprenotazione: ora server da cui ci si può prenotare di nuovo, e durata dell'attesa. */
+  cooldownUntil?: number | null;
+  cooldownMs?: number;
+  /** L'attesa vale per tutta la squadra. */
+  cooldownTeam?: boolean;
   isAnswering: boolean;
   position: number | null;
   won: boolean;
@@ -90,29 +97,34 @@ function useMusic(music: Music | null | undefined, clock: ClockSync, host: RefOb
   const keepPitch = music?.keepPitch ?? true;
   const startSeconds = music?.startSeconds ?? 0;
   // I piani sono oggetti nuovi a ogni vista: si confrontano per contenuto, altrimenti la musica ripartirebbe a ogni aggiornamento.
-  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? []]);
+  const planKey = JSON.stringify([music?.loop ?? null, music?.rate ?? null, music?.stages ?? null, music?.effects ?? [], music?.stepped ?? false]);
   const { plan, effects } = useMemo(() => {
-    const [loop, rate, stages, effects] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null, EffectSetting[]];
-    return { plan: { loop, rate, stages }, effects };
+    const [loop, rate, stages, effects, stepped] = JSON.parse(planKey) as [LoopPlan | null, RatePlan | null, BlurStagesPlan | null, EffectSetting[], boolean];
+    return { plan: { loop, rate, stages, stepped }, effects };
   }, [planKey]);
+
+  const clipMs = music?.clipMs ?? 0;
+  const stepped = plan.stepped;
+  // Con le ripetizioni la nitidezza segue i giri, non il tempo: serve comunque un piano di svelamento (per i camuffamenti).
+  const clearAtPercent = stepped ? 100 : (music?.clearAtPercent ?? null);
 
   // Il brano si carica appena il round passa a questo pezzo, così la musica parte senza attese.
   useEffect(() => {
     if (video && host.current) backend.current = youtubeBackend(video, host.current);
-    else if (file) backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds });
-    else return;
+    else if (file) {
+      const reveal = clearAtPercent === null ? undefined : { clipMs, clearAtPercent, stepped };
+      backend.current = fileBackendFor(file, effects, { ...plan, keepPitch }, { startSeconds, reveal });
+    } else return;
     return () => {
       backend.current?.dispose();
       backend.current = null;
     };
-  }, [file, video, effects, plan, keepPitch, startSeconds, host]);
+  }, [file, video, effects, plan, keepPitch, startSeconds, clipMs, clearAtPercent, stepped, host]);
 
   const playing = music?.playing ?? false;
   const segmentStart = music?.segmentStart ?? 0;
   const offsetMs = music?.offsetMs ?? 0;
   const stopAt = music?.stopAt ?? null;
-  const clipMs = music?.clipMs ?? 0;
-  const clearAtPercent = music?.clearAtPercent ?? null;
 
   useEffect(() => {
     const b = backend.current;
@@ -253,6 +265,7 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
   const answering = v.phase !== "done" && v.isAnswering;
   const wasAnswering = useRef(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const nowMs = useServerNow(clock, 100);
 
   useEffect(() => {
     if (answering && !wasAnswering.current) sfx("start");
@@ -301,11 +314,16 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
     );
   }
 
+  // Dopo una risposta sbagliata (con la riprenotazione) il pulsante resta spento fino alla fine dell'attesa.
+  const cooldownUntil = v.cooldownUntil ?? null;
+  const cooling = cooldownUntil !== null && cooldownUntil > nowMs;
+  const canBuzz = v.canBuzz && !cooling;
+  const waitLabel = v.cooldownTeam ? "Squadra in attesa…" : "Hai sbagliato…";
   let label = "Aspetta…";
   if (v.phase === "idle") label = "Ascolta lo schermo…";
-  if (v.phase === "playing" || v.phase === "collecting") label = v.buzzed ? "Prenotato!" : "LO SO!";
+  if (v.phase === "playing" || v.phase === "collecting") label = v.buzzed ? "Prenotato!" : cooling ? waitLabel : "LO SO!";
   if (v.phase === "answering") label = v.isAnswering ? "Tocca a te: rispondi a voce!" : v.buzzed ? `Sei in coda (${v.position})` : "Aspetta…";
-  if (v.phase === "paused") label = "La musica riparte…";
+  if (v.phase === "paused") label = cooling ? waitLabel : "La musica riparte…";
   if (v.phase === "resolved") label = v.won ? "Hai indovinato! 🎉" : "Brano chiuso";
 
   return (
@@ -314,10 +332,10 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
       {v.category && <p className="muted">Categoria: <b>{v.category}</b></p>}
       <button
         className={`buzz-btn ${v.isAnswering ? "answering" : ""}`}
-        disabled={!v.canBuzz}
+        disabled={!canBuzz}
         // pointerdown e non click: niente ritardo di 300 ms su mobile.
         onPointerDown={() => {
-          if (!v.canBuzz) return;
+          if (!canBuzz) return;
           send({ type: "buzz" });
           navigator.vibrate?.(30); // Android; iOS la ignora
           sfx("buzz", 0.5);
@@ -325,6 +343,12 @@ export function IndovinaCanzoneController({ view, send, theme, clock }: Controll
       >
         {label}
       </button>
+      {cooling && cooldownUntil !== null && v.phase !== "resolved" && (
+        <div className="rebuzz-wait" data-testid="rebuzz-wait">
+          <p className="muted">Potrai prenotarti di nuovo tra:</p>
+          <Countdown openedAt={cooldownUntil - (v.cooldownMs ?? 0)} deadline={cooldownUntil} clock={clock} />
+        </div>
+      )}
     </div>
   );
 }

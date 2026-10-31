@@ -1,11 +1,13 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { type MediaItem, youtubeId } from "@gioco/shared";
+import { type EffectSetting, type InstanceView, type MediaItem, youtubeId } from "@gioco/shared";
 import { api, errorMessage, uploadAudio } from "../api";
 import { AudioPreview } from "./AudioPreview";
 import { SongCategoryPicker } from "./CategoryManager";
-import { AudioField, Field, ObjectFields, RootCtx } from "./SchemaForm";
+import { AudioField, Field, ObjectFields, RootChangeCtx, RootCtx } from "./SchemaForm";
 import { type JsonSchema, defaultValue, moveItem, setKey } from "./logic";
-import { effectsOf, materializeListening, songSource, songSummary, titleFromFile } from "./songs";
+import { AUDIO_KINDS, AUDIO_KIND_NAMES, type AudioKind, PRESET_LEVELS, PRESET_LEVEL_NAMES, hasVariants, nextVariant, presetEffects } from "./presets";
+import { buildBundle, fromConfig, mergeBundle, mergeMessage, parseBundle, type SongBundle } from "./songTransfer";
+import { effectsOf, materializeListening, songSource, songSummary, titleFromFile, withZone } from "./songs";
 
 /** Campi dell'ascolto del brano: dove parte, quanto dura e in che modo (le modalità mostrano solo i loro). */
 const LISTEN_KEYS = [
@@ -14,6 +16,8 @@ const LISTEN_KEYS = [
   "clipSeconds",
   "loopSeconds",
   "loopPauseSeconds",
+  "repeatSeconds",
+  "repeatCount",
   "speed",
   "keepPitch",
   "normalAfterSeconds",
@@ -41,16 +45,20 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [links, setLinks] = useState<string | null>(null);
+  const [others, setOthers] = useState<InstanceView[]>([]);
+  const [notice, setNotice] = useState("");
   // I caricamenti finiscono a brano modificato nel frattempo: si aggiunge sempre all'elenco di adesso.
   const latest = useRef(list);
   latest.current = list;
 
   useEffect(() => {
     api<MediaItem[]>("GET", "/media").then(setLibrary, () => undefined);
+    api<InstanceView[]>("GET", "/instances").then((all) => setOthers(all.filter((i) => i.typeId === "indovina-canzone")), () => undefined);
   }, []);
 
   // L'ascolto si decide brano per brano: chi seguiva ancora il round (brani salvati prima, brani nuovi) riceve i suoi valori.
   const round = useContext(RootCtx);
+  const setRoot = useContext(RootChangeCtx);
   useEffect(() => {
     const next = list.map((song) => materializeListening(song, round));
     if (next.some((song, i) => song !== list[i])) onChange(next);
@@ -104,6 +112,30 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
     setError("");
     add(lines.map((youtube) => ({ youtube })));
     setLinks(null);
+  };
+
+  /** Unisce i brani importati a quelli di questa istanza (si salva con il pulsante di salvataggio, come ogni modifica). */
+  const merge = (bundle: SongBundle) => {
+    const result = mergeBundle({ ...round, songs: latest.current }, bundle, max);
+    setRoot(result.root);
+    setError("");
+    setNotice(mergeMessage(result));
+  };
+  const exportSongs = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(buildBundle({ ...round, songs: latest.current }), null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "brani-indovina-la-canzone.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const importFile = async (file: File) => {
+    try {
+      merge(parseBundle(await file.text()));
+    } catch (e) {
+      setNotice("");
+      setError(e instanceof Error ? e.message : "File non valido");
+    }
   };
 
   const update = (i: number, song: Song) => onChange(list.map((s, j) => (j === i ? song : s)));
@@ -178,6 +210,39 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
           </select>
         )}
       </div>
+      <div className="song-transfer">
+        <button type="button" disabled={list.length === 0} onClick={exportSongs}>Esporta i brani (JSON)</button>
+        <label className="file-btn">
+          Importa brani da file
+          <input
+            type="file"
+            hidden
+            accept="application/json,.json"
+            aria-label="Importa brani da file"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) void importFile(file);
+            }}
+          />
+        </label>
+        {others.length > 0 && (
+          <select
+            aria-label="Importa i brani di un'altra istanza"
+            disabled={full}
+            value=""
+            onChange={(e) => {
+              const found = others.find((i) => i.id === e.target.value);
+              if (found) merge(fromConfig(found.config));
+            }}
+          >
+            <option value="">Aggiungi i brani di un'altra istanza…</option>
+            {others.map((i) => <option key={i.id} value={i.id}>{i.title}</option>)}
+          </select>
+        )}
+      </div>
+      <small className="muted">L'importazione aggiunge in fondo, con effetti, camuffamenti, ascolto e categorie; salta i brani già presenti. I file audio restano nella libreria del server.</small>
+      {notice && <small className="hint" role="status" data-testid="song-import-notice">{notice}</small>}
       {links !== null && (
         <div className="song-links">
           <textarea aria-label="Link YouTube da aggiungere" rows={3} placeholder="Un link YouTube per riga" value={links} onChange={(e) => setLinks(e.target.value)} />
@@ -199,6 +264,36 @@ export function SongList({ schema, value, onChange }: { schema: JsonSchema; valu
         />
       )}
     </fieldset>
+  );
+}
+
+/**
+ * Menu «Camuffa»: tipo di audio e livello riempiono l'elenco degli effetti con una combinazione predefinita (da ascoltare
+ * con l'anteprima e ritoccare a mano); «Altre varianti» cambia il seme degli effetti che lo usano.
+ */
+function DisguisePresets({ song, onChange }: { song: Song; onChange: (song: Song) => void }) {
+  const [kind, setKind] = useState<AudioKind>("voice");
+  const current = effectsOf(song);
+  // Il vecchio effetto singolo si fonde nell'elenco: dopo un preset non resta più.
+  const apply = (effects: EffectSetting[]) => onChange(setKey(setKey(song, "effects", effects), "effect", undefined));
+  return (
+    <div className="disguise-presets" role="group" aria-label="Camuffa">
+      <label className="field">
+        <span className="label">Camuffa: tipo di audio</span>
+        <select aria-label="Tipo di audio" value={kind} onChange={(e) => setKind(e.target.value as AudioKind)}>
+          {AUDIO_KINDS.map((k) => (
+            <option key={k} value={k}>{AUDIO_KIND_NAMES[k]}</option>
+          ))}
+        </select>
+      </label>
+      <div className="row">
+        {PRESET_LEVELS.map((level) => (
+          <button key={level} type="button" onClick={() => apply(presetEffects(kind, level))}>{PRESET_LEVEL_NAMES[level]}</button>
+        ))}
+        <button type="button" disabled={!hasVariants(current)} onClick={() => apply(nextVariant(current))}>Altre varianti</button>
+      </div>
+      <small className="muted">Sostituisce l'elenco degli effetti con una combinazione già pronta: poi la ascolti con l'anteprima e la ritocchi a mano. «Altre varianti» cambia il caso degli effetti che ne usano uno (sillabe mescolate, balbuziente, vocoder).</small>
+    </div>
   );
 }
 
@@ -242,7 +337,20 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
             <h3>Brano {index + 1} · {answer}</h3>
             <button type="button" ref={done} onClick={onClose}>Fatto</button>
           </header>
-          {!isYoutube && file && inLibrary && <AudioPreview key={file} file={file} effects={effectsOf(song)} song={song} round={round} />}
+          {!isYoutube && file && inLibrary && (
+            <AudioPreview
+              key={file}
+              file={file}
+              effects={effectsOf(song)}
+              song={song}
+              round={round}
+              onAddZone={(i, zone) => {
+                const list = effectsOf(song);
+                onChange(setKey(setKey(song, "effects", [...list.slice(0, i + 1), withZone(list[i]!, zone), ...list.slice(i + 1)]), "effect", undefined));
+              }}
+              onZoneChange={(i, zone) => onChange(setKey(setKey(song, "effects", effectsOf(song).map((e, j) => (j === i ? withZone(e, zone) : e))), "effect", undefined))}
+            />
+          )}
         </div>
 
         {section(
@@ -280,7 +388,14 @@ function AdvancedDialog({ index, inLibrary, schema, song, onChange, onClose }: {
         {section("Partenza e ascolto", only(LISTEN_KEYS), "Il punto da cui parte il brano e come lo si ascolta in partita: solo per questo brano.")}
         {section(
           "Effetti sull'audio",
-          isYoutube ? <small className="muted">Non disponibili con YouTube.</small> : only(["effect", "effects"]),
+          isYoutube ? (
+            <small className="muted">Non disponibili con YouTube.</small>
+          ) : (
+            <>
+              <DisguisePresets song={song} onChange={onChange} />
+              {only(["effect", "effects"])}
+            </>
+          ),
           "Filtri (sfocato, telefono, eco…) e camuffamenti (al contrario a pezzi, spettro capovolto, sillabe mescolate) stanno nella stessa lista, in serie nell'ordine delle card. L'anteprima li suona tutti.",
         )}
         {section(

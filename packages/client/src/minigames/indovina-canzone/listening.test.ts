@@ -23,6 +23,7 @@ function fakeBackend(options: { ready?: boolean } = {}) {
     if (playing) position += ((t - last) / 1000) * rate;
     last = t;
   };
+  const snippets: [string, number][] = [];
   const log = (name: string, ...args: unknown[]) => calls.push({ at: Date.now(), name, args });
   const backend: MusicBackend = {
     whenReady(cb) {
@@ -33,7 +34,8 @@ function fakeBackend(options: { ready?: boolean } = {}) {
       waiting.push(cb);
       return () => void waiting.splice(waiting.indexOf(cb), 1);
     },
-    playAt(seconds, maxMs) {
+    playAt(seconds, maxMs, snippet) {
+      if (snippet !== undefined) snippets.push(["playAt", snippet]);
       sync();
       log("playAt", ...(maxMs === undefined ? [seconds] : [seconds, maxMs]));
       position = seconds;
@@ -44,7 +46,8 @@ function fakeBackend(options: { ready?: boolean } = {}) {
       log("pause");
       playing = false;
     },
-    cue(seconds) {
+    cue(seconds, snippet) {
+      if (snippet !== undefined) snippets.push(["cue", snippet]);
       sync();
       log("cue", seconds);
       position = seconds;
@@ -61,6 +64,7 @@ function fakeBackend(options: { ready?: boolean } = {}) {
   return {
     backend,
     calls,
+    snippets,
     named: (name: string) => calls.filter((c) => c.name === name),
     /** Dove si trova il brano adesso (secondi). */
     position: () => {
@@ -383,6 +387,19 @@ describe("ascolto a spezzoni", () => {
       [2_700, "cue", 3],
     ]);
     expect(positions.length).toBeGreaterThan(0);
+  });
+
+  it("dice al lettore quale spezzone suona e quale suonerà dopo la pausa", () => {
+    const f = fakeBackend();
+    startListening(f.backend, run({ listening, startSeconds: 3, clipMs: 2_700 }));
+    vi.advanceTimersByTime(3_000);
+    expect(f.snippets).toEqual([
+      ["playAt", 0],
+      ["cue", 1],
+      ["playAt", 1],
+      ["cue", 2],
+      ["cue", 2], // fine dell'ultima pausa
+    ]);
   });
 
   it("aspetta l'inizio fissato dal server un po' nel futuro, così il primo spezzone è intero", () => {

@@ -247,6 +247,7 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
     mode: string;
     clipMs: number;
     loop: unknown;
+    stepped: boolean;
     rate: unknown;
     keepPitch: boolean;
     stages: unknown;
@@ -257,6 +258,16 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
   };
   const musicOf = (s: IndovinaCanzoneState) => (game.screenView(s) as { music: MusicView }).music;
   const start = (cfg: ReturnType<typeof must>, now = 1_000) => cmd(game.init(cfg, ctx, 0), "start", now);
+
+  it("ripetizioni: i punti scendono a ogni giro e lo schermo sa che la nitidezza segue i giri", () => {
+    const cfg = must({ maxPoints: 100, minPoints: 20 }, { playback: "repeat", repeatSeconds: 4, repeatCount: 5, loopPauseSeconds: 1, effects: [{ type: "blur", amount: 200 }] });
+    const s0 = start(cfg, 1_000);
+    expect(musicOf(s0)).toMatchObject({ mode: "repeat", stepped: true, clearAtPercent: null, loop: { pauseMs: 1_000 }, segmentStart: 1_000 + LOOP_LEAD_MS });
+    const t0 = 1_000 + LOOP_LEAD_MS;
+    const pointsAt = (heard: number) => cmd(game.onTick(press(s0, "a", t0 + heard), t0 + heard + 1_000), "correct").totals.a;
+    // Giro 1: 0–4 s, pausa fino a 5 s; giro 2: 5–9 s…; l'ultimo giro (5°) vale il minimo.
+    expect([500, 3_900, 5_500, 10_500, 15_500, 24_000].map(pointsAt)).toEqual([100, 100, 80, 60, 40, 20]);
+  });
 
   it("senza scelte proprie ogni brano segue il round, come prima", () => {
     const cfg = must({ playback: "loops", loopSeconds: [1, 2], loopPauseSeconds: 1 }, {}, {});
@@ -417,7 +428,8 @@ describe("indovina la canzone: modalità di ascolto brano per brano", () => {
     const props = json.properties.songs.items.properties;
     const shownIn = (key: string) => props[key]!.showWhen?.in ?? "sempre";
     expect(shownIn("loopSeconds")).toEqual(["loops"]);
-    expect(shownIn("loopPauseSeconds")).toEqual(["loops"]);
+    expect(shownIn("loopPauseSeconds")).toEqual(["loops", "repeat"]);
+    for (const k of ["repeatSeconds", "repeatCount"]) expect(shownIn(k)).toEqual(["repeat"]);
     expect(shownIn("speed")).toEqual(["speed", "speed_then_normal"]);
     expect(shownIn("keepPitch")).toEqual(["speed", "speed_then_normal"]);
     expect(shownIn("normalAfterSeconds")).toEqual(["speed_then_normal"]);
@@ -822,5 +834,134 @@ describe("indovina la canzone: configurazione", () => {
     const draft = game.draftConfig as { songs: { audio?: string; youtube?: string }[] };
     expect(draft.songs[0]).not.toHaveProperty("audio");
     expect(draft.songs[0]).not.toHaveProperty("youtube");
+  });
+});
+
+describe("indovina la canzone: riprenotazione dopo una risposta sbagliata", () => {
+  const again = game.configSchema.parse({ ...config, rebuzz: true, rebuzzCooldownSeconds: 10 });
+  const start = (cfg = again) => cmd(game.init(cfg, ctx, 0), "start", 1_000);
+  /** `a` si prenota, sbaglia a `at` e la regia riprende la musica. */
+  function afterWrong(cfg = again, at = 20_000) {
+    let s = start(cfg);
+    s = press(s, "a", 5_000);
+    s = game.onTick(s, 6_000);
+    s = cmd(s, "wrong", at);
+    return cmd(s, "resume", at + 1_000);
+  }
+
+  it("di norma è spenta: chi sbaglia non può ripremere per quel brano", () => {
+    expect(config.rebuzz).toBe(false);
+    const s = afterWrong(config);
+    expect(game.viewFor(s, "a", null)).toMatchObject({ canBuzz: false, buzzed: true, cooldownUntil: null });
+    expect(press(s, "a", 90_000)).toBe(s);
+  });
+
+  it("chi sbaglia non è più bloccato, ma deve aspettare: prima della scadenza la prenotazione è ignorata", () => {
+    const s = afterWrong();
+    expect(s.locked).not.toContain("a");
+    expect(game.viewFor(s, "a", null)).toMatchObject({ canBuzz: true, buzzed: false, cooldownUntil: 30_000, cooldownMs: 10_000 });
+    expect(press(s, "a", 29_000, 20)).toBe(s);
+    expect(press(s, "a", 29_970, 20)).toBe(s); // arriva sul server a 29990: conta l'ora di arrivo, la scadenza è 30000
+  });
+
+  it("dopo l'attesa può prenotarsi di nuovo, e anche gli altri nel frattempo", () => {
+    const s = afterWrong();
+    expect(press(s, "b", 21_000).phase).toBe("collecting");
+    const later = press(s, "a", 30_000, 20);
+    expect(later.phase).toBe("collecting");
+    expect(later.queue[0]!.playerId).toBe("a");
+  });
+
+  it("l'attesa è solo di chi ha sbagliato", () => {
+    const s = afterWrong();
+    expect(game.viewFor(s, "b", null)).toMatchObject({ cooldownUntil: null });
+    expect(Object.keys(s.cooldowns)).toEqual(["a"]);
+  });
+
+  it("con più prenotati, ognuno che sbaglia ha la sua attesa", () => {
+    let s = answeringAfter(["a", 5_000], ["b", 5_100]);
+    s = { ...s, cfg: again };
+    s = cmd(s, "wrong", 20_000);
+    s = cmd(s, "wrong", 25_000);
+    expect(s.phase).toBe("paused");
+    expect(s.cooldowns).toEqual({ a: 30_000, b: 35_000 });
+  });
+
+  it("senza attesa (0 s) si può riprenotare subito", () => {
+    const s = afterWrong(game.configSchema.parse({ ...again, rebuzzCooldownSeconds: 0 }));
+    expect(press(s, "a", 22_000).phase).toBe("collecting");
+  });
+
+  it("se tutti hanno sbagliato il brano non si chiude: possono riprovare", () => {
+    let s = start();
+    for (const id of ["a", "b", "c"]) {
+      s = press(s, id, 5_000);
+      s = game.onTick(s, 6_000);
+      s = cmd(s, "wrong", 20_000);
+      s = cmd(s, "resume", 21_000);
+    }
+    expect(s.phase).toBe("playing");
+  });
+
+  it("cambiando brano l'attesa si azzera subito", () => {
+    let s = start();
+    s = press(s, "a", 5_000);
+    s = game.onTick(s, 6_000);
+    s = cmd(s, "wrong", 20_000);
+    s = cmd(s, "skip", 21_000);
+    s = cmd(s, "next", 22_000);
+    expect(s.cooldowns).toEqual({});
+    s = cmd(s, "start", 23_000);
+    expect(game.viewFor(s, "a", null)).toMatchObject({ canBuzz: true, cooldownUntil: null });
+    expect(press(s, "a", 24_000).phase).toBe("collecting");
+  });
+
+  it("anti-leak: lo schermo non riceve le attese né i telefoni degli altri", () => {
+    const s = afterWrong();
+    expect(JSON.stringify(game.screenView(s))).not.toContain("cooldown");
+    expect(JSON.stringify(game.viewFor(s, "b", null))).not.toContain("30000");
+  });
+});
+
+describe("indovina la canzone: attesa per squadra", () => {
+  const teamCtx: MinigameContext = {
+    players: [
+      { id: "a", nickname: "A", teamId: "rossi" },
+      { id: "b", nickname: "B", teamId: "rossi" },
+      { id: "c", nickname: "C", teamId: "blu" },
+      { id: "d", nickname: "D", teamId: null },
+    ],
+    teams: [
+      { id: "rossi", name: "Rossi", color: undefined },
+      { id: "blu", name: "Blu", color: undefined },
+    ],
+    seed: 1,
+  };
+  const wrongBy = (scope: "player" | "team", id = "a") => {
+    const cfg = game.configSchema.parse({ ...config, rebuzz: true, rebuzzScope: scope, rebuzzCooldownSeconds: 10 });
+    let s = cmd(game.init(cfg, teamCtx, 0), "start", 1_000);
+    s = press(s, id, 5_000);
+    s = game.onTick(s, 6_000);
+    return cmd(cmd(s, "wrong", 20_000), "resume", 21_000);
+  };
+
+  it("per giocatore aspetta solo chi ha sbagliato", () => {
+    const s = wrongBy("player");
+    expect(s.cooldowns).toEqual({ a: 30_000 });
+    expect(press(s, "b", 22_000).phase).toBe("collecting");
+  });
+
+  it("per squadra aspettano anche i compagni, non le altre squadre", () => {
+    const s = wrongBy("team");
+    expect(s.cooldowns).toEqual({ a: 30_000, b: 30_000 });
+    expect(press(s, "b", 22_000)).toBe(s);
+    expect(game.viewFor(s, "b", "rossi")).toMatchObject({ cooldownUntil: 30_000, cooldownTeam: true });
+    expect(game.viewFor(s, "c", "blu")).toMatchObject({ cooldownUntil: null });
+    expect(press(s, "c", 22_000).phase).toBe("collecting");
+    expect(press(s, "b", 30_000).phase).toBe("collecting");
+  });
+
+  it("chi non ha squadra aspetta da solo", () => {
+    expect(wrongBy("team", "d").cooldowns).toEqual({ d: 30_000 });
   });
 });
